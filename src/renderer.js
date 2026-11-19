@@ -719,16 +719,17 @@ export class LisboaCanvasRenderer {
 
     ctx.restore();
 
-    // Floating boarding badge when stopped
+    // Floating boarding badge cleanly below vehicle when stopped
     if (vehicle.currentStopId) {
-      ctx.font = '700 10px "Segoe UI", sans-serif';
+      const tag = playerAboard ? 'ABOARD - AT STOP' : `${vehicle.badge} AT STOP`;
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      const tw = ctx.measureText(tag).width + 12;
+      drawRoundedRect(ctx, vehicle.x - tw / 2, vehicle.y + 20, tw, 16, 4);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
+      ctx.fill();
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText(
-        playerAboard ? 'ABOARD - AT STOP' : `${vehicle.badge} AT STOP`,
-        vehicle.x,
-        vehicle.y - 24
-      );
+      ctx.fillStyle = '#fde68a';
+      ctx.fillText(tag, vehicle.x, vehicle.y + 31);
       ctx.textAlign = 'left';
     }
   }
@@ -816,10 +817,10 @@ export class LisboaCanvasRenderer {
   }
 
   drawMiniMap(ctx, state) {
-    const mw = 178;
-    const mh = 88;
-    const mx = this.viewWidth - mw - 12;
-    const my = 12;
+    const mw = 156;
+    const mh = 76;
+    const mx = this.viewWidth - mw - 10;
+    const my = 10;
     const sx = mw / WORLD_WIDTH;
     const sy = mh / WORLD_HEIGHT;
 
@@ -877,10 +878,10 @@ export class LisboaCanvasRenderer {
 
     // District labels below minimap
     ctx.fillStyle = '#e2e8f0';
-    ctx.font = '600 9px "Segoe UI", sans-serif';
-    ctx.fillText('B. ALTO', mx + 8, my + mh + 12);
-    ctx.fillText('CHIADO', mx + 68, my + mh + 12);
-    ctx.fillText('ALFAMA', mx + 128, my + mh + 12);
+    ctx.font = '600 8.5px "Segoe UI", sans-serif';
+    ctx.fillText('B. ALTO', mx + 6, my + mh + 12);
+    ctx.fillText('CHIADO', mx + 58, my + mh + 12);
+    ctx.fillText('ALFAMA', mx + 112, my + mh + 12);
     ctx.restore();
   }
 

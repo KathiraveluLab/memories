@@ -2,6 +2,10 @@
 
 **memories** is a ground-level 2D RPG canvas exploration game set across three historic neighborhoods of Lisboa: **Bairro Alto**, **Chiado**, and **Alfama**. Walk the cobblestones on foot, board live-moving **Carris Eletrico 28E** streetcars and **Carris Bus 737 / 758** coaches, step inside local shops and restaurants, taste regional food, collect keepsakes, learn European Portuguese phrases, and fill your 16-entry **Lisboa Memory Album**.
 
+## Screenshot
+
+![memories Lisboa Application Screenshot](./assets/screenshot.png)
+
 ## Features
 
 - **Navigable RPG City Canvas**: Explore a continuous street-level map linking Bairro Alto (west), Chiado and Praca Luis de Camoes (center), and Alfama with Se de Lisboa and the Tagus waterfront (east) using `WASD` / Arrow keys or click-to-walk.

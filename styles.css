@@ -48,17 +48,17 @@ h1, h2, h3, h4, p {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   background: linear-gradient(135deg, var(--azulejo-dark), var(--azulejo));
   color: #ffffff;
-  padding: 14px 18px;
+  padding: 12px 16px;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   margin-bottom: 14px;
 }
 
 .brand-tag {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.09em;
   color: #fbd38d;
@@ -67,14 +67,14 @@ h1, h2, h3, h4, p {
 
 .brand-block h1 {
   margin: 2px 0 0;
-  font-size: 1.2rem;
+  font-size: 1.08rem;
   font-weight: 700;
 }
 
 .hud-metrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 8px;
   flex: 1 1 auto;
   justify-content: center;
 }
@@ -83,8 +83,8 @@ h1, h2, h3, h4, p {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-sm);
-  padding: 6px 11px;
-  min-width: 128px;
+  padding: 5px 10px;
+  min-width: 108px;
 }
 
 .metric-label {
@@ -518,7 +518,7 @@ h1, h2, h3, h4, p {
 
 .tab-panel {
   display: none;
-  max-height: 460px;
+  max-height: 585px;
   overflow-y: auto;
 }
 
