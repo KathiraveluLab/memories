@@ -51,6 +51,91 @@ export class LisboaCanvasRenderer {
     this.viewHeight = canvas.height;
     this.camera = { x: 490, y: 270 };
     this.animTime = 0;
+    this.patterns = this.createCobblePatterns();
+  }
+
+  createCobblePatterns() {
+    if (typeof document === 'undefined' || typeof this.ctx.createPattern !== 'function') {
+      return { sidewalk: null, street: null, plaza: null };
+    }
+
+    const buildTile = (size, mortarColor, palette, stoneH, minW, maxW, seedOffset) => {
+      const tile = document.createElement('canvas');
+      tile.width = size;
+      tile.height = size;
+      const tctx = tile.getContext('2d');
+      tctx.fillStyle = mortarColor;
+      tctx.fillRect(0, 0, size, size);
+
+      let seed = 1337 + seedOffset * 97;
+      const rand = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+      };
+
+      const rows = Math.floor(size / stoneH);
+      for (let r = 0; r < rows; r += 1) {
+        const y = r * stoneH;
+        const offset = (r % 2) * Math.round((minW + maxW) * 0.35);
+        let x = -offset;
+        while (x < size) {
+          const w = Math.round(minW + rand() * (maxW - minW));
+          const color = palette[Math.floor(rand() * palette.length)];
+          const sx = x + 1;
+          const sy = y + 1;
+          const sw = w - 2;
+          const sh = stoneH - 2;
+
+          // Draw wrapped stone so tile repeats seamlessly
+          for (const wrapX of [sx, sx - size, sx + size]) {
+            if (wrapX + sw < 0 || wrapX > size) continue;
+            drawRoundedRect(tctx, wrapX, sy, sw, sh, 2.5);
+            tctx.fillStyle = color;
+            tctx.fill();
+            // Sunlit top bevel highlight
+            tctx.fillStyle = 'rgba(255, 252, 245, 0.24)';
+            tctx.fillRect(wrapX + 1.5, sy + 1, Math.max(2, sw - 3), 2);
+            // Subtle bottom stone shadow
+            tctx.fillStyle = 'rgba(35, 32, 28, 0.14)';
+            tctx.fillRect(wrapX + 1.5, sy + sh - 2, Math.max(2, sw - 3), 1.5);
+          }
+          x += w;
+        }
+      }
+      return this.ctx.createPattern(tile, 'repeat');
+    };
+
+    const sidewalk = buildTile(
+      96,
+      '#b8afa0',
+      ['#ebe4d6', '#e2dacb', '#f2ece0', '#dcd3c3', '#e7dfd0'],
+      12,
+      12,
+      18,
+      1
+    );
+
+    const street = buildTile(
+      96,
+      '#686259',
+      ['#a69f95', '#968f86', '#b5aea3', '#8c867d', '#aba49a', '#9e978d'],
+      12,
+      14,
+      20,
+      2
+    );
+
+    const plaza = buildTile(
+      64,
+      '#b9b2a4',
+      ['#f2ede3', '#eae4d8', '#f6f2ea', '#e3dcd0'],
+      8,
+      8,
+      10,
+      3
+    );
+
+    return { sidewalk, street, plaza };
   }
 
   screenToWorld(canvasX, canvasY, state) {
@@ -200,6 +285,15 @@ export class LisboaCanvasRenderer {
   }
 
   drawCalcadaGroundTexture(ctx) {
+    if (this.patterns.sidewalk) {
+      ctx.save();
+      ctx.globalAlpha = 0.72;
+      ctx.fillStyle = this.patterns.sidewalk;
+      ctx.fillRect(0, 0, WORLD_WIDTH, WATERFRONT_Y);
+      ctx.restore();
+      return;
+    }
+
     const startX = Math.max(0, Math.floor(this.camera.x / 32) * 32 - 32);
     const endX = Math.min(WORLD_WIDTH, this.camera.x + this.viewWidth + 64);
     const startY = Math.max(0, Math.floor(this.camera.y / 24) * 24 - 24);
@@ -224,33 +318,32 @@ export class LisboaCanvasRenderer {
   }
 
   drawStreetsAndPlazas(ctx) {
+    const drawCurb = (x, y, w, h) => {
+      ctx.strokeStyle = '#d6cebf';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(x, y, w, h);
+      ctx.strokeStyle = '#7e766b';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+    };
+
     for (const st of STREETS) {
       if (st.style === 'bus-road') {
-        // Limestone sidewalk curbs + basalt cobble roadway
-        ctx.fillStyle = '#ddd6c8';
+        // Limestone sidewalk band + interlocking basalt cobblestone roadway
+        ctx.fillStyle = this.patterns.sidewalk || '#ddd6c8';
         ctx.fillRect(st.x, st.y, st.w, st.h);
-        ctx.fillStyle = '#b4ada2';
+        ctx.fillStyle = this.patterns.street || '#a69f95';
         ctx.fillRect(st.x + 10, st.y + 12, st.w - 20, st.h - 24);
-        ctx.strokeStyle = '#978f82';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(st.x + 10, st.y + 12, st.w - 20, st.h - 24);
+        drawCurb(st.x + 10, st.y + 12, st.w - 20, st.h - 24);
       } else if (st.style === 'tram-avenue') {
-        ctx.fillStyle = '#e0d9cb';
+        ctx.fillStyle = this.patterns.sidewalk || '#e0d9cb';
         ctx.fillRect(st.x, st.y, st.w, st.h);
-        ctx.fillStyle = '#c0b8aa';
+        ctx.fillStyle = this.patterns.street || '#aba49a';
         ctx.fillRect(st.x + 6, st.y + 16, st.w - 12, st.h - 32);
-        // Subtle basalt paving joints along tram avenue
-        ctx.strokeStyle = 'rgba(72, 68, 62, 0.14)';
-        ctx.lineWidth = 1;
-        for (let px = st.x + 20; px < st.x + st.w - 12; px += 28) {
-          ctx.beginPath();
-          ctx.moveTo(px, st.y + 18);
-          ctx.lineTo(px, st.y + st.h - 18);
-          ctx.stroke();
-        }
+        drawCurb(st.x + 6, st.y + 16, st.w - 12, st.h - 32);
       } else if (st.style === 'plaza') {
         // Praca Luis de Camoes iconic Mar Largo black-and-white calcada portuguesa
-        ctx.fillStyle = '#ede7db';
+        ctx.fillStyle = this.patterns.plaza || '#ede7db';
         ctx.fillRect(st.x, st.y, st.w, st.h);
 
         // Decorative basalt border trim
@@ -263,7 +356,7 @@ export class LisboaCanvasRenderer {
 
         // Alternating black basalt wave mosaic bands (Mar Largo)
         for (let wy = st.y + 22; wy < st.y + st.h - 18; wy += 24) {
-          ctx.fillStyle = 'rgba(54, 62, 74, 0.24)';
+          ctx.fillStyle = 'rgba(46, 54, 66, 0.34)';
           ctx.beginPath();
           for (let wx = st.x + 12; wx <= st.x + st.w - 12; wx += 8) {
             const offset = Math.sin((wx - st.x) * 0.12) * 5;
@@ -278,19 +371,21 @@ export class LisboaCanvasRenderer {
           ctx.fill();
         }
       } else {
-        // Cobble lanes (Rua da Rosa, Rua do Carmo, Escadinhas da Se)
-        ctx.fillStyle = '#dcd4c5';
+        // Historic Lisbon cobbled lanes (Rua da Rosa, Rua do Carmo, Escadinhas da Se)
+        ctx.fillStyle = this.patterns.sidewalk || '#dcd4c5';
         ctx.fillRect(st.x, st.y, st.w, st.h);
-        ctx.strokeStyle = 'rgba(90, 82, 70, 0.22)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(st.x + 1, st.y + 1, st.w - 2, st.h - 2);
+        ctx.fillStyle = this.patterns.street || '#b2aba0';
+        ctx.globalAlpha = 0.72;
+        ctx.fillRect(st.x + 8, st.y + 4, st.w - 16, st.h - 8);
+        ctx.globalAlpha = 1;
+        drawCurb(st.x + 8, st.y + 4, st.w - 16, st.h - 8);
 
         // Alfama limestone steps (Escadinhas da Se)
         if (st.id === 'st-se') {
           for (let sy = 365; sy < 530; sy += 14) {
             ctx.fillStyle = sy % 28 === 0 ? '#cfc6b6' : '#e3dccd';
             ctx.fillRect(st.x + 12, sy, st.w - 24, 9);
-            ctx.fillStyle = 'rgba(74, 68, 58, 0.28)';
+            ctx.fillStyle = 'rgba(74, 68, 58, 0.32)';
             ctx.fillRect(st.x + 12, sy + 9, st.w - 24, 2);
           }
         }
