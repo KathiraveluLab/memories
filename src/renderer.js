@@ -31,6 +31,18 @@ function drawRoundedRect(ctx, x, y, w, h, r = 6) {
   ctx.closePath();
 }
 
+const VENUE_ARCHITECTURAL_STYLE = {
+  'quiosque-sao-pedro': { wallStyle: 'pombaline-teal', shutter: '#1b4f3e', flowers: '#d94854', chimney: false },
+  'tasca-do-fado': { wallStyle: 'ochre-plaster', shutter: '#6e231c', flowers: '#c93434', chimney: true },
+  'vinil-do-alto': { wallStyle: 'rose-plaster', shutter: '#3b2e5a', flowers: '#c94c7a', chimney: true },
+  'livraria-chiado': { wallStyle: 'cobalt-azulejo', shutter: '#16385b', flowers: '#d14334', chimney: false },
+  'cafe-do-poeta': { wallStyle: 'ochre-azulejo', shutter: '#5a3a18', flowers: '#d94c3d', chimney: true },
+  'atelier-cortica': { wallStyle: 'pombaline-teal', shutter: '#5e351e', flowers: '#cf5636', chimney: false },
+  'oficina-azulejos': { wallStyle: 'cobalt-azulejo', shutter: '#143c69', flowers: '#d94854', chimney: true },
+  'taberna-sardinha': { wallStyle: 'ochre-plaster', shutter: '#1d568a', flowers: '#e04f3e', chimney: true },
+  'conservas-alfama': { wallStyle: 'cobalt-azulejo', shutter: '#165248', flowers: '#d94854', chimney: false }
+};
+
 export class LisboaCanvasRenderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -81,83 +93,41 @@ export class LisboaCanvasRenderer {
   renderOverworld(ctx, state, nearbyInteraction) {
     const phase = getDayPhase(state.minutesOfDay);
     const isEvening = phase.id === 'evening';
+    const isGolden = phase.id === 'golden';
 
     ctx.save();
     ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
 
-    // 1. Neighborhood base ground tiles
+    // 1. Limestone neighborhood base ground
     for (const hood of NEIGHBORHOODS) {
       ctx.fillStyle = hood.groundTint;
       ctx.fillRect(hood.minX, 0, hood.maxX - hood.minX, WATERFRONT_Y);
     }
 
-    // Subtle sidewalk grid lines
-    ctx.strokeStyle = 'rgba(120, 108, 90, 0.12)';
-    ctx.lineWidth = 1;
-    for (let gx = 40; gx < WORLD_WIDTH; gx += 48) {
-      ctx.beginPath();
-      ctx.moveTo(gx, 0);
-      ctx.lineTo(gx, WATERFRONT_Y);
-      ctx.stroke();
-    }
-    for (let gy = 40; gy < WATERFRONT_Y; gy += 48) {
-      ctx.beginPath();
-      ctx.moveTo(0, gy);
-      ctx.lineTo(WORLD_WIDTH, gy);
-      ctx.stroke();
-    }
+    // Subtle Lisbon calcada limestone masonry texture
+    this.drawCalcadaGroundTexture(ctx);
 
-    // 2. Streets, plazas, and calcada corridors
-    for (const st of STREETS) {
-      if (st.style === 'bus-road') {
-        ctx.fillStyle = '#cfc8bc';
-        ctx.fillRect(st.x, st.y, st.w, st.h);
-        ctx.fillStyle = '#b9b2a7';
-        ctx.fillRect(st.x + 8, st.y + 10, st.w - 16, st.h - 20);
-      } else if (st.style === 'tram-avenue') {
-        ctx.fillStyle = '#d6cfc2';
-        ctx.fillRect(st.x, st.y, st.w, st.h);
-        ctx.fillStyle = '#c5bdb0';
-        ctx.fillRect(st.x + 6, st.y + 16, st.w - 12, st.h - 32);
-      } else if (st.style === 'plaza') {
-        ctx.fillStyle = '#e5ded2';
-        ctx.fillRect(st.x, st.y, st.w, st.h);
-        // Calcada wave pattern inside Praca Luis de Camoes
-        ctx.strokeStyle = 'rgba(42, 54, 72, 0.2)';
-        ctx.lineWidth = 2;
-        for (let wy = st.y + 24; wy < st.y + st.h - 20; wy += 24) {
-          ctx.beginPath();
-          for (let wx = st.x + 12; wx < st.x + st.w - 12; wx += 14) {
-            const offset = Math.sin((wx - st.x) * 0.16) * 4;
-            if (wx === st.x + 12) ctx.moveTo(wx, wy + offset);
-            else ctx.lineTo(wx, wy + offset);
-          }
-          ctx.stroke();
-        }
-      } else {
-        ctx.fillStyle = '#d9d1c4';
-        ctx.fillRect(st.x, st.y, st.w, st.h);
-      }
-    }
+    // 2. Streets, plazas, Alfama escadinhas, and calcada Mar Largo waves
+    this.drawStreetsAndPlazas(ctx);
 
-    // 3. Tagus River Waterfront
+    // 3. Tagus River Waterfront with stone parapet and sailboats
     this.drawTagusWaterfront(ctx);
 
     // 4. Transit corridors (Bus road markings + Steel Tram 28E Rails)
     this.drawTransitInfrastructure(ctx);
 
-    // 5. Neighborhood district headers painted subtly onto plazas
-    this.drawNeighborhoodSignage(ctx);
+    // 5. Enamel Lisbon street plaques (Placas Toponimicas)
+    this.drawLisbonStreetPlaques(ctx);
 
-    // 6. Miradouro Rest Benches & Trees
+    // 6. Jacaranda trees, bougainvillea pergolas, and tiled miradouro benches
     this.drawTreesAndBenches(ctx, state);
 
-    // 7. Decorative structures & landmarks (Se de Lisboa, townhouses, Camoes statue)
+    // 7. Decorative Portuguese townhouses, Se de Lisboa cathedral, and Camoes monument
     for (const struct of DECORATIVE_STRUCTURES) {
       this.drawDecorativeStructure(ctx, struct, isEvening);
     }
 
-    // 8. Enterable Shops & Restaurants
+    // 8. Enterable Shops, Cafes & Restaurants with azulejos and Pombaline facades
     for (const venue of VENUES) {
       const visited = state.visitedVenues.includes(venue.id);
       const isHighlighted = nearbyInteraction?.type === 'venue' && nearbyInteraction.id === venue.id;
@@ -170,7 +140,10 @@ export class LisboaCanvasRenderer {
       this.drawTransitStop(ctx, stop, isHighlighted, isEvening);
     }
 
-    // 10. Walk Target Indicator
+    // 10. Classic wrought-iron Lisbon streetlamps (Candeeiros)
+    this.drawLisbonStreetlamps(ctx, isEvening, isGolden);
+
+    // 11. Walk Target Indicator
     if (state.player.walkTarget) {
       const pulse = 8 + Math.sin(this.animTime * 6) * 3;
       ctx.strokeStyle = '#1b4d89';
@@ -180,7 +153,7 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // 11. Ambient Lisbon Locals
+    // 12. Ambient Lisbon Locals
     for (const npc of state.npcs) {
       this.drawCharacterSprite(ctx, npc.x, npc.y, {
         facing: npc.patrolAxis === 'x' ? (npc.dir > 0 ? 'right' : 'left') : (npc.dir > 0 ? 'down' : 'up'),
@@ -193,13 +166,13 @@ export class LisboaCanvasRenderer {
       });
     }
 
-    // 12. Live Transit Vehicles (Tram 28E & Carris Bus)
+    // 13. Live Transit Vehicles (Remodelado Tram 28E & Carris Bus)
     for (const vehicle of state.vehicles) {
       const playerAboard = state.ridingVehicleId === vehicle.id;
       this.drawTransitVehicle(ctx, vehicle, playerAboard, isEvening);
     }
 
-    // 13. Player Character (when not riding inside a vehicle)
+    // 14. Player Character (when walking on foot)
     if (!state.ridingVehicleId) {
       this.drawCharacterSprite(ctx, state.player.x, state.player.y, {
         facing: state.player.facing,
@@ -214,30 +187,141 @@ export class LisboaCanvasRenderer {
 
     ctx.restore();
 
-    // 14. Time-of-day atmospheric lighting wash
+    // 15. Time-of-day atmospheric lighting wash
     this.drawTimeOfDayOverlay(ctx, phase);
 
-    // 15. Mini-map HUD overlay inside top-right corner
+    // 16. Mini-map HUD overlay inside top-right corner
     this.drawMiniMap(ctx, state);
 
-    // 16. Floating Context Interaction Prompt at bottom-center
+    // 17. Floating Context Interaction Prompt at bottom-center
     if (nearbyInteraction) {
       this.drawInteractionBanner(ctx, nearbyInteraction);
     }
   }
 
+  drawCalcadaGroundTexture(ctx) {
+    const startX = Math.max(0, Math.floor(this.camera.x / 32) * 32 - 32);
+    const endX = Math.min(WORLD_WIDTH, this.camera.x + this.viewWidth + 64);
+    const startY = Math.max(0, Math.floor(this.camera.y / 24) * 24 - 24);
+    const endY = Math.min(WATERFRONT_Y, this.camera.y + this.viewHeight + 48);
+
+    ctx.strokeStyle = 'rgba(118, 106, 88, 0.13)';
+    ctx.lineWidth = 1;
+    for (let gy = startY; gy < endY; gy += 24) {
+      ctx.beginPath();
+      ctx.moveTo(startX, gy);
+      ctx.lineTo(endX, gy);
+      ctx.stroke();
+
+      const stagger = ((gy / 24) % 2) * 16;
+      for (let gx = startX + stagger; gx < endX; gx += 32) {
+        ctx.beginPath();
+        ctx.moveTo(gx, gy);
+        ctx.lineTo(gx, gy + 24);
+        ctx.stroke();
+      }
+    }
+  }
+
+  drawStreetsAndPlazas(ctx) {
+    for (const st of STREETS) {
+      if (st.style === 'bus-road') {
+        // Limestone sidewalk curbs + basalt cobble roadway
+        ctx.fillStyle = '#ddd6c8';
+        ctx.fillRect(st.x, st.y, st.w, st.h);
+        ctx.fillStyle = '#b4ada2';
+        ctx.fillRect(st.x + 10, st.y + 12, st.w - 20, st.h - 24);
+        ctx.strokeStyle = '#978f82';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(st.x + 10, st.y + 12, st.w - 20, st.h - 24);
+      } else if (st.style === 'tram-avenue') {
+        ctx.fillStyle = '#e0d9cb';
+        ctx.fillRect(st.x, st.y, st.w, st.h);
+        ctx.fillStyle = '#c0b8aa';
+        ctx.fillRect(st.x + 6, st.y + 16, st.w - 12, st.h - 32);
+        // Subtle basalt paving joints along tram avenue
+        ctx.strokeStyle = 'rgba(72, 68, 62, 0.14)';
+        ctx.lineWidth = 1;
+        for (let px = st.x + 20; px < st.x + st.w - 12; px += 28) {
+          ctx.beginPath();
+          ctx.moveTo(px, st.y + 18);
+          ctx.lineTo(px, st.y + st.h - 18);
+          ctx.stroke();
+        }
+      } else if (st.style === 'plaza') {
+        // Praca Luis de Camoes iconic Mar Largo black-and-white calcada portuguesa
+        ctx.fillStyle = '#ede7db';
+        ctx.fillRect(st.x, st.y, st.w, st.h);
+
+        // Decorative basalt border trim
+        ctx.strokeStyle = '#3b424c';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(st.x + 4, st.y + 4, st.w - 8, st.h - 8);
+        ctx.strokeStyle = '#68707d';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(st.x + 9, st.y + 9, st.w - 18, st.h - 18);
+
+        // Alternating black basalt wave mosaic bands (Mar Largo)
+        for (let wy = st.y + 22; wy < st.y + st.h - 18; wy += 24) {
+          ctx.fillStyle = 'rgba(54, 62, 74, 0.24)';
+          ctx.beginPath();
+          for (let wx = st.x + 12; wx <= st.x + st.w - 12; wx += 8) {
+            const offset = Math.sin((wx - st.x) * 0.12) * 5;
+            if (wx === st.x + 12) ctx.moveTo(wx, wy + offset);
+            else ctx.lineTo(wx, wy + offset);
+          }
+          for (let wx = st.x + st.w - 12; wx >= st.x + 12; wx -= 8) {
+            const offset = Math.sin((wx - st.x) * 0.12) * 5;
+            ctx.lineTo(wx, wy + 7 + offset);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else {
+        // Cobble lanes (Rua da Rosa, Rua do Carmo, Escadinhas da Se)
+        ctx.fillStyle = '#dcd4c5';
+        ctx.fillRect(st.x, st.y, st.w, st.h);
+        ctx.strokeStyle = 'rgba(90, 82, 70, 0.22)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(st.x + 1, st.y + 1, st.w - 2, st.h - 2);
+
+        // Alfama limestone steps (Escadinhas da Se)
+        if (st.id === 'st-se') {
+          for (let sy = 365; sy < 530; sy += 14) {
+            ctx.fillStyle = sy % 28 === 0 ? '#cfc6b6' : '#e3dccd';
+            ctx.fillRect(st.x + 12, sy, st.w - 24, 9);
+            ctx.fillStyle = 'rgba(74, 68, 58, 0.28)';
+            ctx.fillRect(st.x + 12, sy + 9, st.w - 24, 2);
+          }
+        }
+      }
+    }
+  }
+
   drawTagusWaterfront(ctx) {
-    // Stone river promenade curb
-    ctx.fillStyle = '#c8bfb0';
-    ctx.fillRect(0, WATERFRONT_Y - 16, WORLD_WIDTH, 18);
-    ctx.fillStyle = '#998f7f';
-    ctx.fillRect(0, WATERFRONT_Y - 3, WORLD_WIDTH, 5);
+    // Classic Ribeira limestone balustrade & azulejo quay trim
+    ctx.fillStyle = '#d5ccbc';
+    ctx.fillRect(0, WATERFRONT_Y - 18, WORLD_WIDTH, 18);
+    ctx.fillStyle = '#1b4d89';
+    for (let ax = 12; ax < WORLD_WIDTH; ax += 28) {
+      ctx.fillRect(ax, WATERFRONT_Y - 14, 14, 4);
+    }
+    ctx.fillStyle = '#8b8274';
+    ctx.fillRect(0, WATERFRONT_Y - 4, WORLD_WIDTH, 5);
+
+    // Stone bollards along the Tagus promenade
+    for (let bx = 60; bx < WORLD_WIDTH - 40; bx += 110) {
+      ctx.fillStyle = '#a89f8e';
+      ctx.fillRect(bx - 5, WATERFRONT_Y - 16, 10, 12);
+      ctx.fillStyle = '#e5ded0';
+      ctx.fillRect(bx - 4, WATERFRONT_Y - 16, 8, 4);
+    }
 
     // Tagus estuary water
     const grad = ctx.createLinearGradient(0, WATERFRONT_Y, 0, WORLD_HEIGHT);
     grad.addColorStop(0, '#2a6f97');
-    grad.addColorStop(0.55, '#1f5c82');
-    grad.addColorStop(1, '#164666');
+    grad.addColorStop(0.55, '#1e5b82');
+    grad.addColorStop(1, '#144260');
     ctx.fillStyle = grad;
     ctx.fillRect(0, WATERFRONT_Y, WORLD_WIDTH, WORLD_HEIGHT - WATERFRONT_Y);
 
@@ -255,32 +339,31 @@ export class LisboaCanvasRenderer {
       }
     }
 
-    // Sailboats gently bobbing on the Tagus
+    // Traditional Tagus fragata sailboats with terracotta lateen sails
     const boats = [520, 1280, 1980];
     for (let i = 0; i < boats.length; i += 1) {
       const bx = boats[i] + Math.sin(this.animTime * 0.4 + i * 2) * 16;
       const by = WATERFRONT_Y + 78 + Math.cos(this.animTime * 1.2 + i) * 3;
       ctx.fillStyle = '#7b3e2b';
       ctx.beginPath();
-      ctx.moveTo(bx - 18, by);
-      ctx.lineTo(bx + 18, by);
-      ctx.lineTo(bx + 12, by + 8);
-      ctx.lineTo(bx - 12, by + 8);
+      ctx.moveTo(bx - 20, by);
+      ctx.lineTo(bx + 20, by);
+      ctx.lineTo(bx + 13, by + 9);
+      ctx.lineTo(bx - 13, by + 9);
       ctx.closePath();
       ctx.fill();
 
-      ctx.fillStyle = '#f8f5ef';
+      ctx.fillStyle = i === 1 ? '#d97648' : '#faf6ee';
       ctx.beginPath();
       ctx.moveTo(bx - 2, by - 2);
-      ctx.lineTo(bx - 2, by - 26);
-      ctx.lineTo(bx + 14, by - 4);
+      ctx.lineTo(bx - 2, by - 28);
+      ctx.lineTo(bx + 16, by - 4);
       ctx.closePath();
       ctx.fill();
     }
 
-    // Subtle river label
-    ctx.fillStyle = 'rgba(235, 246, 255, 0.55)';
-    ctx.font = '600 13px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(235, 246, 255, 0.6)';
+    ctx.font = '600 13px Georgia, serif';
     ctx.fillText('RIO TEJO  -  TAGUS WATERFRONT', 1020, WATERFRONT_Y + 142);
   }
 
@@ -289,7 +372,7 @@ export class LisboaCanvasRenderer {
     const busLine = TRANSIT_LINES.find((l) => l.mode === 'bus');
     if (busLine) {
       ctx.save();
-      ctx.strokeStyle = 'rgba(27, 122, 92, 0.48)';
+      ctx.strokeStyle = 'rgba(27, 122, 92, 0.45)';
       ctx.lineWidth = 3;
       ctx.setLineDash([12, 10]);
       ctx.beginPath();
@@ -302,291 +385,795 @@ export class LisboaCanvasRenderer {
       ctx.restore();
     }
 
-    // Tram 28E twin steel rails along y = 610
+    // Tram 28E twin steel rails inlaid into basalt cobblestones along y = 610
     const tramY = 610;
-    ctx.strokeStyle = 'rgba(84, 78, 70, 0.35)';
+    ctx.strokeStyle = 'rgba(72, 66, 58, 0.34)';
     ctx.lineWidth = 2;
-    for (let tx = 200; tx <= 2200; tx += 18) {
+    for (let tx = 200; tx <= 2200; tx += 16) {
       ctx.beginPath();
       ctx.moveTo(tx, tramY - 10);
       ctx.lineTo(tx, tramY + 10);
       ctx.stroke();
     }
-    ctx.strokeStyle = '#5c6672';
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#535e6b';
+    ctx.lineWidth = 2.6;
     ctx.beginPath();
     ctx.moveTo(195, tramY - 7);
     ctx.lineTo(2205, tramY - 7);
     ctx.moveTo(195, tramY + 7);
     ctx.lineTo(2205, tramY + 7);
     ctx.stroke();
+    // Subtle metallic sheen on top rail edge
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(195, tramY - 8);
+    ctx.lineTo(2205, tramY - 8);
+    ctx.stroke();
   }
 
-  drawNeighborhoodSignage(ctx) {
-    const markers = [
-      { text: 'BAIRRO ALTO', x: 340, y: 362, color: '#8f3926' },
-      { text: 'CHIADO  -  PRACA LUIS DE CAMOES', x: 960, y: 362, color: '#1b4d89' },
-      { text: 'ALFAMA', x: 1950, y: 362, color: '#0f6a62' }
+  drawLisbonStreetPlaques(ctx) {
+    // Authentic white-and-cobalt Lisbon limestone street plaques (Placas Toponimicas)
+    const plaques = [
+      { title: 'BAIRRO ALTO', sub: 'RUA DA ROSA', x: 340, y: 358 },
+      { title: 'CHIADO', sub: 'PRACA LUIS DE CAMOES', x: 950, y: 358 },
+      { title: 'ALFAMA', sub: 'LARGO DAS PORTAS DO SOL', x: 1955, y: 358 }
     ];
-    ctx.font = '700 12px "Segoe UI", sans-serif';
-    ctx.textAlign = 'center';
-    for (const m of markers) {
-      const width = ctx.measureText(m.text).width + 20;
-      drawRoundedRect(ctx, m.x - width / 2, m.y - 13, width, 20, 10);
-      ctx.fillStyle = 'rgba(255, 252, 245, 0.84)';
+    for (const p of plaques) {
+      ctx.font = '700 10px Georgia, serif';
+      const w = Math.max(ctx.measureText(p.title).width, ctx.measureText(p.sub).width) + 28;
+      const h = 28;
+      const px = p.x - w / 2;
+      const py = p.y - h / 2;
+
+      // Shadow
+      ctx.fillStyle = 'rgba(18, 28, 42, 0.16)';
+      drawRoundedRect(ctx, px + 2, py + 2, w, h, 4);
       ctx.fill();
-      ctx.strokeStyle = m.color;
-      ctx.lineWidth = 1.2;
+
+      // White glazed ceramic plaque with double cobalt azulejo border
+      ctx.fillStyle = '#faf8f3';
+      drawRoundedRect(ctx, px, py, w, h, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#1b4d89';
+      ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.fillStyle = m.color;
-      ctx.fillText(m.text, m.x, m.y + 1);
+
+      ctx.strokeStyle = 'rgba(27, 77, 137, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 3, py + 3, w - 6, h - 6);
+
+      // Corner cobalt dots
+      ctx.fillStyle = '#1b4d89';
+      ctx.fillRect(px + 4, py + 4, 3, 3);
+      ctx.fillRect(px + w - 7, py + 4, 3, 3);
+      ctx.fillRect(px + 4, py + h - 7, 3, 3);
+      ctx.fillRect(px + w - 7, py + h - 7, 3, 3);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#14375f';
+      ctx.font = '700 9.5px Georgia, serif';
+      ctx.fillText(p.title, p.x, py + 12);
+      ctx.font = '600 8px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#3c5a7d';
+      ctx.fillText(p.sub, p.x, py + 22);
     }
     ctx.textAlign = 'left';
   }
 
   drawTreesAndBenches(ctx, state) {
-    // Decorative Lisbon jacaranda & olive trees
+    // Lisbon Jacaranda (violet blossoms), Mediterranean cypress & olive trees
     const trees = [
-      { x: 482, y: 125, c: '#7a5fa8' }, // Jacaranda purple
-      { x: 545, y: 125, c: '#7a5fa8' },
-      { x: 890, y: 490, c: '#3f7d52' },
-      { x: 1010, y: 490, c: '#3f7d52' },
-      { x: 2180, y: 490, c: '#4b8358' },
-      { x: 740, y: 985, c: '#3f7d52' },
-      { x: 1410, y: 985, c: '#7a5fa8' },
-      { x: 2070, y: 985, c: '#3f7d52' }
+      { x: 482, y: 125, c: '#7a58ab', highlight: '#b093dc' },
+      { x: 545, y: 125, c: '#7a58ab', highlight: '#b093dc' },
+      { x: 890, y: 492, c: '#3f7d52', highlight: '#65a676' },
+      { x: 1010, y: 492, c: '#3f7d52', highlight: '#65a676' },
+      { x: 2178, y: 492, c: '#487f57', highlight: '#73ad82' },
+      { x: 740, y: 985, c: '#3f7d52', highlight: '#65a676' },
+      { x: 1410, y: 985, c: '#7a58ab', highlight: '#b093dc' },
+      { x: 2070, y: 985, c: '#3f7d52', highlight: '#65a676' }
     ];
     for (const t of trees) {
-      ctx.fillStyle = 'rgba(30, 35, 40, 0.16)';
+      ctx.fillStyle = 'rgba(26, 32, 40, 0.17)';
       ctx.beginPath();
-      ctx.ellipse(t.x + 3, t.y + 8, 17, 11, 0, 0, Math.PI * 2);
+      ctx.ellipse(t.x + 4, t.y + 9, 18, 11, 0, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = '#6c4d35';
-      ctx.fillRect(t.x - 3, t.y, 6, 10);
+      ctx.fillRect(t.x - 3, t.y, 6, 11);
 
       ctx.fillStyle = t.c;
       ctx.beginPath();
-      ctx.arc(t.x, t.y - 6, 15, 0, Math.PI * 2);
+      ctx.arc(t.x, t.y - 6, 16, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.fillStyle = t.highlight;
       ctx.beginPath();
-      ctx.arc(t.x - 4, t.y - 10, 6, 0, Math.PI * 2);
+      ctx.arc(t.x - 4, t.y - 10, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(t.x + 6, t.y - 4, 5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Free Miradouro Rest Benches
+    // Free Miradouro Azulejo-Trimmed Rest Benches + Santa Luzia Bougainvillea Pergola
     for (const spot of REST_SPOTS) {
       const captured = state.memories.some((m) => m.id === spot.memory.id);
-      ctx.fillStyle = 'rgba(25, 30, 35, 0.18)';
-      ctx.fillRect(spot.x - 20, spot.y - 6, 40, 16);
 
-      ctx.fillStyle = '#8b5a34';
-      drawRoundedRect(ctx, spot.x - 22, spot.y - 10, 44, 14, 3);
+      // Decorative limestone & cobalt tile miradouro backing wall
+      ctx.fillStyle = '#f2eee6';
+      drawRoundedRect(ctx, spot.x - 32, spot.y - 18, 64, 12, 3);
       ctx.fill();
-      ctx.strokeStyle = '#57361e';
-      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = '#1b4d89';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      ctx.fillStyle = '#4e5964';
-      ctx.fillRect(spot.x - 18, spot.y + 4, 4, 5);
-      ctx.fillRect(spot.x + 14, spot.y + 4, 4, 5);
+      // Cobalt azulejo tile accents along miradouro wall
+      ctx.fillStyle = '#1b4d89';
+      for (let tx = spot.x - 26; tx <= spot.x + 20; tx += 12) {
+        ctx.fillRect(tx, spot.y - 15, 6, 6);
+      }
 
-      ctx.font = '700 10px "Segoe UI", sans-serif';
+      // Bougainvillea vines on Alfama & Bairro Alto miradouros
+      if (spot.id !== 'bench-chiado') {
+        ctx.fillStyle = '#be2f6c';
+        ctx.beginPath();
+        ctx.arc(spot.x - 28, spot.y - 14, 6, 0, Math.PI * 2);
+        ctx.arc(spot.x + 28, spot.y - 14, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ec6ea3';
+        ctx.beginPath();
+        ctx.arc(spot.x - 29, spot.y - 15, 2.5, 0, Math.PI * 2);
+        ctx.arc(spot.x + 27, spot.y - 15, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Bench shadow + slatted timber bench
+      ctx.fillStyle = 'rgba(25, 30, 35, 0.2)';
+      ctx.fillRect(spot.x - 22, spot.y - 3, 44, 15);
+
+      ctx.fillStyle = '#8b5a34';
+      drawRoundedRect(ctx, spot.x - 22, spot.y - 7, 44, 13, 3);
+      ctx.fill();
+      ctx.strokeStyle = '#52321b';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 232, 200, 0.35)';
+      ctx.beginPath();
+      ctx.moveTo(spot.x - 20, spot.y - 2);
+      ctx.lineTo(spot.x + 20, spot.y - 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(spot.x - 18, spot.y + 5, 4, 5);
+      ctx.fillRect(spot.x + 14, spot.y + 5, 4, 5);
+
+      ctx.font = '700 9px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillStyle = captured ? '#13795b' : '#4a3a2c';
-      ctx.fillText(captured ? 'MIRADOURO [SAVED]' : 'MIRADOURO BENCH', spot.x, spot.y - 16);
+      ctx.fillStyle = captured ? '#0f766e' : '#3d2f22';
+      ctx.fillText(captured ? 'MIRADOURO [SAVED]' : 'MIRADOURO BENCH', spot.x, spot.y - 23);
       ctx.textAlign = 'left';
+    }
+  }
+
+  drawAzulejoWall(ctx, x, y, w, h, wallStyle) {
+    if (wallStyle === 'cobalt-azulejo') {
+      // Classic 18th-century Lisbon glazed white-and-cobalt ceramic tile facade
+      ctx.fillStyle = '#f2f6fb';
+      ctx.fillRect(x, y, w, h);
+
+      const tile = 14;
+      ctx.strokeStyle = 'rgba(27, 77, 137, 0.22)';
+      ctx.lineWidth = 0.7;
+      for (let ty = y; ty < y + h; ty += tile) {
+        for (let tx = x; tx < x + w; tx += tile) {
+          const tw = Math.min(tile, x + w - tx);
+          const th = Math.min(tile, y + h - ty);
+          ctx.strokeRect(tx, ty, tw, th);
+          if (tw >= 10 && th >= 10) {
+            // Azulejo cobalt diamond rosette
+            const cx = tx + tw / 2;
+            const cy = ty + th / 2;
+            ctx.fillStyle = '#1d528f';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - 3.6);
+            ctx.lineTo(cx + 3.6, cy);
+            ctx.lineTo(cx, cy + 3.6);
+            ctx.lineTo(cx - 3.6, cy);
+            ctx.closePath();
+            ctx.fill();
+            // White center dot + corner petals
+            ctx.fillStyle = '#f2f6fb';
+            ctx.fillRect(cx - 1, cy - 1, 2, 2);
+            ctx.fillStyle = 'rgba(29, 82, 143, 0.65)';
+            ctx.fillRect(tx + 1, ty + 1, 2, 2);
+            ctx.fillRect(tx + tw - 3, ty + 1, 2, 2);
+            ctx.fillRect(tx + 1, ty + th - 3, 2, 2);
+            ctx.fillRect(tx + tw - 3, ty + th - 3, 2, 2);
+          }
+        }
+      }
+      // Ornamental cobalt border frieze
+      ctx.fillStyle = '#1b4d89';
+      ctx.fillRect(x, y, w, 4);
+      ctx.fillRect(x, y + h - 4, w, 4);
+      return;
+    }
+
+    if (wallStyle === 'pombaline-teal') {
+      // 19th-century Chiado emerald/turquoise glazed tile facade
+      ctx.fillStyle = '#e7f2ee';
+      ctx.fillRect(x, y, w, h);
+      const tile = 14;
+      ctx.strokeStyle = 'rgba(22, 108, 92, 0.22)';
+      ctx.lineWidth = 0.7;
+      for (let ty = y; ty < y + h; ty += tile) {
+        for (let tx = x; tx < x + w; tx += tile) {
+          const tw = Math.min(tile, x + w - tx);
+          const th = Math.min(tile, y + h - ty);
+          ctx.strokeRect(tx, ty, tw, th);
+          if (tw >= 10 && th >= 10) {
+            const cx = tx + tw / 2;
+            const cy = ty + th / 2;
+            ctx.fillStyle = '#1f7062';
+            ctx.fillRect(cx - 2, cy - 2, 4, 4);
+            ctx.fillStyle = 'rgba(31, 112, 98, 0.4)';
+            ctx.fillRect(cx - 4, cy - 0.7, 8, 1.4);
+            ctx.fillRect(cx - 0.7, cy - 4, 1.4, 8);
+          }
+        }
+      }
+      ctx.fillStyle = '#185c50';
+      ctx.fillRect(x, y, w, 4);
+      ctx.fillRect(x, y + h - 4, w, 4);
+      return;
+    }
+
+    if (wallStyle === 'ochre-azulejo') {
+      // Sunlit Chiado golden-ochre & cobalt geometric tilework
+      ctx.fillStyle = '#f6ecd7';
+      ctx.fillRect(x, y, w, h);
+      const tile = 14;
+      ctx.strokeStyle = 'rgba(156, 103, 36, 0.24)';
+      ctx.lineWidth = 0.7;
+      for (let ty = y; ty < y + h; ty += tile) {
+        for (let tx = x; tx < x + w; tx += tile) {
+          const tw = Math.min(tile, x + w - tx);
+          const th = Math.min(tile, y + h - ty);
+          ctx.strokeRect(tx, ty, tw, th);
+          if (tw >= 10 && th >= 10) {
+            const cx = tx + tw / 2;
+            const cy = ty + th / 2;
+            ctx.fillStyle = ((tx + ty) / tile) % 2 === 0 ? '#b6781f' : '#245285';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+      ctx.fillStyle = '#245285';
+      ctx.fillRect(x, y, w, 4);
+      return;
+    }
+
+    // Traditional Portuguese warm lime plaster (ochre or dusty rose) with limestone cantaria quoins
+    ctx.fillStyle = wallStyle === 'rose-plaster' ? '#ebd4da' : '#f1dec4';
+    ctx.fillRect(x, y, w, h);
+
+    // Subtle limestone corner stone blocks (cantaria quoins)
+    ctx.fillStyle = '#e5ddcf';
+    ctx.strokeStyle = 'rgba(116, 104, 88, 0.45)';
+    ctx.lineWidth = 0.8;
+    for (let qy = y + 4; qy < y + h - 8; qy += 12) {
+      const qw = ((qy / 12) % 2 === 0) ? 10 : 7;
+      ctx.fillRect(x, qy, qw, 10);
+      ctx.strokeRect(x, qy, qw, 10);
+      ctx.fillRect(x + w - qw, qy, qw, 10);
+      ctx.strokeRect(x + w - qw, qy, qw, 10);
+    }
+
+    // Lower cobalt azulejo wainscot band along base of facade
+    ctx.fillStyle = '#eef4fa';
+    ctx.fillRect(x + 10, y + h - 14, w - 20, 12);
+    ctx.fillStyle = '#1b4d89';
+    for (let ax = x + 14; ax < x + w - 16; ax += 12) {
+      ctx.fillRect(ax, y + h - 11, 5, 5);
+    }
+  }
+
+  drawTerracottaRoof(ctx, x, y, w, h, baseColor, hasChimney = true) {
+    // Base clay-tile roof gradient
+    const grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, baseColor);
+    grad.addColorStop(1, '#7c2e1c');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, w, h);
+
+    // Scalloped Portuguese barrel tiles (telha portuguesa)
+    ctx.strokeStyle = 'rgba(255, 224, 194, 0.25)';
+    ctx.lineWidth = 1.1;
+    for (let ry = y + 10; ry < y + h - 4; ry += 11) {
+      for (let rx = x + 4; rx < x + w - 6; rx += 12) {
+        ctx.beginPath();
+        ctx.arc(rx + 6, ry, 5.5, 0, Math.PI);
+        ctx.stroke();
+      }
+    }
+
+    // Ridge beam along crest
+    ctx.fillStyle = 'rgba(255, 232, 206, 0.34)';
+    ctx.fillRect(x + 4, y + Math.round(h * 0.45), w - 8, 3);
+
+    // Classic Portuguese stone eave cornice (beiral)
+    ctx.fillStyle = '#e7dfd0';
+    ctx.fillRect(x, y + h - 4, w, 4);
+    ctx.fillStyle = 'rgba(40, 28, 20, 0.28)';
+    ctx.fillRect(x, y + h, w, 3);
+
+    // Traditional whitewashed Portuguese chimney with terracotta cap
+    if (hasChimney && w >= 150) {
+      const cx = x + w - 28;
+      const cy = y + 7;
+      ctx.fillStyle = '#f3ede2';
+      ctx.fillRect(cx, cy, 14, 16);
+      ctx.strokeStyle = '#9c8e7c';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx, cy, 14, 16);
+      ctx.fillStyle = '#b4482e';
+      ctx.fillRect(cx - 2, cy - 3, 18, 5);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(cx + 3, cy + 4, 8, 3);
+    }
+  }
+
+  drawLisbonWindow(ctx, wx, wy, ww, wh, opts) {
+    const { isEvening, shutterColor = '#22543d', flowerColor = '#d64545', hasBalcony = true } = opts;
+
+    // Lioz limestone cantaria window frame
+    ctx.fillStyle = '#ebe4d5';
+    ctx.fillRect(wx - 4, wy - 4, ww + 8, wh + 8);
+    ctx.strokeStyle = '#8b8070';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(wx - 4, wy - 4, ww + 8, wh + 8);
+
+    // Wooden louvered shutters (portadas)
+    ctx.fillStyle = shutterColor;
+    ctx.fillRect(wx - 9, wy - 1, 6, wh + 2);
+    ctx.fillRect(wx + ww + 3, wy - 1, 6, wh + 2);
+
+    // Glass pane (golden glow in evening, sky blue tint by day)
+    ctx.fillStyle = isEvening ? '#ffe285' : '#6c97ba';
+    ctx.fillRect(wx, wy, ww, wh);
+    // White colonial wood muntin bars (6-pane Lisbon sash)
+    ctx.strokeStyle = '#f5f2eb';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(wx + ww / 2, wy);
+    ctx.lineTo(wx + ww / 2, wy + wh);
+    ctx.moveTo(wx, wy + wh * 0.36);
+    ctx.lineTo(wx + ww, wy + wh * 0.36);
+    ctx.moveTo(wx, wy + wh * 0.7);
+    ctx.lineTo(wx + ww, wy + wh * 0.7);
+    ctx.stroke();
+
+    // Wrought-iron Juliet balcony railing + terracotta geranium pot
+    if (hasBalcony) {
+      const by = wy + wh - 5;
+      ctx.strokeStyle = '#222a35';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(wx - 5, by, ww + 10, 11);
+      for (let bx = wx - 1; bx <= wx + ww + 2; bx += 5) {
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx, by + 11);
+        ctx.stroke();
+      }
+      // Tiny terracotta planter with red geranium blooms
+      ctx.fillStyle = '#b95534';
+      ctx.fillRect(wx + ww / 2 - 6, by + 4, 12, 5);
+      ctx.fillStyle = '#2f7a49';
+      ctx.fillRect(wx + ww / 2 - 7, by + 1, 14, 4);
+      ctx.fillStyle = flowerColor;
+      ctx.fillRect(wx + ww / 2 - 5, by, 3, 3);
+      ctx.fillRect(wx + ww / 2 + 2, by, 3, 3);
     }
   }
 
   drawDecorativeStructure(ctx, struct, isEvening) {
-    // Ground shadow
-    ctx.fillStyle = 'rgba(22, 28, 38, 0.16)';
-    ctx.fillRect(struct.x + 6, struct.y + 8, struct.w, struct.h);
+    // Drop shadow
+    ctx.fillStyle = 'rgba(20, 26, 36, 0.2)';
+    ctx.fillRect(struct.x + 7, struct.y + 9, struct.w, struct.h);
 
     if (struct.style === 'monument') {
-      // Camoes statue pedestal
-      ctx.fillStyle = '#dcd5c7';
+      const cx = struct.x + struct.w / 2;
+      const cy = struct.y + struct.h / 2;
+
+      // 16-point calcada compass rose inlaid around Camoes statue
+      ctx.fillStyle = '#f0eadc';
       ctx.beginPath();
-      ctx.arc(struct.x + struct.w / 2, struct.y + struct.h / 2, 34, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 40, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#8d8575';
+      ctx.strokeStyle = '#3b434f';
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = struct.wallColor;
-      ctx.fillRect(struct.x + 8, struct.y + 8, struct.w - 16, struct.h - 16);
-      ctx.fillStyle = '#4d5b54';
+      for (let i = 0; i < 8; i += 1) {
+        const ang = (i * Math.PI) / 4;
+        ctx.fillStyle = i % 2 === 0 ? '#3b434f' : '#9aa1ac';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(ang - 0.16) * 20, cy + Math.sin(ang - 0.16) * 20);
+        ctx.lineTo(cx + Math.cos(ang) * 37, cy + Math.sin(ang) * 37);
+        ctx.lineTo(cx + Math.cos(ang + 0.16) * 20, cy + Math.sin(ang + 0.16) * 20);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Octagonal lioz limestone plinth + bronze poet statue
+      ctx.fillStyle = '#ded7c7';
+      drawRoundedRect(ctx, struct.x + 8, struct.y + 8, struct.w - 16, struct.h - 16, 6);
+      ctx.fill();
+      ctx.strokeStyle = '#756d5e';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+
+      ctx.fillStyle = '#3e544c';
       ctx.beginPath();
-      ctx.arc(struct.x + struct.w / 2, struct.y + struct.h / 2, 12, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#5c7a6f';
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 2, 5, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.font = '700 9.5px Georgia, serif';
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#334155';
-      ctx.fillText('CAMOES', struct.x + struct.w / 2, struct.y - 8);
+      ctx.fillStyle = '#243142';
+      ctx.fillText('LUIS DE CAMOES', cx, struct.y - 12);
       ctx.textAlign = 'left';
       return;
     }
 
-    // Wall + Terracotta roof
-    ctx.fillStyle = struct.wallColor;
-    ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
-
-    const roofH = Math.round(struct.h * 0.44);
-    ctx.fillStyle = struct.roofColor;
-    ctx.fillRect(struct.x - 3, struct.y - 3, struct.w + 6, roofH);
-
-    // Roof tile ridges
-    ctx.strokeStyle = 'rgba(255, 238, 220, 0.22)';
-    ctx.lineWidth = 1;
-    for (let rx = struct.x + 8; rx < struct.x + struct.w; rx += 14) {
-      ctx.beginPath();
-      ctx.moveTo(rx, struct.y - 2);
-      ctx.lineTo(rx, struct.y + roofH - 3);
-      ctx.stroke();
-    }
-
     if (struct.style === 'cathedral') {
-      // Twin bell towers + rose window for Se de Lisboa
-      ctx.fillStyle = '#c8bfb0';
-      ctx.fillRect(struct.x + 12, struct.y - 12, 42, 62);
-      ctx.fillRect(struct.x + struct.w - 54, struct.y - 12, 42, 62);
-      ctx.strokeStyle = struct.trimColor;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(struct.x + 12, struct.y - 12, 42, 62);
-      ctx.strokeRect(struct.x + struct.w - 54, struct.y - 12, 42, 62);
+      // Se de Lisboa (Lisbon Cathedral) - Romanesque limestone fortress towers & rose window
+      ctx.fillStyle = '#ddd5c5';
+      ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
 
-      // Rose window
-      ctx.fillStyle = isEvening ? '#f5cb5c' : '#355c7d';
-      ctx.beginPath();
-      ctx.arc(struct.x + struct.w / 2, struct.y + roofH + 26, 15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#5c4f41';
-      ctx.stroke();
-    } else {
-      // Townhouse windows
-      const cols = Math.max(3, Math.floor((struct.w - 30) / 42));
-      for (let i = 0; i < cols; i += 1) {
-        const wx = struct.x + 20 + i * ((struct.w - 40) / cols);
-        const wy = struct.y + roofH + 18;
-        ctx.fillStyle = isEvening ? '#f6d479' : '#536b82';
-        ctx.fillRect(wx, wy, 20, 28);
-        ctx.strokeStyle = struct.trimColor;
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(wx, wy, 20, 28);
+      // Ashlar limestone stone masonry joints
+      ctx.strokeStyle = 'rgba(98, 88, 72, 0.25)';
+      ctx.lineWidth = 1;
+      for (let sy = struct.y + 12; sy < struct.y + struct.h; sy += 14) {
+        ctx.beginPath();
+        ctx.moveTo(struct.x, sy);
+        ctx.lineTo(struct.x + struct.w, sy);
+        ctx.stroke();
       }
+
+      // Central nave roof
+      this.drawTerracottaRoof(ctx, struct.x + 48, struct.y + 6, struct.w - 96, 42, '#9d4c36', false);
+
+      // Twin Romanesque square bell towers with fortress battlements (ameias)
+      const towerXs = [struct.x + 6, struct.x + struct.w - 50];
+      for (const tx of towerXs) {
+        ctx.fillStyle = '#d3cab7';
+        ctx.fillRect(tx, struct.y - 12, 44, struct.h + 10);
+        ctx.strokeStyle = '#6b5e4c';
+        ctx.lineWidth = 1.6;
+        ctx.strokeRect(tx, struct.y - 12, 44, struct.h + 10);
+
+        // Crenellations / battlements at tower tops
+        ctx.fillStyle = '#e5ded0';
+        for (let bx = tx + 2; bx < tx + 40; bx += 11) {
+          ctx.fillRect(bx, struct.y - 18, 7, 7);
+          ctx.strokeRect(bx, struct.y - 18, 7, 7);
+        }
+
+        // Arched belfry window with bronze bell
+        ctx.fillStyle = '#3c362e';
+        ctx.beginPath();
+        ctx.arc(tx + 22, struct.y + 22, 10, Math.PI, 0);
+        ctx.lineTo(tx + 32, struct.y + 42);
+        ctx.lineTo(tx + 12, struct.y + 42);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#a47d43';
+        ctx.beginPath();
+        ctx.arc(tx + 22, struct.y + 28, 5, Math.PI, 0);
+        ctx.fill();
+      }
+
+      // Spoked stained-glass rose window
+      const rcx = struct.x + struct.w / 2;
+      const rcy = struct.y + 78;
+      ctx.fillStyle = isEvening ? '#f7ce65' : '#2f5885';
+      ctx.beginPath();
+      ctx.arc(rcx, rcy, 19, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#6c5f4d';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#ebe4d5';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 8; i += 1) {
+        const a = (i * Math.PI) / 4;
+        ctx.beginPath();
+        ctx.moveTo(rcx, rcy);
+        ctx.lineTo(rcx + Math.cos(a) * 18, rcy + Math.sin(a) * 18);
+        ctx.stroke();
+      }
+
+      // Triple-recessed Gothic entrance portal arch
+      ctx.fillStyle = '#625647';
+      ctx.beginPath();
+      ctx.arc(rcx, struct.y + struct.h - 22, 20, Math.PI, 0);
+      ctx.lineTo(rcx + 20, struct.y + struct.h);
+      ctx.lineTo(rcx - 20, struct.y + struct.h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#3b2b1e';
+      ctx.beginPath();
+      ctx.arc(rcx, struct.y + struct.h - 18, 13, Math.PI, 0);
+      ctx.lineTo(rcx + 13, struct.y + struct.h);
+      ctx.lineTo(rcx - 13, struct.y + struct.h);
+      ctx.closePath();
+      ctx.fill();
+
+      // Label plaque
+      drawRoundedRect(ctx, rcx - 46, struct.y + 12, 92, 18, 4);
+      ctx.fillStyle = 'rgba(24, 34, 48, 0.8)';
+      ctx.fill();
+      ctx.font = '700 10px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillText('SE DE LISBOA', rcx, struct.y + 24);
+      ctx.textAlign = 'left';
+      return;
     }
 
-    ctx.strokeStyle = struct.trimColor;
-    ctx.lineWidth = 1.5;
+    // Pombaline & Bairro Alto Townhouses with Azulejo / Plaster + Barrel Roof + Juliet Balconies
+    const roofH = Math.round(struct.h * 0.42);
+    const wallStyle =
+      struct.style === 'azulejo'
+        ? 'cobalt-azulejo'
+        : struct.id === 'house-chiado-south'
+          ? 'pombaline-teal'
+          : struct.id === 'house-ba-mid'
+            ? 'rose-plaster'
+            : 'ochre-plaster';
+
+    this.drawAzulejoWall(ctx, struct.x, struct.y + roofH - 2, struct.w, struct.h - roofH + 2, wallStyle);
+    this.drawTerracottaRoof(ctx, struct.x - 3, struct.y - 3, struct.w + 6, roofH, struct.roofColor, true);
+
+    // Lisbon balcony windows with louvered shutters and geranium pots
+    const cols = Math.max(3, Math.floor((struct.w - 28) / 48));
+    const step = (struct.w - 34) / cols;
+    for (let i = 0; i < cols; i += 1) {
+      const wx = struct.x + 22 + i * step;
+      const wy = struct.y + roofH + 16;
+      this.drawLisbonWindow(ctx, wx, wy, 20, 30, {
+        isEvening,
+        shutterColor: struct.trimColor,
+        flowerColor: i % 2 === 0 ? '#d94854' : '#e07a32',
+        hasBalcony: true
+      });
+    }
+
+    // Subtle Bairro Alto laundry bunting strung across balconies on Casas da Rosa
+    if (struct.id === 'house-ba-mid') {
+      ctx.strokeStyle = 'rgba(60, 50, 44, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(struct.x + 26, struct.y + roofH + 46);
+      ctx.quadraticCurveTo(struct.x + struct.w / 2, struct.y + roofH + 56, struct.x + struct.w - 26, struct.y + roofH + 46);
+      ctx.stroke();
+      const flags = ['#f8fafc', '#3b82f6', '#f59e0b', '#ef4444', '#f8fafc'];
+      flags.forEach((fc, idx) => {
+        const fx = struct.x + 48 + idx * 28;
+        ctx.fillStyle = fc;
+        ctx.fillRect(fx, struct.y + roofH + 49, 10, 11);
+      });
+    }
+
+    ctx.strokeStyle = 'rgba(30, 38, 48, 0.45)';
+    ctx.lineWidth = 1.4;
     ctx.strokeRect(struct.x, struct.y, struct.w, struct.h);
 
-    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.font = '600 9.5px Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,255,255,0.88)';
-    ctx.fillText(struct.label, struct.x + struct.w / 2, struct.y + 22);
+    ctx.fillStyle = 'rgba(255, 250, 240, 0.92)';
+    ctx.fillText(struct.label, struct.x + struct.w / 2, struct.y + 20);
     ctx.textAlign = 'left';
   }
 
   drawVenueBuilding(ctx, venue, visited, isHighlighted, isEvening) {
-    // Shadow
-    ctx.fillStyle = 'rgba(18, 26, 36, 0.22)';
+    const arch = VENUE_ARCHITECTURAL_STYLE[venue.id] || {
+      wallStyle: 'cobalt-azulejo',
+      shutter: venue.awningColor,
+      flowers: '#d94854',
+      chimney: true
+    };
+
+    // Building shadow
+    ctx.fillStyle = 'rgba(18, 26, 36, 0.24)';
     ctx.fillRect(venue.x + 7, venue.y + 9, venue.w, venue.h);
 
-    // Highlight glow when player is near doorway
+    // Highlight halo when player approaches doorway
     if (isHighlighted) {
       ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 4;
       ctx.strokeRect(venue.x - 4, venue.y - 4, venue.w + 8, venue.h + 8);
     }
 
-    // Facade body
-    ctx.fillStyle = venue.wallColor;
-    ctx.fillRect(venue.x, venue.y, venue.w, venue.h);
+    const roofH = Math.round(venue.h * 0.41);
+    const facadeY = venue.doorSide === 'south' ? venue.y + roofH - 2 : venue.y;
+    const facadeH = venue.h - roofH + 2;
 
-    // Roof section
-    const roofH = Math.round(venue.h * 0.42);
+    // 1. Azulejo / Portuguese plastered facade
+    this.drawAzulejoWall(ctx, venue.x, facadeY, venue.w, facadeH, arch.wallStyle);
+
+    // 2. Terracotta telha portuguesa roof
     if (venue.doorSide === 'south') {
-      ctx.fillStyle = venue.roofColor;
-      ctx.fillRect(venue.x - 3, venue.y - 3, venue.w + 6, roofH);
+      this.drawTerracottaRoof(ctx, venue.x - 3, venue.y - 3, venue.w + 6, roofH, venue.roofColor, arch.chimney);
     } else {
-      ctx.fillStyle = venue.roofColor;
-      ctx.fillRect(venue.x - 3, venue.y + venue.h - roofH + 3, venue.w + 6, roofH);
+      this.drawTerracottaRoof(
+        ctx,
+        venue.x - 3,
+        venue.y + venue.h - roofH + 3,
+        venue.w + 6,
+        roofH,
+        venue.roofColor,
+        arch.chimney
+      );
     }
 
-    // Azulejo / decorative facade stripe
-    ctx.fillStyle = venue.accentColor;
-    ctx.fillRect(venue.x, venue.y + (venue.doorSide === 'south' ? roofH - 3 : venue.h - roofH), venue.w, 5);
+    // 3. Detailed Lisbon shuttered windows with wrought-iron balconies & flowers
+    const winY = venue.doorSide === 'south' ? venue.y + roofH + 14 : venue.y + 20;
+    this.drawLisbonWindow(ctx, venue.x + 22, winY, 24, 28, {
+      isEvening,
+      shutterColor: arch.shutter,
+      flowerColor: arch.flowers,
+      hasBalcony: true
+    });
+    this.drawLisbonWindow(ctx, venue.x + venue.w - 46, winY, 24, 28, {
+      isEvening,
+      shutterColor: arch.shutter,
+      flowerColor: arch.flowers,
+      hasBalcony: true
+    });
 
-    // Illuminated windows
-    const winY = venue.doorSide === 'south' ? venue.y + roofH + 16 : venue.y + 24;
-    const winPositions = [venue.x + 18, venue.x + venue.w - 48];
-    for (const wx of winPositions) {
-      ctx.fillStyle = isEvening ? '#ffe28a' : '#7ba4c7';
-      ctx.fillRect(wx, winY, 30, 26);
-      ctx.strokeStyle = venue.awningColor;
-      ctx.lineWidth = 1.6;
-      ctx.strokeRect(wx, winY, 30, 26);
-    }
-
-    // Doorway & striped awning
-    const doorW = 34;
-    const doorH = 30;
+    // 4. Arched Portuguese Limestone Doorway + Scalloped Canvas Awning
+    const doorW = 36;
+    const doorH = 34;
     const dx = venue.doorX - doorW / 2;
     const dy = venue.doorSide === 'south' ? venue.y + venue.h - doorH : venue.y;
 
-    // Warm interior spill light at doorstep
-    const pulse = 0.28 + Math.sin(this.animTime * 3.2) * 0.1;
-    ctx.fillStyle = `rgba(255, 210, 102, ${isEvening ? 0.55 : pulse})`;
+    // Warm golden welcome light spilling onto cobblestones
+    const pulse = 0.3 + Math.sin(this.animTime * 3.2) * 0.1;
+    ctx.fillStyle = `rgba(255, 212, 108, ${isEvening ? 0.62 : pulse})`;
     ctx.beginPath();
     ctx.ellipse(
       venue.doorX,
-      venue.doorSide === 'south' ? venue.doorY + 10 : venue.doorY - 10,
-      26,
-      11,
+      venue.doorSide === 'south' ? venue.doorY + 11 : venue.doorY - 11,
+      28,
+      12,
       0,
       0,
       Math.PI * 2
     );
     ctx.fill();
 
-    // Door frame
-    ctx.fillStyle = '#4e331f';
-    ctx.fillRect(dx, dy, doorW, doorH);
-    ctx.fillStyle = '#f8d27a';
-    ctx.fillRect(dx + 5, dy + 4, doorW - 10, doorH - 8);
+    // Lioz limestone arched stone surround
+    ctx.fillStyle = '#e9e2d2';
+    ctx.fillRect(dx - 4, dy - 2, doorW + 8, doorH + 2);
+    ctx.strokeStyle = '#7e7362';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(dx - 4, dy - 2, doorW + 8, doorH + 2);
 
-    // Striped shop awning
-    const awningY = venue.doorSide === 'south' ? dy - 10 : dy + doorH;
+    // Wood door & glowing fanlight interior
+    ctx.fillStyle = '#4e311d';
+    ctx.fillRect(dx, dy, doorW, doorH);
+    ctx.fillStyle = '#f8d57e';
+    ctx.beginPath();
+    if (venue.doorSide === 'south') {
+      ctx.arc(venue.doorX, dy + 12, 11, Math.PI, 0);
+      ctx.lineTo(venue.doorX + 11, dy + doorH - 2);
+      ctx.lineTo(venue.doorX - 11, dy + doorH - 2);
+    } else {
+      ctx.rect(dx + 6, dy + 3, doorW - 12, doorH - 6);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Striped scalloped Lisbon storefront awning
+    const awningY = venue.doorSide === 'south' ? dy - 11 : dy + doorH;
     ctx.fillStyle = venue.awningColor;
-    ctx.fillRect(dx - 8, awningY, doorW + 16, 10);
-    ctx.fillStyle = '#fff8ee';
-    for (let sx = dx - 4; sx < dx + doorW + 6; sx += 10) {
-      ctx.fillRect(sx, awningY, 4, 10);
+    ctx.fillRect(dx - 10, awningY, doorW + 20, 11);
+    ctx.fillStyle = '#fff9f0';
+    for (let sx = dx - 6; sx < dx + doorW + 8; sx += 10) {
+      ctx.fillRect(sx, awningY, 4, 11);
+    }
+    // Scalloped edge trim
+    ctx.fillStyle = venue.awningColor;
+    for (let sx = dx - 6; sx <= dx + doorW + 6; sx += 8) {
+      ctx.beginPath();
+      ctx.arc(sx, venue.doorSide === 'south' ? awningY + 11 : awningY, 3.5, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // Building border
-    ctx.strokeStyle = 'rgba(25, 34, 46, 0.45)';
+    // Crisp outer building outline
+    ctx.strokeStyle = 'rgba(22, 32, 46, 0.5)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(venue.x, venue.y, venue.w, venue.h);
 
-    // Signboard on roof
-    const signY = venue.doorSide === 'south' ? venue.y + 24 : venue.y + venue.h - 24;
-    ctx.font = '700 11px "Segoe UI", sans-serif';
+    // Classic Portuguese Enamel Signboard Plaque centered on roof
+    const plaqueW = Math.min(venue.w - 14, 184);
+    const plaqueH = 31;
+    const plaqueX = venue.x + (venue.w - plaqueW) / 2;
+    const plaqueY = venue.doorSide === 'south' ? venue.y + 8 : venue.y + venue.h - plaqueH - 8;
+
+    drawRoundedRect(ctx, plaqueX, plaqueY, plaqueW, plaqueH, 5);
+    ctx.fillStyle = 'rgba(18, 34, 56, 0.88)';
+    ctx.fill();
+    ctx.strokeStyle = visited ? '#6ee7b7' : '#f3c623';
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+
+    ctx.font = '700 10.5px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(venue.name, venue.x + venue.w / 2, signY);
+    ctx.fillText(venue.name, venue.x + venue.w / 2, plaqueY + 13);
 
-    ctx.font = '600 9.5px "Segoe UI", sans-serif';
-    ctx.fillStyle = visited ? '#bbf7d0' : '#fde68a';
+    ctx.font = '700 8.8px "Segoe UI", sans-serif';
+    ctx.fillStyle = visited ? '#86efac' : '#fde68a';
     ctx.fillText(
       visited ? `${venue.badge} VISITED` : `${venue.badge} ENTER`,
       venue.x + venue.w / 2,
-      signY + 14
+      plaqueY + 25
     );
     ctx.textAlign = 'left';
+  }
+
+  drawLisbonStreetlamps(ctx, isEvening, isGolden) {
+    const lamps = [
+      { x: 455, y: 220 },
+      { x: 878, y: 220 },
+      { x: 1028, y: 220 },
+      { x: 1425, y: 220 },
+      { x: 1810, y: 220 },
+      { x: 878, y: 542 },
+      { x: 1028, y: 542 },
+      { x: 1425, y: 542 },
+      { x: 1810, y: 542 },
+      { x: 455, y: 868 },
+      { x: 1028, y: 868 },
+      { x: 1660, y: 868 },
+      { x: 2120, y: 868 }
+    ];
+
+    for (const lamp of lamps) {
+      if (isEvening || isGolden) {
+        const glowRadius = isEvening ? 46 : 26;
+        const glow = ctx.createRadialGradient(lamp.x, lamp.y - 14, 2, lamp.x, lamp.y - 14, glowRadius);
+        glow.addColorStop(0, isEvening ? 'rgba(255, 226, 130, 0.5)' : 'rgba(255, 220, 130, 0.22)');
+        glow.addColorStop(1, 'rgba(255, 226, 130, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(lamp.x, lamp.y - 14, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Cast-iron post & lantern crown
+      ctx.fillStyle = '#242f3d';
+      ctx.fillRect(lamp.x - 1.5, lamp.y - 16, 3, 18);
+      ctx.fillRect(lamp.x - 4, lamp.y, 8, 3);
+      ctx.fillStyle = isEvening || isGolden ? '#ffe082' : '#d8e4ee';
+      ctx.beginPath();
+      ctx.arc(lamp.x, lamp.y - 18, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1f2937';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
   }
 
   drawTransitStop(ctx, stop, isHighlighted, isEvening) {
@@ -596,27 +1183,27 @@ export class LisboaCanvasRenderer {
     const postColor = isTram ? '#d9980c' : '#1b7a5c';
 
     // Waiting platform pad
-    ctx.fillStyle = isHighlighted ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.45)';
+    ctx.fillStyle = isHighlighted ? 'rgba(245, 158, 11, 0.26)' : 'rgba(255, 252, 245, 0.6)';
     drawRoundedRect(ctx, px - 28, py - 14, 56, 26, 6);
     ctx.fill();
     ctx.strokeStyle = postColor;
     ctx.lineWidth = isHighlighted ? 2.5 : 1.5;
     ctx.stroke();
 
-    // Stop shelter sign pole
+    // Carris transit post
     ctx.fillStyle = '#334155';
     ctx.fillRect(px + 18, py - 24, 3, 24);
     ctx.fillStyle = postColor;
-    drawRoundedRect(ctx, px + 8, py - 34, 24, 14, 3);
+    drawRoundedRect(ctx, px + 7, py - 35, 26, 14, 3);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 8.5px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(isTram ? '28E' : 'BUS', px + 20, py - 24);
+    ctx.fillText(isTram ? '28E' : 'BUS', px + 20, py - 25);
 
     if (isEvening) {
-      ctx.fillStyle = 'rgba(255, 232, 158, 0.22)';
+      ctx.fillStyle = 'rgba(255, 232, 158, 0.24)';
       ctx.beginPath();
       ctx.arc(px, py, 24, 0, Math.PI * 2);
       ctx.fill();
@@ -634,71 +1221,108 @@ export class LisboaCanvasRenderer {
     ctx.rotate(vehicle.heading);
 
     const isTram = vehicle.mode === 'tram';
-    const len = isTram ? 68 : 74;
-    const wid = isTram ? 28 : 30;
+    const len = isTram ? 72 : 76;
+    const wid = isTram ? 30 : 30;
 
     // Ground shadow
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.28)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.3)';
     drawRoundedRect(ctx, -len / 2 + 3, -wid / 2 + 4, len, wid, 7);
     ctx.fill();
 
     // Evening headlight beam
     if (isEvening) {
-      const beam = ctx.createLinearGradient(len / 2, 0, len / 2 + 65, 0);
-      beam.addColorStop(0, 'rgba(255, 236, 153, 0.52)');
+      const beam = ctx.createLinearGradient(len / 2, 0, len / 2 + 72, 0);
+      beam.addColorStop(0, 'rgba(255, 236, 153, 0.56)');
       beam.addColorStop(1, 'rgba(255, 236, 153, 0)');
       ctx.fillStyle = beam;
       ctx.beginPath();
       ctx.moveTo(len / 2, -8);
-      ctx.lineTo(len / 2 + 65, -24);
-      ctx.lineTo(len / 2 + 65, 24);
+      ctx.lineTo(len / 2 + 72, -26);
+      ctx.lineTo(len / 2 + 72, 26);
       ctx.lineTo(len / 2, 8);
       ctx.closePath();
       ctx.fill();
     }
 
-    // Vehicle body
-    ctx.fillStyle = vehicle.color;
-    drawRoundedRect(ctx, -len / 2, -wid / 2, len, wid, 7);
-    ctx.fill();
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
-
-    // Roof stripe
-    ctx.fillStyle = vehicle.trimColor;
-    drawRoundedRect(ctx, -len / 2 + 8, -wid / 2 + 4, len - 16, wid - 8, 4);
-    ctx.fill();
-
-    // Windows along sides
-    ctx.fillStyle = '#243b53';
-    for (let wx = -len / 2 + 12; wx <= len / 2 - 20; wx += 13) {
-      ctx.fillRect(wx, -wid / 2 + 1, 9, 3);
-      ctx.fillRect(wx, wid / 2 - 4, 9, 3);
-    }
-    // Front windshield
-    ctx.fillStyle = '#334e68';
-    ctx.fillRect(len / 2 - 7, -wid / 2 + 5, 5, wid - 10);
-
-    // Pantograph pole on Tram 28E
     if (isTram) {
+      // Classic Lisbon Remodelado yellow streetcar with front iron fender & mahogany trim
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(len / 2 - 2, -wid / 2 + 6, 6, wid - 12);
+      ctx.fillRect(-len / 2 - 4, -wid / 2 + 6, 6, wid - 12);
+
+      // Iconic Carris yellow hull
+      ctx.fillStyle = '#eab308';
+      drawRoundedRect(ctx, -len / 2, -wid / 2, len, wid, 8);
+      ctx.fill();
+      ctx.strokeStyle = '#422006';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      // Ivory clerestory upper roof deck
+      ctx.fillStyle = '#fdfbf7';
+      drawRoundedRect(ctx, -len / 2 + 7, -wid / 2 + 4, len - 14, wid - 8, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#b47b16';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Subdivided vintage wooden side windows
+      ctx.fillStyle = '#1e3a5f';
+      for (let wx = -len / 2 + 11; wx <= len / 2 - 19; wx += 10) {
+        ctx.fillRect(wx, -wid / 2 + 1, 7, 3);
+        ctx.fillRect(wx, wid / 2 - 4, 7, 3);
+      }
+
+      // Brass headlamp
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(len / 2 - 1, 0, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Diamond trolley pantograph pole
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(-12, 0);
+      ctx.moveTo(-14, 0);
       ctx.lineTo(6, 0);
+      ctx.moveTo(-4, -5);
+      ctx.lineTo(-4, 5);
       ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fillStyle = '#475569';
+      ctx.beginPath();
+      ctx.arc(-4, 0, 3.5, 0, Math.PI * 2);
       ctx.fill();
-    }
 
-    // Route number badge
-    ctx.fillStyle = isTram ? '#1e293b' : '#124a38';
-    ctx.font = '700 10px "Segoe UI", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(isTram ? '28E' : '737', isTram ? 12 : 0, 3.5);
+      ctx.fillStyle = '#1e293b';
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('28E', 14, 3.5);
+    } else {
+      // Carris City Bus 737 / 758 livery
+      ctx.fillStyle = vehicle.color;
+      drawRoundedRect(ctx, -len / 2, -wid / 2, len, wid, 7);
+      ctx.fill();
+      ctx.strokeStyle = '#133a2d';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      ctx.fillStyle = vehicle.trimColor;
+      drawRoundedRect(ctx, -len / 2 + 8, -wid / 2 + 4, len - 16, wid - 8, 4);
+      ctx.fill();
+
+      ctx.fillStyle = '#243b53';
+      for (let wx = -len / 2 + 12; wx <= len / 2 - 20; wx += 13) {
+        ctx.fillRect(wx, -wid / 2 + 1, 9, 3);
+        ctx.fillRect(wx, wid / 2 - 4, 9, 3);
+      }
+      ctx.fillStyle = '#334e68';
+      ctx.fillRect(len / 2 - 7, -wid / 2 + 5, 5, wid - 10);
+
+      ctx.fillStyle = '#124a38';
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('737', 0, 3.5);
+    }
 
     // Highlight ring & traveler indicator if aboard
     if (playerAboard) {
@@ -725,7 +1349,7 @@ export class LisboaCanvasRenderer {
       ctx.font = '700 9.5px "Segoe UI", sans-serif';
       const tw = ctx.measureText(tag).width + 12;
       drawRoundedRect(ctx, vehicle.x - tw / 2, vehicle.y + 20, tw, 16, 4);
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
       ctx.fill();
       ctx.textAlign = 'center';
       ctx.fillStyle = '#fde68a';
@@ -738,27 +1362,23 @@ export class LisboaCanvasRenderer {
     const bob = opts.isMoving ? Math.sin(opts.walkPhase) * 2.5 : 0;
     const legSwing = opts.isMoving ? Math.sin(opts.walkPhase) * 4 : 0;
 
-    // Shadow
     ctx.fillStyle = 'rgba(15, 23, 42, 0.24)';
     ctx.beginPath();
     ctx.ellipse(x, y + 11, 11, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Boots / feet
     ctx.fillStyle = '#3b2b22';
     ctx.beginPath();
     ctx.arc(x - 4, y + 8 + legSwing * 0.45, 3.5, 0, Math.PI * 2);
     ctx.arc(x + 4, y + 8 - legSwing * 0.45, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Backpack (for player)
     if (opts.isPlayer && opts.facing === 'up') {
       ctx.fillStyle = '#a3572a';
       drawRoundedRect(ctx, x - 7, y - 5 + bob, 14, 11, 3);
       ctx.fill();
     }
 
-    // Tunic / Coat
     ctx.fillStyle = opts.tunicColor;
     drawRoundedRect(ctx, x - 8, y - 7 + bob, 16, 15, 5);
     ctx.fill();
@@ -766,11 +1386,9 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // Scarf
     ctx.fillStyle = opts.scarfColor;
     ctx.fillRect(x - 7, y - 6 + bob, 14, 4);
 
-    // Head
     ctx.fillStyle = '#f2cfb2';
     ctx.beginPath();
     ctx.arc(x, y - 13 + bob, 7.5, 0, Math.PI * 2);
@@ -779,13 +1397,11 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Hair cap
     ctx.fillStyle = opts.hairColor;
     ctx.beginPath();
     ctx.arc(x, y - 15.5 + bob, 7.2, Math.PI, Math.PI * 2);
     ctx.fill();
 
-    // Directional eyes
     ctx.fillStyle = '#1e293b';
     if (opts.facing === 'down') {
       ctx.fillRect(x - 3, y - 13 + bob, 2, 2);
@@ -796,7 +1412,6 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(x + 2.5, y - 13 + bob, 2, 2);
     }
 
-    // Subtle player marker ring
     if (opts.isPlayer) {
       ctx.strokeStyle = 'rgba(212, 88, 59, 0.72)';
       ctx.lineWidth = 1.6;
@@ -826,13 +1441,12 @@ export class LisboaCanvasRenderer {
 
     ctx.save();
     drawRoundedRect(ctx, mx - 4, my - 4, mw + 8, mh + 22, 8);
-    ctx.fillStyle = 'rgba(18, 31, 48, 0.82)';
+    ctx.fillStyle = 'rgba(18, 31, 48, 0.84)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Neighborhood bands
     for (const hood of NEIGHBORHOODS) {
       ctx.fillStyle = hood.groundTint;
       ctx.globalAlpha = 0.25;
@@ -840,11 +1454,9 @@ export class LisboaCanvasRenderer {
     }
     ctx.globalAlpha = 1;
 
-    // River strip
     ctx.fillStyle = '#256c94';
     ctx.fillRect(mx, my + WATERFRONT_Y * sy, mw, (WORLD_HEIGHT - WATERFRONT_Y) * sy);
 
-    // Tram line
     ctx.strokeStyle = '#f3c623';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -852,14 +1464,12 @@ export class LisboaCanvasRenderer {
     ctx.lineTo(mx + 2160 * sx, my + 610 * sy);
     ctx.stroke();
 
-    // Venues
     for (const venue of VENUES) {
       const visited = state.visitedVenues.includes(venue.id);
       ctx.fillStyle = visited ? '#34d399' : '#fbbf24';
       ctx.fillRect(mx + venue.x * sx, my + venue.y * sy, Math.max(4, venue.w * sx), Math.max(4, venue.h * sy));
     }
 
-    // Live vehicles
     for (const v of state.vehicles) {
       ctx.fillStyle = v.mode === 'tram' ? '#fde047' : '#34d399';
       ctx.beginPath();
@@ -867,7 +1477,6 @@ export class LisboaCanvasRenderer {
       ctx.fill();
     }
 
-    // Player dot
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
     ctx.arc(mx + state.player.x * sx, my + state.player.y * sy, 4, 0, Math.PI * 2);
@@ -876,7 +1485,6 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // District labels below minimap
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '600 8.5px "Segoe UI", sans-serif';
     ctx.fillText('B. ALTO', mx + 6, my + mh + 12);
@@ -917,7 +1525,6 @@ export class LisboaCanvasRenderer {
     const theme = venue.interiorTheme;
     const phase = getDayPhase(state.minutesOfDay);
 
-    // Outer ambient backdrop
     ctx.fillStyle = '#182230';
     ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
 
@@ -935,49 +1542,71 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 6;
     ctx.stroke();
 
-    // Upper back wall
+    // Upper back wall + Authentic Cobalt Azulejo Wainscoting Dado
     ctx.fillStyle = theme.wall;
     ctx.fillRect(6, 6, INTERIOR_WIDTH - 12, 134);
+    this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
     ctx.fillStyle = theme.trim;
     ctx.fillRect(6, 132, INTERIOR_WIDTH - 12, 8);
 
-    // Sunlit Lisbon windows on back wall
+    // Arched Pombaline windows on back wall looking onto Lisbon sky
     const skyColor =
       phase.id === 'evening' ? '#1c2c4d' : phase.id === 'golden' ? '#e89a54' : '#8ec5e8';
     const winXs = [78, 578];
     for (const wx of winXs) {
       ctx.fillStyle = skyColor;
-      ctx.fillRect(wx, 28, 104, 72);
+      ctx.beginPath();
+      ctx.arc(wx + 52, 46, 52, Math.PI, 0);
+      ctx.lineTo(wx + 104, 102);
+      ctx.lineTo(wx, 102);
+      ctx.closePath();
+      ctx.fill();
       ctx.strokeStyle = theme.trim;
       ctx.lineWidth = 3;
-      ctx.strokeRect(wx, 28, 104, 72);
+      ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(wx + 52, 28);
-      ctx.lineTo(wx + 52, 100);
+      ctx.moveTo(wx + 52, 18);
+      ctx.lineTo(wx + 52, 102);
       ctx.moveTo(wx, 64);
       ctx.lineTo(wx + 104, 64);
       ctx.stroke();
     }
 
-    // Room title plaque centered on back wall
-    drawRoundedRect(ctx, 224, 24, 312, 46, 8);
+    // Room title enamel plaque centered on back wall
+    drawRoundedRect(ctx, 224, 22, 312, 46, 8);
     ctx.fillStyle = theme.trim;
     ctx.fill();
+    ctx.strokeStyle = '#f3c623';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '700 15px "Segoe UI", sans-serif';
+    ctx.font = '700 15px Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.fillText(venue.name, 380, 46);
+    ctx.fillText(venue.name, 380, 44);
     ctx.fillStyle = '#fde68a';
     ctx.font = '600 10.5px "Segoe UI", sans-serif';
-    ctx.fillText(`${venue.badge}  -  ${venue.memory.neighborhood.toUpperCase()}`, 380, 62);
+    ctx.fillText(`${venue.badge}  -  ${venue.memory.neighborhood.toUpperCase()}`, 380, 60);
 
-    // Patterned tiled interior floor
+    // Patterned Portuguese hydraulic-tile interior floor (mosaico hidraulico)
     const tile = 32;
     for (let fy = 140; fy < INTERIOR_HEIGHT - 12; fy += tile) {
       for (let fx = 12; fx < INTERIOR_WIDTH - 12; fx += tile) {
         const alt = (Math.floor(fx / tile) + Math.floor(fy / tile)) % 2 === 0;
+        const tw = Math.min(tile, INTERIOR_WIDTH - 12 - fx);
+        const th = Math.min(tile, INTERIOR_HEIGHT - 12 - fy);
         ctx.fillStyle = alt ? theme.floorPrimary : theme.floorSecondary;
-        ctx.fillRect(fx, fy, Math.min(tile, INTERIOR_WIDTH - 12 - fx), Math.min(tile, INTERIOR_HEIGHT - 12 - fy));
+        ctx.fillRect(fx, fy, tw, th);
+        // Subtle inlaid diamond star motif
+        if (tw === tile && th === tile) {
+          ctx.fillStyle = 'rgba(27, 77, 137, 0.08)';
+          ctx.beginPath();
+          ctx.moveTo(fx + 16, fy + 8);
+          ctx.lineTo(fx + 24, fy + 16);
+          ctx.lineTo(fx + 16, fy + 24);
+          ctx.lineTo(fx + 8, fy + 16);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
     }
 
@@ -991,13 +1620,19 @@ export class LisboaCanvasRenderer {
       hairColor: '#3a2b22',
       isPlayer: false
     });
-    ctx.fillStyle = '#1e293b';
-    ctx.font = '700 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    drawRoundedRect(ctx, 336, 98, 88, 17, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#1b4d89';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#14375f';
+    ctx.font = '700 10.5px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(venue.proprietor, 380, 114);
+    ctx.fillText(venue.proprietor, 380, 110);
 
     // Service counter (drawn in front of proprietor lower body)
-    ctx.fillStyle = 'rgba(20, 20, 25, 0.2)';
+    ctx.fillStyle = 'rgba(20, 20, 25, 0.22)';
     ctx.fillRect(236, 152, 294, 42);
     ctx.fillStyle = theme.counter;
     drawRoundedRect(ctx, 230, 142, 300, 44, 6);
@@ -1006,9 +1641,14 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // Decorative tiled front face on counter
+    ctx.fillStyle = 'rgba(255, 248, 235, 0.25)';
+    for (let cx = 244; cx < 516; cx += 24) {
+      ctx.fillRect(cx, 174, 14, 7);
+    }
+
     // Counter props based on venue layout
     if (theme.layout === 'cafe') {
-      // Brass espresso machine + pastry dome
       ctx.fillStyle = '#c5922b';
       ctx.fillRect(256, 150, 38, 22);
       ctx.fillStyle = '#fff3d6';
@@ -1020,7 +1660,6 @@ export class LisboaCanvasRenderer {
         ctx.fill();
       }
     } else if (theme.layout === 'restaurant') {
-      // Soup tureen / grilled dish platters
       ctx.fillStyle = '#e5e7eb';
       ctx.beginPath();
       ctx.arc(285, 162, 12, 0, Math.PI * 2);
@@ -1036,7 +1675,6 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(442, 158, 22, 6);
       ctx.fillRect(472, 158, 22, 6);
     } else {
-      // Boutique register & display parcels
       ctx.fillStyle = '#cbd5e1';
       ctx.fillRect(258, 150, 36, 22);
       ctx.fillStyle = '#e2b98f';
@@ -1053,14 +1691,12 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Colored goods / books / tiles on left display shelf
     const swatchColors = ['#1b4d89', '#c98a18', '#b84a32', '#13795b'];
     for (let sy = 216; sy <= 298; sy += 26) {
       ctx.fillStyle = swatchColors[(sy / 26) % swatchColors.length | 0];
       ctx.fillRect(72, sy, 52, 15);
     }
 
-    // Right-side tables or browsing crates
     const tableYs = [225, 325];
     for (const ty of tableYs) {
       ctx.fillStyle = theme.layout === 'restaurant' ? '#f8fafc' : '#8e623f';
@@ -1100,7 +1736,6 @@ export class LisboaCanvasRenderer {
     ctx.textAlign = 'center';
     ctx.fillText('EXIT TO STREET', mat.x, mat.y + 4);
 
-    // Walk target inside room
     if (state.player.walkTarget) {
       ctx.strokeStyle = '#1b4d89';
       ctx.lineWidth = 2;
@@ -1109,7 +1744,6 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // Player character inside room
     this.drawCharacterSprite(ctx, state.player.x, state.player.y, {
       facing: state.player.facing,
       walkPhase: state.player.walkPhase,
