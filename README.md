@@ -8,7 +8,7 @@
 
 ## Features
 
-- **Navigable RPG City Canvas**: Explore a continuous street-level map linking Bairro Alto (west), Chiado and Praca Luis de Camoes (center), and Alfama with Se de Lisboa and the Tagus waterfront (east) using `WASD` / Arrow keys or click-to-walk.
+- **Navigable RPG City Canvas**: Explore a continuous street-level map linking Bairro Alto (west), Chiado and Praca Luis de Camoes (center), and Alfama with Se de Lisboa and the Tagus waterfront (east) using `WASD` / Arrow keys or click-to-walk, featuring procedural cobalt *azulejo* tile facades, terracotta barrel-tile roofs, wrought-iron Juliet balconies, *calçada portuguesa* Mar Largo plazas, and hand-laid cobblestone streets.
 - **Live Street-Level Public Transit**:
   - **Eletrico 28E (Carris Tram)**: Glides along steel rails between Rua do Loreto, Praca Luis de Camoes, Largo do Chiado, Se de Lisboa, and Portas do Sol (`3.10 EUR`).
   - **Carris Bus 737 / 758**: Loops past Miradouro de Sao Pedro de Alcantara, Rua Garrett, Miradouro de Santa Luzia, and the Tagus waterfront (`2.10 EUR`).

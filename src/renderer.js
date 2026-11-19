@@ -885,10 +885,10 @@ export class LisboaCanvasRenderer {
       // 16-point calcada compass rose inlaid around Camoes statue
       ctx.fillStyle = '#f0eadc';
       ctx.beginPath();
-      ctx.arc(cx, cy, 40, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 32, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#3b434f';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.8;
       ctx.stroke();
 
       for (let i = 0; i < 8; i += 1) {
@@ -896,34 +896,34 @@ export class LisboaCanvasRenderer {
         ctx.fillStyle = i % 2 === 0 ? '#3b434f' : '#9aa1ac';
         ctx.beginPath();
         ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(ang - 0.16) * 20, cy + Math.sin(ang - 0.16) * 20);
-        ctx.lineTo(cx + Math.cos(ang) * 37, cy + Math.sin(ang) * 37);
-        ctx.lineTo(cx + Math.cos(ang + 0.16) * 20, cy + Math.sin(ang + 0.16) * 20);
+        ctx.lineTo(cx + Math.cos(ang - 0.16) * 16, cy + Math.sin(ang - 0.16) * 16);
+        ctx.lineTo(cx + Math.cos(ang) * 30, cy + Math.sin(ang) * 30);
+        ctx.lineTo(cx + Math.cos(ang + 0.16) * 16, cy + Math.sin(ang + 0.16) * 16);
         ctx.closePath();
         ctx.fill();
       }
 
       // Octagonal lioz limestone plinth + bronze poet statue
       ctx.fillStyle = '#ded7c7';
-      drawRoundedRect(ctx, struct.x + 8, struct.y + 8, struct.w - 16, struct.h - 16, 6);
+      drawRoundedRect(ctx, struct.x + 10, struct.y + 10, struct.w - 20, struct.h - 20, 5);
       ctx.fill();
       ctx.strokeStyle = '#756d5e';
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
       ctx.fillStyle = '#3e544c';
       ctx.beginPath();
-      ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#5c7a6f';
       ctx.beginPath();
-      ctx.arc(cx - 2, cy - 2, 5, 0, Math.PI * 2);
+      ctx.arc(cx - 2, cy - 2, 4.5, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.font = '700 9.5px Georgia, serif';
+      ctx.font = '700 9px Georgia, serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#243142';
-      ctx.fillText('LUIS DE CAMOES', cx, struct.y - 12);
+      ctx.fillText('LUIS DE CAMOES', cx, struct.y - 11);
       ctx.textAlign = 'left';
       return;
     }
@@ -1028,13 +1028,11 @@ export class LisboaCanvasRenderer {
     // Pombaline & Bairro Alto Townhouses with Azulejo / Plaster + Barrel Roof + Juliet Balconies
     const roofH = Math.round(struct.h * 0.42);
     const wallStyle =
-      struct.style === 'azulejo'
-        ? 'cobalt-azulejo'
-        : struct.id === 'house-chiado-south'
-          ? 'pombaline-teal'
-          : struct.id === 'house-ba-mid'
-            ? 'rose-plaster'
-            : 'ochre-plaster';
+    struct.style === 'azulejo' || struct.id === 'house-chiado-south'
+      ? 'cobalt-azulejo'
+        : struct.id === 'house-ba-mid'
+      ? 'rose-plaster'
+      : 'ochre-plaster';
 
     this.drawAzulejoWall(ctx, struct.x, struct.y + roofH - 2, struct.w, struct.h - roofH + 2, wallStyle);
     this.drawTerracottaRoof(ctx, struct.x - 3, struct.y - 3, struct.w + 6, roofH, struct.roofColor, true);
