@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>memories - Lisboa Ground-Level Exploration</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hud-bar">
+      <div class="brand-block">
+        <div class="brand-tag">LISBOA GROUND-LEVEL RPG</div>
+        <h1>memories: Bairro Alto, Chiado &amp; Alfama</h1>
+      </div>
+
+      <div class="hud-metrics">
+        <div class="metric-card">
+          <span class="metric-label">WALLET</span>
+          <strong class="metric-value" id="hud-euros">120.00 EUR</strong>
+        </div>
+
+        <div class="metric-card">
+          <span class="metric-label">ENERGY</span>
+          <div class="meter-row">
+            <div class="meter-track"><div class="meter-fill meter-energy" id="hud-energy-bar"></div></div>
+            <strong class="metric-value compact" id="hud-energy">100</strong>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <span class="metric-label">FULLNESS</span>
+          <div class="meter-row">
+            <div class="meter-track"><div class="meter-fill meter-fullness" id="hud-fullness-bar"></div></div>
+            <strong class="metric-value compact" id="hud-fullness">85</strong>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <span class="metric-label">LISBOA CLOCK</span>
+          <div class="metric-inline">
+            <strong class="metric-value" id="hud-clock">Day 1 - 09:00</strong>
+            <span class="phase-pill phase-morning" id="hud-phase">MORNING</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <span class="metric-label">MEMORY ALBUM</span>
+          <strong class="metric-value" id="hud-memories">0 / 16</strong>
+        </div>
+      </div>
+
+      <div class="hud-actions">
+        <button type="button" class="btn btn-warm" id="btn-overnight">Rest Until Morning</button>
+        <button type="button" class="btn btn-outline" id="btn-reset">New Stroll</button>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <section class="left-column">
+        <div class="panel canvas-panel">
+          <div class="panel-header">
+            <div>
+              <h2 id="scene-title">Chiado - Praca Luis de Camoes</h2>
+              <p class="panel-subtitle" id="scene-subtitle">Walk with WASD / Arrows or click on the streets. Press [E] to enter shops, board Tram 28E or Carris Bus, or rest.</p>
+            </div>
+            <div class="scene-badges">
+              <span class="badge badge-tram" id="live-tram-status">[TRAM 28E] En route</span>
+              <span class="badge badge-bus" id="live-bus-status">[BUS 737] En route</span>
+            </div>
+          </div>
+
+          <div class="canvas-wrapper">
+            <canvas
+              id="lisboa-canvas"
+              width="920"
+              height="560"
+              aria-label="Interactive RPG street map of Bairro Alto, Chiado, and Alfama in Lisbon"
+            ></canvas>
+          </div>
+
+          <div class="controls-bar">
+            <div class="action-strip">
+              <button type="button" class="btn btn-primary" id="btn-context-action" disabled>
+                Walk near a shop, transit stop, or bench
+              </button>
+              <button type="button" class="btn btn-secondary hidden" id="btn-secondary-action">
+                Secondary Action
+              </button>
+            </div>
+            <div class="controls-hint">
+              <span><strong>Move:</strong> WASD / Arrows / Click</span>
+              <span><strong>Interact:</strong> E / Space</span>
+              <span><strong>Exit Shop:</strong> Esc</span>
+            </div>
+          </div>
+
+          <div class="legend-bar">
+            <span class="legend-item"><i class="swatch swatch-tram"></i> Eletrico 28E (3.10 EUR)</span>
+            <span class="legend-item"><i class="swatch swatch-bus"></i> Carris Bus 737/758 (2.10 EUR)</span>
+            <span class="legend-item"><i class="swatch swatch-cafe"></i> Cafe / Restaurant</span>
+            <span class="legend-item"><i class="swatch swatch-shop"></i> Local Shop</span>
+            <span class="legend-item"><i class="swatch swatch-bench"></i> Free Miradouro Bench</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="right-column">
+        <div class="status-banner" id="status-banner" aria-live="polite">
+          Welcome to Lisboa! Walk around Bairro Alto, Chiado, and Alfama, board Tram 28E or Carris Bus, and step inside local shops and restaurants.
+        </div>
+
+        <section class="panel context-panel hidden" id="active-context-panel">
+          <!-- Populated dynamically when inside a shop/restaurant or riding transit -->
+        </section>
+
+        <nav class="tab-bar" aria-label="Explorer notebook tabs">
+          <button type="button" class="tab-btn active" data-tab="guide">Lisboa Guide</button>
+          <button type="button" class="tab-btn" data-tab="memories">Memories</button>
+          <button type="button" class="tab-btn" data-tab="phrases">Phrases</button>
+          <button type="button" class="tab-btn" data-tab="satchel">Satchel &amp; Log</button>
+        </nav>
+
+        <section class="panel tab-panel active" id="tab-guide">
+          <div class="panel-header compact">
+            <h3>Shops, Restaurants &amp; Transit</h3>
+            <span class="badge-muted" id="visited-venues-badge">0 / 9 venues</span>
+          </div>
+          <p class="helper-text">
+            Click <strong>Walk Here</strong> on any shop, restaurant, bench, or transit stop to guide your character along the streets, or stroll freely with the keyboard.
+          </p>
+          <div id="guide-list" class="stack-list"></div>
+        </section>
+
+        <section class="panel tab-panel" id="tab-memories">
+          <div class="panel-header compact">
+            <h3>Lisboa Memory Album</h3>
+            <span class="badge-muted" id="album-count-badge">0 / 16 captured</span>
+          </div>
+          <div id="album-complete-banner" class="album-complete hidden">
+            <strong>Album Complete!</strong> You captured all 16 neighborhood, transit, and culinary memories across Bairro Alto, Chiado, and Alfama. Keep wandering Lisboa as long as you wish.
+          </div>
+          <div id="memories-list" class="memory-grid"></div>
+        </section>
+
+        <section class="panel tab-panel" id="tab-phrases">
+          <div class="panel-header compact">
+            <h3>European Portuguese Phrasebook</h3>
+            <span class="badge-muted" id="phrase-count-badge">1 phrase</span>
+          </div>
+          <ul id="phrasebook-list" class="journal-list"></ul>
+        </section>
+
+        <section class="panel tab-panel" id="tab-satchel">
+          <div class="panel-header compact">
+            <h3>Traveler Satchel &amp; Stroll Log</h3>
+            <span class="badge-muted" id="satchel-count-badge">0 keepsakes</span>
+          </div>
+          <div class="journal-section">
+            <h4>Souvenirs Collected</h4>
+            <ul id="satchel-list" class="journal-list"></ul>
+          </div>
+          <div class="journal-section">
+            <h4>Dishes &amp; Drinks Tasted</h4>
+            <ul id="tasted-list" class="journal-list"></ul>
+          </div>
+          <div class="journal-section">
+            <h4>Recent Stroll Log</h4>
+            <ul id="journal-list" class="journal-list"></ul>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

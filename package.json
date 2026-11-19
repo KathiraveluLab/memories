@@ -1,0 +1,10 @@
+{
+  "name": "memories-lisboa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ground-level RPG canvas exploration game set in Bairro Alto, Chiado, and Alfama in Lisboa, featuring tram and bus transit, enterable shops and restaurants, and a collectible Memory Album.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/engine.test.js"
+  }
+}
