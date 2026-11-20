@@ -682,20 +682,48 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(bx - 5, WATERFRONT_Y - 16, 10, 12);
       ctx.fillStyle = '#e5ded0';
       ctx.fillRect(bx - 4, WATERFRONT_Y - 16, 8, 4);
+      // Cast-iron mooring bollard cap on the quay edge
+      ctx.fillStyle = '#27303f';
+      ctx.fillRect(bx + 36, WATERFRONT_Y - 7, 7, 6);
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(bx + 35, WATERFRONT_Y - 8, 9, 2);
     }
 
     const grad = ctx.createLinearGradient(0, WATERFRONT_Y, 0, WORLD_HEIGHT);
     grad.addColorStop(0, '#2a6f97');
-    grad.addColorStop(0.55, '#1e5b82');
-    grad.addColorStop(1, '#144260');
+    grad.addColorStop(0.45, '#1e5b82');
+    grad.addColorStop(1, '#123d5a');
     ctx.fillStyle = grad;
     ctx.fillRect(0, WATERFRONT_Y, WORLD_WIDTH, WORLD_HEIGHT - WATERFRONT_Y);
 
-    ctx.strokeStyle = 'rgba(218, 240, 255, 0.28)';
+    // Subtle sunlit coastal shallow shelf & seawall shadow along the northern quay
+    const shelfGrad = ctx.createLinearGradient(0, WATERFRONT_Y, 0, WATERFRONT_Y + 26);
+    shelfGrad.addColorStop(0, 'rgba(15, 38, 58, 0.36)');
+    shelfGrad.addColorStop(0.35, 'rgba(56, 189, 248, 0.14)');
+    shelfGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = shelfGrad;
+    ctx.fillRect(0, WATERFRONT_Y, WORLD_WIDTH, 26);
+
+    // Shimmering Ponte 25 de Abril red suspension tower reflection on the western Tagus waters
+    ctx.save();
+    ctx.strokeStyle = 'rgba(210, 45, 58, 0.18)';
     ctx.lineWidth = 2;
-    for (let row = 0; row < 4; row += 1) {
-      const ry = WATERFRONT_Y + 26 + row * 34;
-      for (let rx = 60 + (row % 2) * 70; rx < WORLD_WIDTH - 40; rx += 160) {
+    for (const tx of [380, 690]) {
+      for (let ry = WATERFRONT_Y + 18; ry < WORLD_HEIGHT - 16; ry += 9) {
+        const sway = Math.sin(this.animTime * 2.1 + ry * 0.15) * 5;
+        ctx.beginPath();
+        ctx.moveTo(tx - 10 + sway, ry);
+        ctx.lineTo(tx + 10 + sway, ry);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(218, 240, 255, 0.32)';
+    ctx.lineWidth = 2;
+    for (let row = 0; row < 5; row += 1) {
+      const ry = WATERFRONT_Y + 22 + row * 30;
+      for (let rx = 50 + (row % 2) * 70; rx < WORLD_WIDTH - 40; rx += 145) {
         const shift = Math.sin(this.animTime * 1.4 + row + rx * 0.01) * 14;
         ctx.beginPath();
         ctx.moveTo(rx + shift, ry);
@@ -708,25 +736,54 @@ export class LisboaCanvasRenderer {
     for (let i = 0; i < boats.length; i += 1) {
       const bx = boats[i] + Math.sin(this.animTime * 0.4 + i * 2) * 16;
       const by = WATERFRONT_Y + 78 + Math.cos(this.animTime * 1.2 + i) * 3;
-      ctx.fillStyle = '#7b3e2b';
+      // V-wake ripple behind hull
+      ctx.strokeStyle = 'rgba(224, 242, 254, 0.42)';
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.moveTo(bx - 20, by);
-      ctx.lineTo(bx + 20, by);
-      ctx.lineTo(bx + 13, by + 9);
-      ctx.lineTo(bx - 13, by + 9);
+      ctx.moveTo(bx - 22, by + 5);
+      ctx.lineTo(bx - 42, by + 1);
+      ctx.moveTo(bx - 22, by + 6);
+      ctx.lineTo(bx - 40, by + 11);
+      ctx.stroke();
+
+      // Traditional Tagus fragata timber hull + ochre gunwale stripe
+      ctx.fillStyle = '#6e3423';
+      ctx.beginPath();
+      ctx.moveTo(bx - 22, by);
+      ctx.lineTo(bx + 22, by);
+      ctx.lineTo(bx + 14, by + 9);
+      ctx.lineTo(bx - 15, by + 9);
       ctx.closePath();
       ctx.fill();
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(bx - 18, by + 2, 36, 2);
+
+      // Mast, lateen mainsail & forward jib
+      ctx.strokeStyle = '#3e2723';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(bx - 2, by);
+      ctx.lineTo(bx - 2, by - 31);
+      ctx.stroke();
 
       ctx.fillStyle = i === 1 ? '#d97648' : '#faf6ee';
       ctx.beginPath();
-      ctx.moveTo(bx - 2, by - 2);
-      ctx.lineTo(bx - 2, by - 28);
-      ctx.lineTo(bx + 16, by - 4);
+      ctx.moveTo(bx - 1, by - 3);
+      ctx.lineTo(bx - 1, by - 29);
+      ctx.lineTo(bx + 18, by - 4);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(250, 246, 238, 0.88)';
+      ctx.beginPath();
+      ctx.moveTo(bx - 4, by - 4);
+      ctx.lineTo(bx - 3, by - 23);
+      ctx.lineTo(bx - 17, by - 4);
       ctx.closePath();
       ctx.fill();
     }
 
-    ctx.fillStyle = 'rgba(235, 246, 255, 0.6)';
+    ctx.fillStyle = 'rgba(235, 246, 255, 0.65)';
     ctx.font = '600 13px Georgia, serif';
     ctx.fillText('RIO TEJO  -  TAGUS WATERFRONT', 1020, WATERFRONT_Y + 142);
   }
@@ -820,35 +877,81 @@ export class LisboaCanvasRenderer {
 
   drawTreesAndBenches(ctx, state) {
     const trees = [
-      { x: 482, y: 125, c: '#7a58ab', highlight: '#b093dc' },
-      { x: 545, y: 125, c: '#7a58ab', highlight: '#b093dc' },
-      { x: 890, y: 492, c: '#3f7d52', highlight: '#65a676' },
-      { x: 1010, y: 492, c: '#3f7d52', highlight: '#65a676' },
-      { x: 2178, y: 492, c: '#487f57', highlight: '#73ad82' },
-      { x: 740, y: 985, c: '#3f7d52', highlight: '#65a676' },
-      { x: 1410, y: 985, c: '#7a58ab', highlight: '#b093dc' },
-      { x: 2070, y: 985, c: '#3f7d52', highlight: '#65a676' }
+      { x: 482, y: 125, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
+      { x: 545, y: 125, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
+      { x: 890, y: 492, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
+      { x: 1010, y: 492, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
+      { x: 2178, y: 492, c: '#487f57', shadow: '#2d593a', highlight: '#7ec08d', jacaranda: false },
+      { x: 740, y: 985, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
+      { x: 1410, y: 985, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
+      { x: 2070, y: 985, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false }
     ];
     for (const t of trees) {
-      ctx.fillStyle = 'rgba(26, 32, 40, 0.17)';
+      // Dappled canopy ground shadow
+      ctx.fillStyle = 'rgba(22, 28, 38, 0.2)';
       ctx.beginPath();
-      ctx.ellipse(t.x + 4, t.y + 9, 18, 11, 0, 0, Math.PI * 2);
+      ctx.ellipse(t.x + 5, t.y + 10, 21, 12, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#6c4d35';
-      ctx.fillRect(t.x - 3, t.y, 6, 11);
+      // Carved Lioz limestone sidewalk planter curb & dark earth tree well
+      ctx.fillStyle = '#dfd7c8';
+      ctx.strokeStyle = '#8c8273';
+      ctx.lineWidth = 1.1;
+      ctx.fillRect(t.x - 10, t.y + 4, 20, 10);
+      ctx.strokeRect(t.x - 10, t.y + 4, 20, 10);
+      ctx.fillStyle = '#473628';
+      ctx.fillRect(t.x - 7, t.y + 6, 14, 6);
 
+      // Fallen Jacaranda petals around sidewalk tree well
+      if (t.jacaranda) {
+        ctx.fillStyle = 'rgba(168, 121, 224, 0.55)';
+        for (const [px, py] of [[-12, 11], [-5, 14], [7, 13], [13, 9], [-8, 7]]) {
+          ctx.beginPath();
+          ctx.arc(t.x + px, t.y + py, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Tapered wooden trunk & forked upper branches
+      ctx.fillStyle = '#593d28';
+      ctx.beginPath();
+      ctx.moveTo(t.x - 4.5, t.y + 10);
+      ctx.lineTo(t.x + 4.5, t.y + 10);
+      ctx.lineTo(t.x + 2.8, t.y - 4);
+      ctx.lineTo(t.x - 2.8, t.y - 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#7d583c';
+      ctx.fillRect(t.x - 3.2, t.y - 2, 2, 11);
+
+      ctx.strokeStyle = '#593d28';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(t.x - 1, t.y - 2);
+      ctx.lineTo(t.x - 9, t.y - 10);
+      ctx.moveTo(t.x + 1, t.y - 2);
+      ctx.lineTo(t.x + 9, t.y - 9);
+      ctx.stroke();
+
+      // Multi-layered volumetric foliage clusters (deep shadow -> mid -> sunlit top crown)
+      ctx.fillStyle = t.shadow;
+      for (const [dx, dy, r] of [[-11, -4, 10], [11, -4, 10], [0, -2, 12]]) {
+        ctx.beginPath();
+        ctx.arc(t.x + dx, t.y + dy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.fillStyle = t.c;
-      ctx.beginPath();
-      ctx.arc(t.x, t.y - 6, 16, 0, Math.PI * 2);
-      ctx.fill();
+      for (const [dx, dy, r] of [[-9, -9, 11], [9, -8, 11], [0, -12, 13.5], [-4, -6, 12]]) {
+        ctx.beginPath();
+        ctx.arc(t.x + dx, t.y + dy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.fillStyle = t.highlight;
-      ctx.beginPath();
-      ctx.arc(t.x - 4, t.y - 10, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(t.x + 6, t.y - 4, 5, 0, Math.PI * 2);
-      ctx.fill();
+      for (const [dx, dy, r] of [[-5, -15, 7.5], [5, -13, 6.5], [-10, -10, 5.5], [8, -7, 4.8]]) {
+        ctx.beginPath();
+        ctx.arc(t.x + dx, t.y + dy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     for (const spot of REST_SPOTS) {
@@ -1177,8 +1280,14 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = shutterColor;
     ctx.fillRect(wx - 9, wy - 1, 6, wh + 2);
     ctx.fillRect(wx + ww + 3, wy - 1, 6, wh + 2);
+    // Horizontal wooden louver slats on exterior portadas shutters
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.28)';
+    for (let ly = wy + 2; ly < wy + wh - 1; ly += 3.5) {
+      ctx.fillRect(wx - 8, ly, 4, 1.1);
+      ctx.fillRect(wx + ww + 4, ly, 4, 1.1);
+    }
 
-    ctx.fillStyle = isEvening ? '#ffe285' : '#6c97ba';
+    ctx.fillStyle = isEvening ? '#ffe285' : '#5b87ad';
     if (arched) {
       ctx.beginPath();
       ctx.arc(wx + ww / 2, wy + ww / 2, ww / 2, Math.PI, 0);
@@ -1189,6 +1298,9 @@ export class LisboaCanvasRenderer {
     } else {
       ctx.fillRect(wx, wy, ww, wh);
     }
+    // Subtle sky glass reflection glint inside casement pane
+    ctx.fillStyle = isEvening ? 'rgba(255, 250, 220, 0.35)' : 'rgba(224, 242, 254, 0.32)';
+    ctx.fillRect(wx + 2, wy + 2, Math.max(2, ww * 0.28), Math.max(4, wh * 0.32));
 
     ctx.strokeStyle = '#f5f2eb';
     ctx.lineWidth = 1.2;
@@ -5063,27 +5175,101 @@ export class LisboaCanvasRenderer {
 
     // 3. Mid-ground Lisboa Cityscape (Tagus Riverfront OR Historic Azulejo Pombaline Avenues)
     if (onWaterfront) {
-      // Ponte 25 de Abril red suspension bridge & Cristo Rei silhouette across the Tagus
+      // Architectural Ponte 25 de Abril red suspension bridge & Cristo Rei silhouette across the Tagus
       const bridgeOffset = (scroll * 0.25) % 920;
       const bCenter = 480 - bridgeOffset * 0.25;
-      ctx.strokeStyle = isEvening ? '#7f1d1d' : '#b91c1c';
-      ctx.lineWidth = 4;
+      const bLeft = bCenter - 360;
+      const bRight = bCenter + 360;
+      const t1X = bCenter - 170;
+      const t2X = bCenter + 170;
+      const deckY = 246;
+      const towerTopY = 166;
+      const bridgeRed = isEvening ? '#7f1d1d' : '#b91c1c';
+      const bridgeHighlight = isEvening ? '#a32929' : '#dc2626';
+
+      // South-bank Almada cliff & Santuario de Cristo Rei
+      const crX = bCenter + 310;
+      ctx.fillStyle = isEvening ? '#273549' : '#7c7265';
       ctx.beginPath();
-      ctx.moveTo(0, 248);
-      ctx.lineTo(this.viewWidth, 248);
-      ctx.stroke();
-      for (const tx of [bCenter - 170, bCenter + 170]) {
-        ctx.fillStyle = isEvening ? '#7f1d1d' : '#b91c1c';
-        ctx.fillRect(tx - 6, 166, 12, 114);
-        ctx.fillRect(tx - 10, 198, 20, 4);
+      ctx.moveTo(bCenter + 220, 278);
+      ctx.lineTo(crX - 30, 232);
+      ctx.lineTo(crX + 95, 238);
+      ctx.lineTo(this.viewWidth, 278);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = isEvening ? '#64748b' : '#ded6c8';
+      ctx.fillRect(crX - 7, 198, 14, 36);
+      ctx.fillStyle = isEvening ? '#e2e8f0' : '#f8fafc';
+      ctx.fillRect(crX - 2, 184, 4, 14);
+      ctx.fillRect(crX - 10, 187, 20, 2.5);
+
+      const cableY = (x) => {
+        if (x <= t1X) {
+          const u = (x - bLeft) / Math.max(1, t1X - bLeft);
+          return deckY - u * u * (deckY - (towerTopY + 4));
+        }
+        if (x >= t2X) {
+          const u = (bRight - x) / Math.max(1, bRight - t2X);
+          return deckY - u * u * (deckY - (towerTopY + 4));
+        }
+        const u = (x - t1X) / Math.max(1, t2X - t1X);
+        return (towerTopY + 4) + 4 * u * (1 - u) * ((deckY - 6) - (towerTopY + 4));
+      };
+
+      // Vertical suspender dropper cables
+      ctx.strokeStyle = isEvening ? 'rgba(153, 27, 27, 0.7)' : 'rgba(185, 28, 28, 0.72)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let sx = bLeft + 14; sx <= bRight - 14; sx += 14) {
+        if (Math.abs(sx - t1X) < 10 || Math.abs(sx - t2X) < 10) continue;
+        ctx.moveTo(sx, cableY(sx));
+        ctx.lineTo(sx, deckY);
       }
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bCenter - 360, 246);
-      ctx.quadraticCurveTo(bCenter - 265, 220, bCenter - 170, 172);
-      ctx.quadraticCurveTo(bCenter, 242, bCenter + 170, 172);
-      ctx.quadraticCurveTo(bCenter + 265, 220, bCenter + 360, 246);
       ctx.stroke();
+
+      // Double-deck Warren truss roadway
+      ctx.fillStyle = isEvening ? 'rgba(76, 15, 15, 0.85)' : 'rgba(136, 19, 19, 0.82)';
+      ctx.fillRect(0, deckY, this.viewWidth, 7);
+      ctx.strokeStyle = bridgeHighlight;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(0, deckY);
+      ctx.lineTo(this.viewWidth, deckY);
+      ctx.moveTo(0, deckY + 7);
+      ctx.lineTo(this.viewWidth, deckY + 7);
+      ctx.stroke();
+
+      // Main catenary cables
+      ctx.strokeStyle = bridgeHighlight;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      for (let sx = bLeft; sx <= bRight; sx += 8) {
+        const cy = cableY(sx);
+        if (sx === bLeft) ctx.moveTo(sx, cy);
+        else ctx.lineTo(sx, cy);
+      }
+      ctx.stroke();
+
+      // Twin portal towers with diamond X-bracing & concrete caisson piers
+      for (const tx of [t1X, t2X]) {
+        ctx.fillStyle = isEvening ? '#475569' : '#cbd5e1';
+        ctx.fillRect(tx - 14, 270, 28, 10);
+        ctx.fillStyle = bridgeRed;
+        ctx.fillRect(tx - 8, towerTopY, 4.5, 105);
+        ctx.fillRect(tx + 3.5, towerTopY, 4.5, 105);
+        ctx.strokeStyle = bridgeHighlight;
+        ctx.lineWidth = 1.4;
+        for (const [yA, yB] of [[170, 196], [198, 224], [226, 244], [254, 268]]) {
+          ctx.beginPath();
+          ctx.moveTo(tx - 6, yA);
+          ctx.lineTo(tx + 6, yA);
+          ctx.moveTo(tx - 6, yA);
+          ctx.lineTo(tx + 6, yB);
+          ctx.moveTo(tx + 6, yA);
+          ctx.lineTo(tx - 6, yB);
+          ctx.stroke();
+        }
+      }
 
       // Shimmering Tagus River water
       const waterGrad = ctx.createLinearGradient(0, 276, 0, 380);
@@ -6184,26 +6370,94 @@ export class LisboaCanvasRenderer {
     const horizonY = 236;
 
     if (f.toPortId === 'cacilhas' || f.fromPortId === 'cacilhas') {
-      // Iconic red Ponte 25 de Abril suspension bridge + Cristo Rei cliffside monument + Farol de Cacilhas lighthouse
-      ctx.strokeStyle = isEvening ? '#7f1d1d' : '#c81e32';
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.moveTo(40, 198);
-      ctx.lineTo(390, 198);
-      ctx.stroke();
-      for (const tx of [125, 295]) {
-        ctx.fillStyle = isEvening ? '#7f1d1d' : '#c81e32';
-        ctx.fillRect(tx - 4, 134, 8, 102);
+      // Architectural red Ponte 25 de Abril suspension bridge + Cristo Rei cliffside monument + Farol de Cacilhas lighthouse
+      const bLeft = 32;
+      const bRight = 404;
+      const t1X = 125;
+      const t2X = 295;
+      const deckY = 196;
+      const towerTopY = 128;
+      const bridgeRed = isEvening ? '#7f1d1d' : '#c81e32';
+      const bridgeHighlight = isEvening ? '#a32929' : '#e33b45';
+
+      // Concrete caisson piers at water level
+      for (const tx of [t1X, t2X]) {
+        ctx.fillStyle = isEvening ? '#475569' : '#cbd5e1';
+        ctx.fillRect(tx - 12, horizonY - 8, 24, 9);
       }
-      ctx.lineWidth = 1.6;
+
+      const cableY = (x) => {
+        if (x <= t1X) {
+          const u = (x - bLeft) / Math.max(1, t1X - bLeft);
+          return deckY - u * u * (deckY - (towerTopY + 4));
+        }
+        if (x >= t2X) {
+          const u = (bRight - x) / Math.max(1, bRight - t2X);
+          return deckY - u * u * (deckY - (towerTopY + 4));
+        }
+        const u = (x - t1X) / Math.max(1, t2X - t1X);
+        return (towerTopY + 4) + 4 * u * (1 - u) * ((deckY - 6) - (towerTopY + 4));
+      };
+
+      // Vertical suspender cables
+      ctx.strokeStyle = isEvening ? 'rgba(153, 27, 27, 0.72)' : 'rgba(190, 24, 38, 0.72)';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(40, 198);
-      ctx.quadraticCurveTo(85, 178, 125, 138);
-      ctx.quadraticCurveTo(210, 192, 295, 138);
-      ctx.quadraticCurveTo(345, 178, 390, 198);
+      for (let sx = bLeft + 10; sx <= bRight - 10; sx += 11) {
+        if (Math.abs(sx - t1X) < 8 || Math.abs(sx - t2X) < 8) continue;
+        ctx.moveTo(sx, cableY(sx));
+        ctx.lineTo(sx, deckY);
+      }
       ctx.stroke();
 
-      // Cristo Rei pedestal & statue on Almada cliff
+      // Double-deck Warren truss roadway
+      ctx.fillStyle = isEvening ? 'rgba(76, 15, 15, 0.85)' : 'rgba(136, 19, 28, 0.84)';
+      ctx.fillRect(bLeft, deckY, bRight - bLeft, 6);
+      ctx.strokeStyle = bridgeHighlight;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(bLeft, deckY);
+      ctx.lineTo(bRight, deckY);
+      ctx.moveTo(bLeft, deckY + 6);
+      ctx.lineTo(bRight, deckY + 6);
+      for (let wx = bLeft; wx < bRight - 8; wx += 10) {
+        ctx.moveTo(wx, deckY);
+        ctx.lineTo(wx + 5, deckY + 6);
+        ctx.lineTo(wx + 10, deckY);
+      }
+      ctx.stroke();
+
+      // Main catenary suspension cable
+      ctx.strokeStyle = bridgeHighlight;
+      ctx.lineWidth = 2.1;
+      ctx.beginPath();
+      for (let sx = bLeft; sx <= bRight; sx += 6) {
+        const cy = cableY(sx);
+        if (sx === bLeft) ctx.moveTo(sx, cy);
+        else ctx.lineTo(sx, cy);
+      }
+      ctx.stroke();
+
+      // Twin portal towers with diamond X-bracing
+      for (const tx of [t1X, t2X]) {
+        ctx.fillStyle = bridgeRed;
+        ctx.fillRect(tx - 7, towerTopY, 4, horizonY - 8 - towerTopY);
+        ctx.fillRect(tx + 3, towerTopY, 4, horizonY - 8 - towerTopY);
+        ctx.strokeStyle = bridgeHighlight;
+        ctx.lineWidth = 1.4;
+        for (const [yA, yB] of [[132, 154], [156, 178], [180, 194], [204, 224]]) {
+          ctx.beginPath();
+          ctx.moveTo(tx - 5, yA);
+          ctx.lineTo(tx + 5, yA);
+          ctx.moveTo(tx - 5, yA);
+          ctx.lineTo(tx + 5, yB);
+          ctx.moveTo(tx + 5, yA);
+          ctx.lineTo(tx - 5, yB);
+          ctx.stroke();
+        }
+      }
+
+      // Cristo Rei tapered 4-pillar pedestal & outstretched-arms statue on Almada cliff
       ctx.fillStyle = '#8b7e6d';
       ctx.beginPath();
       ctx.moveTo(410, horizonY);
@@ -6212,12 +6466,27 @@ export class LisboaCanvasRenderer {
       ctx.lineTo(756, horizonY);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = '#e5ded0';
-      ctx.fillRect(520, 146, 12, 42);
-      ctx.fillRect(514, 142, 24, 4);
+      ctx.fillStyle = '#dfd7c8';
+      ctx.beginPath();
+      ctx.moveTo(515, 188);
+      ctx.lineTo(519, 146);
+      ctx.lineTo(533, 146);
+      ctx.lineTo(537, 188);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#9c9283';
+      ctx.fillRect(524, 153, 4, 35);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(524, 132, 4, 14);
+      ctx.fillRect(514, 135, 24, 3);
+      ctx.beginPath();
+      ctx.arc(526, 129, 2.5, 0, Math.PI * 2);
+      ctx.fill();
       // Red Farol de Cacilhas lighthouse
       ctx.fillStyle = '#dc2626';
       ctx.fillRect(622, 196, 12, 34);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(622, 208, 12, 5);
       ctx.fillStyle = '#fef08a';
       ctx.beginPath();
       ctx.arc(628, 194, 5, 0, Math.PI * 2);

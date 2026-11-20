@@ -590,13 +590,13 @@ export function createMultiplayerServer({
         stopBellRung: Boolean(v.stopBellRung),
         bellAnnouncement: v.bellAnnouncement
           ? {
-              id: v.bellAnnouncement.id,
-              lineId: v.bellAnnouncement.lineId,
-              vehicleMode: v.bellAnnouncement.vehicleMode,
-              stopName: v.bellAnnouncement.stopName,
-              text: v.bellAnnouncement.text,
-              ringerName: v.bellAnnouncement.ringerName
-            }
+            id: v.bellAnnouncement.id,
+            lineId: v.bellAnnouncement.lineId,
+            vehicleMode: v.bellAnnouncement.vehicleMode,
+            stopName: v.bellAnnouncement.stopName,
+            text: v.bellAnnouncement.text,
+            ringerName: v.bellAnnouncement.ringerName
+          }
           : null
       })),
       fadoTrackIndex: sharedFadoTrackIndex,
@@ -612,12 +612,12 @@ export function createMultiplayerServer({
         trainX: Math.round(sharedMetro.trainX * 10) / 10,
         doorChime: sharedMetro.doorChime
           ? {
-              id: sharedMetro.doorChime.id,
-              stationId: sharedMetro.doorChime.stationId,
-              toStationId: sharedMetro.doorChime.toStationId,
-              triggeredBy: sharedMetro.doorChime.triggeredBy,
-              text: sharedMetro.doorChime.text
-            }
+            id: sharedMetro.doorChime.id,
+            stationId: sharedMetro.doorChime.stationId,
+            toStationId: sharedMetro.doorChime.toStationId,
+            triggeredBy: sharedMetro.doorChime.triggeredBy,
+            text: sharedMetro.doorChime.text
+          }
           : null
       },
       ferries: sharedFerries.map((f) => ({
@@ -631,13 +631,13 @@ export function createMultiplayerServer({
         dwellRemaining: Math.round(f.dwellRemaining * 100) / 100,
         hornSignal: f.hornSignal
           ? {
-              id: f.hornSignal.id,
-              routeId: f.hornSignal.routeId,
-              fromPortId: f.hornSignal.fromPortId,
-              toPortId: f.hornSignal.toPortId,
-              triggeredBy: f.hornSignal.triggeredBy,
-              text: f.hornSignal.text
-            }
+            id: f.hornSignal.id,
+            routeId: f.hornSignal.routeId,
+            fromPortId: f.hornSignal.fromPortId,
+            toPortId: f.hornSignal.toPortId,
+            triggeredBy: f.hornSignal.triggeredBy,
+            text: f.hornSignal.text
+          }
           : null
       })),
       npcs: sharedNpcs.map((n) => ({
@@ -658,52 +658,52 @@ export function createMultiplayerServer({
         songTitle: m.songTitle,
         lastEncore: m.lastEncore
           ? {
-              id: m.lastEncore.id,
-              spotId: m.lastEncore.spotId,
-              spotName: m.lastEncore.spotName,
-              neighborhood: m.lastEncore.neighborhood,
-              musicianName: m.lastEncore.musicianName,
-              instrument: m.lastEncore.instrument,
-              songIndex: m.lastEncore.songIndex,
-              songTitle: m.lastEncore.songTitle,
-              requestedBy: m.lastEncore.requestedBy,
-              text: m.lastEncore.text
-            }
+            id: m.lastEncore.id,
+            spotId: m.lastEncore.spotId,
+            spotName: m.lastEncore.spotName,
+            neighborhood: m.lastEncore.neighborhood,
+            musicianName: m.lastEncore.musicianName,
+            instrument: m.lastEncore.instrument,
+            songIndex: m.lastEncore.songIndex,
+            songTitle: m.lastEncore.songTitle,
+            requestedBy: m.lastEncore.requestedBy,
+            text: m.lastEncore.text
+          }
           : null
       })),
       cafeToast: sharedCafeToast
         ? {
-            id: sharedCafeToast.id,
-            locationKey: sharedCafeToast.locationKey,
-            locationName: sharedCafeToast.locationName,
-            speakerName: sharedCafeToast.speakerName,
-            itemName: sharedCafeToast.itemName,
-            text: sharedCafeToast.text
-          }
+          id: sharedCafeToast.id,
+          locationKey: sharedCafeToast.locationKey,
+          locationName: sharedCafeToast.locationName,
+          speakerName: sharedCafeToast.speakerName,
+          itemName: sharedCafeToast.itemName,
+          text: sharedCafeToast.text
+        }
         : null,
       cathedralChime: sharedCathedralChime
         ? {
-            id: sharedCathedralChime.id,
-            day: sharedCathedralChime.day,
-            hour: sharedCathedralChime.hour,
-            clockLabel: sharedCathedralChime.clockLabel,
-            tolls: sharedCathedralChime.tolls,
-            triggeredBy: sharedCathedralChime.triggeredBy,
-            text: sharedCathedralChime.text
-          }
+          id: sharedCathedralChime.id,
+          day: sharedCathedralChime.day,
+          hour: sharedCathedralChime.hour,
+          clockLabel: sharedCathedralChime.clockLabel,
+          tolls: sharedCathedralChime.tolls,
+          triggeredBy: sharedCathedralChime.triggeredBy,
+          text: sharedCathedralChime.text
+        }
         : null,
       sharedPostcard: sharedPostcardSnapshot
         ? {
-            id: sharedPostcardSnapshot.id,
-            locationKey: sharedPostcardSnapshot.locationKey,
-            locationName: sharedPostcardSnapshot.locationName,
-            neighborhood: sharedPostcardSnapshot.neighborhood,
-            photographer: sharedPostcardSnapshot.photographer,
-            companions: sharedPostcardSnapshot.companions,
-            day: sharedPostcardSnapshot.day,
-            clock: sharedPostcardSnapshot.clock,
-            caption: sharedPostcardSnapshot.caption
-          }
+          id: sharedPostcardSnapshot.id,
+          locationKey: sharedPostcardSnapshot.locationKey,
+          locationName: sharedPostcardSnapshot.locationName,
+          neighborhood: sharedPostcardSnapshot.neighborhood,
+          photographer: sharedPostcardSnapshot.photographer,
+          companions: sharedPostcardSnapshot.companions,
+          day: sharedPostcardSnapshot.day,
+          clock: sharedPostcardSnapshot.clock,
+          caption: sharedPostcardSnapshot.caption
+        }
         : null
     };
   }
@@ -1333,9 +1333,9 @@ export function createMultiplayerServer({
           const itemName = sanitizeText(body.itemName || '', '', 44);
           const text = sanitizeText(
             body.text ||
-              (itemName
-                ? `Saude! Raising a toast with ${itemName} at ${locationName}!`
-                : `Saude! Um brinde a Lisboa at ${locationName}!`),
+            (itemName
+              ? `Saude! Raising a toast with ${itemName} at ${locationName}!`
+              : `Saude! Um brinde a Lisboa at ${locationName}!`),
             `Saude! Um brinde a Lisboa at ${locationName}!`,
             96
           );

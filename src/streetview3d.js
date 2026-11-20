@@ -510,57 +510,313 @@ export class LisboaStreetView3DRenderer {
     }
 
     // Distant Lisbon 360-degree Horizon Hills + Ponte 25 de Abril & Cristo Rei (South) + Castelo de Sao Jorge (North-East)
-    ctx.fillStyle = isEvening ? '#182847' : isGolden ? '#8e6d74' : '#7b99b5';
+    // 1) Continuous distant Tagus Estuary water band up to the horizon when looking South so bridge towers rise from water, never beige ground
+    const horizonWaterGrad = ctx.createLinearGradient(0, hy - 6, 0, hy + 18);
+    horizonWaterGrad.addColorStop(0, isEvening ? '#0c233d' : isGolden ? '#1f5378' : '#165a8a');
+    horizonWaterGrad.addColorStop(1, isEvening ? '#102944' : isGolden ? '#28648c' : '#1d6692');
+    ctx.fillStyle = horizonWaterGrad;
+    ctx.fillRect(0, hy - 2, w, 20);
+
+    // 2) Rolling 7-Hills Lisboa & Almada South-Bank Escarpment Silhouette
+    ctx.fillStyle = isEvening ? '#182847' : isGolden ? '#7d5964' : '#6989a6';
     ctx.beginPath();
     ctx.moveTo(0, hy + 2);
-    for (let sx = 0; sx <= w; sx += 20) {
+    for (let sx = 0; sx <= w; sx += 16) {
       const rayAngle = cam.yaw + Math.atan2(sx - w * 0.5, this.focal);
-      const isSouth = Math.sin(rayAngle) > 0.25;
+      const isSouth = Math.sin(rayAngle) > 0.2;
       const hillH = isSouth
-        ? 14 + Math.sin(rayAngle * 5.0) * 7 + Math.cos(rayAngle * 3.0) * 5
-        : 24 + Math.sin(rayAngle * 4.2) * 12 + Math.cos(rayAngle * 9.0) * 6;
+        ? 16 + Math.sin(rayAngle * 4.5) * 8 + Math.cos(rayAngle * 2.5) * 6
+        : 28 + Math.sin(rayAngle * 4.2) * 13 + Math.cos(rayAngle * 8.5) * 6;
       ctx.lineTo(sx, hy - hillH);
     }
     ctx.lineTo(w, hy + 2);
     ctx.closePath();
     ctx.fill();
 
-    // Distant Iconic Ponte 25 de Abril & Cristo Rei across the Tagus when looking South-Southwest
-    const bridgeYaw = Math.PI * 0.62;
-    const relBridge = Math.atan2(Math.sin(bridgeYaw - cam.yaw), Math.cos(bridgeYaw - cam.yaw));
-    if (Math.abs(relBridge) < 0.85) {
-      const bx = w * 0.5 + relBridge * this.focal;
-      ctx.strokeStyle = isEvening ? '#7f1d1d' : '#c81e32';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bx - 120, hy - 14);
-      ctx.lineTo(bx + 120, hy - 14);
-      ctx.stroke();
-      ctx.fillStyle = isEvening ? '#7f1d1d' : '#c81e32';
-      ctx.fillRect(bx - 64, hy - 54, 5, 56);
-      ctx.fillRect(bx + 56, hy - 54, 5, 56);
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(bx - 120, hy - 14);
-      ctx.quadraticCurveTo(bx - 92, hy - 26, bx - 62, hy - 52);
-      ctx.quadraticCurveTo(bx - 2, hy - 16, bx + 58, hy - 52);
-      ctx.quadraticCurveTo(bx + 88, hy - 26, bx + 120, hy - 14);
-      ctx.stroke();
-      // Cristo Rei monument on distant Almada ridge
-      ctx.fillStyle = isEvening ? '#94a3b8' : '#e5ded0';
-      ctx.fillRect(bx + 94, hy - 44, 6, 26);
-      ctx.fillRect(bx + 90, hy - 46, 14, 2.5);
+    // Soft tree-lined ridge & distant terracotta hillside villages along the horizon hills
+    ctx.fillStyle = isEvening ? '#122038' : isGolden ? '#634652' : '#53738f';
+    ctx.beginPath();
+    ctx.moveTo(0, hy + 2);
+    for (let sx = 0; sx <= w; sx += 20) {
+      const rayAngle = cam.yaw + Math.atan2(sx - w * 0.5, this.focal);
+      const lowH = 9 + Math.sin(rayAngle * 6.5 + 0.8) * 5 + Math.cos(rayAngle * 3.5) * 3;
+      ctx.lineTo(sx, hy - lowH);
+    }
+    ctx.lineTo(w, hy + 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Distant Lisbon hillside neighborhood terracotta rooftops & pastel Pombaline blocks along northern/eastern/western horizon
+    for (let sx = -16; sx <= w + 16; sx += 22) {
+      const rayAngle = cam.yaw + Math.atan2(sx - w * 0.5, this.focal);
+      if (Math.sin(rayAngle) > 0.18) continue; // Keep south horizon open for the Tagus estuary
+      const seed = Math.abs(Math.round(rayAngle * 18));
+      const bh = 7 + (seed % 7);
+      const bw = 16 + (seed % 6);
+      const walls = ['#efe6d5', '#f3d8c4', '#e5eef5', '#ebd5da', '#f2e2ba'];
+      ctx.fillStyle = isEvening ? '#27364f' : walls[seed % walls.length];
+      ctx.fillRect(sx, hy - bh, bw, bh + 1);
+      ctx.fillStyle = isEvening ? '#5c2822' : '#b84b32';
+      ctx.fillRect(sx - 1, hy - bh - 2.5, bw + 2, 2.8);
     }
 
-    // Distant Castelo de Sao Jorge hilltop silhouette when looking North-East
+    // 3) Realistic Iconic Ponte 25 de Abril Suspension Bridge & Santuario de Cristo Rei across the Tagus (South-Southwest)
+    const bridgeYaw = Math.PI * 0.62;
+    const relBridge = Math.atan2(Math.sin(bridgeYaw - cam.yaw), Math.cos(bridgeYaw - cam.yaw));
+    if (Math.abs(relBridge) < 0.96) {
+      const bx = w * 0.5 + relBridge * this.focal;
+      const bridgeCol = isEvening ? '#991b1b' : isGolden ? '#dc2626' : '#c81e32';
+      const bridgeDark = isEvening ? '#5c1010' : '#881320';
+      const bridgeHighlight = isEvening ? '#f87171' : '#ef4444';
+      const t1 = bx - 88;
+      const t2 = bx + 80;
+      const leftAnchor = bx - 205;
+      const rightAnchor = bx + 195;
+      const deckY = hy - 22;
+      const trussBottomY = hy - 16;
+      const towerTopY = hy - 88;
+      const waterBaseY = hy + 3;
+
+      ctx.save();
+
+      // Distant Almada / Cacilhas cliff headland behind the south tower
+      ctx.fillStyle = isEvening ? '#1f2d46' : isGolden ? '#6e4e4a' : '#5c786c';
+      ctx.beginPath();
+      ctx.moveTo(bx + 18, hy + 1);
+      ctx.quadraticCurveTo(bx + 75, hy - 34, bx + 145, hy - 38);
+      ctx.quadraticCurveTo(bx + 215, hy - 36, bx + 265, hy + 1);
+      ctx.closePath();
+      ctx.fill();
+
+      // Tiny Cacilhas whitewashed & terracotta waterfront buildings at the base of Almada cliff
+      for (let hx = bx + 42; hx <= bx + 186; hx += 18) {
+        const hh = 5 + ((Math.round(hx) * 7) % 5);
+        ctx.fillStyle = isEvening ? '#cbd5e1' : '#f8fafc';
+        ctx.fillRect(hx, hy - hh - 1, 13, hh);
+        ctx.fillStyle = '#c2410c';
+        ctx.fillRect(hx - 1, hy - hh - 3, 15, 2.2);
+      }
+
+      // Shimmering bridge tower reflections on the Tagus surface below horizon
+      ctx.fillStyle = isEvening ? 'rgba(248, 113, 113, 0.22)' : isGolden ? 'rgba(251, 146, 60, 0.28)' : 'rgba(200, 30, 50, 0.2)';
+      for (const tx of [t1, t2]) {
+        for (let ry = 2; ry < 26; ry += 4) {
+          const rw = 8 + ry * 0.35;
+          ctx.fillRect(tx - rw * 0.5 + Math.sin(animTime * 3 + ry) * 2, waterBaseY + ry, rw, 2);
+        }
+      }
+
+      // Concrete Caisson Foundation Piers emerging from the Tagus River
+      for (const tx of [t1, t2]) {
+        ctx.fillStyle = isEvening ? '#64748b' : '#dfd8cb';
+        ctx.fillRect(tx - 11, waterBaseY - 8, 22, 10);
+        ctx.fillStyle = isEvening ? '#475569' : '#9c9488';
+        ctx.fillRect(tx - 11, waterBaseY - 3, 22, 4);
+        // White water foam ring around each pier
+        ctx.fillStyle = 'rgba(240, 249, 255, 0.65)';
+        ctx.fillRect(tx - 14, waterBaseY + 1, 28, 1.8);
+      }
+
+      // Approach Viaduct Piers on North & South banks
+      ctx.fillStyle = isEvening ? '#475569' : '#94a3b8';
+      for (const vx of [bx - 172, bx - 142, bx + 132, bx + 164]) {
+        ctx.fillRect(vx - 2.5, trussBottomY, 5, waterBaseY - trussBottomY);
+      }
+
+      // Main Parabolic Catenary Suspension Cables & Vertical Suspender Cables
+      const sampleCableY = (x) => {
+        if (x <= t1) {
+          const u = clamp((x - leftAnchor) / Math.max(1, t1 - leftAnchor), 0, 1);
+          return deckY - Math.pow(u, 1.85) * (deckY - towerTopY);
+        }
+        if (x >= t2) {
+          const u = clamp((rightAnchor - x) / Math.max(1, rightAnchor - t2), 0, 1);
+          return deckY - Math.pow(u, 1.85) * (deckY - towerTopY);
+        }
+        const u = ((x - t1) / Math.max(1, t2 - t1)) * 2 - 1; // -1..1 across main span
+        const sagY = deckY - 6;
+        return sagY - u * u * (sagY - towerTopY);
+      };
+
+      // 28 Vertical Steel Suspender Dropper Cables
+      ctx.strokeStyle = isEvening ? 'rgba(220, 38, 38, 0.68)' : 'rgba(185, 28, 28, 0.75)';
+      ctx.lineWidth = 0.95;
+      ctx.beginPath();
+      for (let sx = leftAnchor + 10; sx <= rightAnchor - 10; sx += 10) {
+        if (Math.abs(sx - t1) < 6 || Math.abs(sx - t2) < 6) continue;
+        const cy = sampleCableY(sx);
+        if (cy < deckY - 1.5) {
+          ctx.moveTo(sx, cy);
+          ctx.lineTo(sx, deckY);
+        }
+      }
+      ctx.stroke();
+
+      // Secondary back-span catenary cable (slightly offset for 3D stereo depth)
+      ctx.strokeStyle = bridgeDark;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let sx = leftAnchor; sx <= rightAnchor; sx += 6) {
+        const cy = sampleCableY(sx) - 1.5;
+        if (sx === leftAnchor) ctx.moveTo(sx + 3, cy);
+        else ctx.lineTo(sx + 3, cy);
+      }
+      ctx.stroke();
+
+      // Primary foreground catenary suspension cable
+      ctx.strokeStyle = bridgeCol;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      for (let sx = leftAnchor; sx <= rightAnchor; sx += 5) {
+        const cy = sampleCableY(sx);
+        if (sx === leftAnchor) ctx.moveTo(sx, cy);
+        else ctx.lineTo(sx, cy);
+      }
+      ctx.stroke();
+
+      // Double-Deck Continuous Warren Truss Span (Upper Highway Deck + Lower Rail Deck + Diagonal Lattice)
+      ctx.fillStyle = 'rgba(136, 19, 32, 0.35)';
+      ctx.fillRect(leftAnchor, deckY, rightAnchor - leftAnchor, trussBottomY - deckY);
+
+      ctx.strokeStyle = bridgeDark;
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      for (let sx = leftAnchor; sx < rightAnchor - 8; sx += 8) {
+        ctx.moveTo(sx, deckY);
+        ctx.lineTo(sx + 4, trussBottomY);
+        ctx.lineTo(sx + 8, deckY);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = bridgeCol;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(leftAnchor - 10, deckY);
+      ctx.lineTo(rightAnchor + 10, deckY);
+      ctx.stroke();
+
+      ctx.strokeStyle = bridgeDark;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(leftAnchor - 6, trussBottomY);
+      ctx.lineTo(rightAnchor + 6, trussBottomY);
+      ctx.stroke();
+
+      // Twin Portal Steel Towers with Tapered Legs & Signature Diamond X-Bracing
+      for (const tx of [t1, t2]) {
+        // Left & right tapered A-frame tower legs
+        ctx.fillStyle = bridgeDark;
+        ctx.fillRect(tx - 6.5, towerTopY, 3.8, waterBaseY - 7 - towerTopY);
+        ctx.fillStyle = bridgeCol;
+        ctx.fillRect(tx + 2.7, towerTopY, 3.8, waterBaseY - 7 - towerTopY);
+        ctx.fillStyle = bridgeHighlight;
+        ctx.fillRect(tx - 5.5, towerTopY, 1.4, waterBaseY - 7 - towerTopY);
+
+        // Horizontal portal cross-beams & 3 diamond X-bracing bays
+        ctx.strokeStyle = bridgeCol;
+        ctx.lineWidth = 1.5;
+        for (const [yTop, yBot] of [
+          [towerTopY + 3, towerTopY + 23],
+          [towerTopY + 25, towerTopY + 46],
+          [towerTopY + 48, deckY - 2],
+          [trussBottomY + 1, waterBaseY - 8]
+        ]) {
+          ctx.beginPath();
+          ctx.moveTo(tx - 6, yTop);
+          ctx.lineTo(tx + 6, yTop);
+          ctx.moveTo(tx - 6, yTop);
+          ctx.lineTo(tx + 6, yBot);
+          ctx.moveTo(tx + 6, yTop);
+          ctx.lineTo(tx - 6, yBot);
+          ctx.stroke();
+        }
+
+        // Tower saddle caps & glowing red aviation warning beacons
+        ctx.fillStyle = bridgeHighlight;
+        ctx.fillRect(tx - 7.5, towerTopY - 2.5, 15, 3);
+        ctx.fillStyle = isEvening || isGolden ? '#fef08a' : '#ff4d4d';
+        ctx.beginPath();
+        ctx.arc(tx - 4.5, towerTopY - 4, 1.8, 0, Math.PI * 2);
+        ctx.arc(tx + 4.5, towerTopY - 4, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Santuario de Cristo Rei on the Almada Cliff Escarpment (4-column tapered pedestal + statue with outstretched arms)
+      const crX = bx + 136;
+      const cliffTopY = hy - 36;
+      const pedTopY = cliffTopY - 34;
+      // Tapered 4-pillar limestone monument pedestal
+      ctx.fillStyle = isEvening ? '#94a3b8' : isGolden ? '#f3DEC3' : '#e7e0d2';
+      ctx.beginPath();
+      ctx.moveTo(crX - 8, cliffTopY);
+      ctx.lineTo(crX - 5.5, pedTopY);
+      ctx.lineTo(crX + 5.5, pedTopY);
+      ctx.lineTo(crX + 8, cliffTopY);
+      ctx.closePath();
+      ctx.fill();
+      // Shadowed central archway cleft inside the Cristo Rei pedestal
+      ctx.fillStyle = isEvening ? '#1e293b' : '#78716c';
+      ctx.beginPath();
+      ctx.moveTo(crX - 2.2, cliffTopY);
+      ctx.lineTo(crX - 1.6, pedTopY + 7);
+      ctx.arc(crX, pedTopY + 7, 1.6, Math.PI, 0);
+      ctx.lineTo(crX + 2.2, cliffTopY);
+      ctx.closePath();
+      ctx.fill();
+      // Observation deck cornice
+      ctx.fillStyle = isEvening ? '#cbd5e1' : '#f5f0e6';
+      ctx.fillRect(crX - 7, pedTopY - 2, 14, 2.5);
+      // Christ the Redeemer statue with outstretched arms & head halo silhouette
+      ctx.fillStyle = isEvening ? '#e2e8f0' : '#faf7f0';
+      ctx.fillRect(crX - 2, pedTopY - 13, 4, 11);
+      ctx.fillRect(crX - 10, pedTopY - 10.5, 20, 2.4);
+      ctx.beginPath();
+      ctx.arc(crX, pedTopY - 14.8, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Farol de Cacilhas red lighthouse at the water's edge below Cristo Rei
+      const farolX = bx + 106;
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(farolX - 2.5, hy - 14, 5, 13);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(farolX - 3, hy - 16, 6, 2);
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(farolX, hy - 17.5, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // 4) Detailed Castelo de Sao Jorge & Stone Pine Hilltop + Panteao Nacional Dome when looking North-East
     const castleYaw = -0.78;
     const relCastle = Math.atan2(Math.sin(castleYaw - cam.yaw), Math.cos(castleYaw - cam.yaw));
-    if (Math.abs(relCastle) < 0.85) {
+    if (Math.abs(relCastle) < 0.92) {
       const cx = w * 0.5 + relCastle * this.focal;
-      ctx.fillStyle = isEvening ? '#243452' : isGolden ? '#8c6966' : '#8598a8';
-      ctx.fillRect(cx - 42, hy - 46, 84, 26);
-      for (let m = -40; m <= 36; m += 12) {
-        ctx.fillRect(cx + m, hy - 52, 7, 6);
+      // Green stone-pine crown of Sao Jorge hill
+      ctx.fillStyle = isEvening ? '#172e2a' : isGolden ? '#4a5d43' : '#3d6b4c';
+      ctx.beginPath();
+      ctx.moveTo(cx - 88, hy - 18);
+      ctx.quadraticCurveTo(cx, hy - 44, cx + 88, hy - 18);
+      ctx.closePath();
+      ctx.fill();
+
+      // Moorish limestone curtain walls & 3 crenellated keep towers
+      const wallCol = isEvening ? '#334155' : isGolden ? '#bfa084' : '#c8bfb0';
+      const towerCol = isEvening ? '#475569' : isGolden ? '#d4b494' : '#d8d0c2';
+      ctx.fillStyle = wallCol;
+      ctx.fillRect(cx - 56, hy - 46, 112, 22);
+      for (const [tx, tw, th] of [[-58, 22, 34], [-12, 26, 38], [38, 22, 32]]) {
+        ctx.fillStyle = towerCol;
+        ctx.fillRect(cx + tx, hy - 24 - th, tw, th);
+        // Crenellated merlons along each tower top
+        for (let m = 0; m < tw - 3; m += 6) {
+          ctx.fillRect(cx + tx + m, hy - 28 - th, 3.8, 4);
+        }
+      }
+      for (let m = -52; m <= 50; m += 9) {
+        ctx.fillStyle = wallCol;
+        ctx.fillRect(cx + m, hy - 50, 5, 4);
       }
     }
   }
@@ -584,41 +840,147 @@ export class LisboaStreetView3DRenderer {
     ctx.fillStyle = groundGrad;
     ctx.fillRect(0, hy, w, h - hy);
 
-    // Tagus River water plane south of WATERFRONT_Y
-    const riverColor = isEvening ? '#102944' : '#1d6692';
+    // Tagus River Estuary water plane south of WATERFRONT_Y (extends all the way to the distant horizon with layered depth bands!)
+    const isGolden = getDayPhase(state.minutesOfDay).id === 'golden';
     this.drawPoly3D(
       ctx,
       cam,
       [
-        [0, WATERFRONT_Y, 0],
-        [WORLD_WIDTH, WATERFRONT_Y, 0],
-        [WORLD_WIDTH, WATERFRONT_Y + 900, 0],
-        [0, WATERFRONT_Y + 900, 0]
+        [-3500, WATERFRONT_Y, 0],
+        [WORLD_WIDTH + 3500, WATERFRONT_Y, 0],
+        [WORLD_WIDTH + 3500, WATERFRONT_Y + 18000, 0],
+        [-3500, WATERFRONT_Y + 18000, 0]
       ],
-      riverColor
+      isEvening ? '#0d233a' : isGolden ? '#1b4f72' : '#14527b'
+    );
+    this.drawPoly3D(
+      ctx,
+      cam,
+      [
+        [-2500, WATERFRONT_Y, 0.02],
+        [WORLD_WIDTH + 2500, WATERFRONT_Y, 0.02],
+        [WORLD_WIDTH + 2500, WATERFRONT_Y + 1800, 0.02],
+        [-2500, WATERFRONT_Y + 1800, 0.02]
+      ],
+      isEvening ? '#102b47' : isGolden ? '#226188' : '#1a6494'
+    );
+    this.drawPoly3D(
+      ctx,
+      cam,
+      [
+        [-1200, WATERFRONT_Y, 0.04],
+        [WORLD_WIDTH + 1200, WATERFRONT_Y, 0.04],
+        [WORLD_WIDTH + 1200, WATERFRONT_Y + 420, 0.04],
+        [-1200, WATERFRONT_Y + 420, 0.04]
+      ],
+      isEvening ? '#133354' : isGolden ? '#29729c' : '#1f73a6'
     );
 
-    // Shimmering Tagus water streaks
-    const waveShift = (animTime * 22) % 90;
-    for (let ry = WATERFRONT_Y + 40; ry < WATERFRONT_Y + 340; ry += 65) {
-      for (let rx = 120 + waveShift; rx < WORLD_WIDTH - 120; rx += 180) {
-        if (Math.hypot(rx - cam.camX, ry - cam.camY) > 1050) continue;
-        this.drawLine3D(ctx, cam, [rx, ry, 0], [rx + 42, ry, 0], 'rgba(218, 240, 255, 0.34)', 1.6);
+    // Animated Tagus River wave crests, foam glints & golden sunlight reflection path
+    const waveShift = (animTime * 24) % 110;
+    const waveCol = isEvening
+      ? 'rgba(186, 230, 253, 0.24)'
+      : isGolden
+        ? 'rgba(254, 215, 170, 0.48)'
+        : 'rgba(224, 242, 254, 0.42)';
+    const foamCol = isEvening ? 'rgba(224, 242, 254, 0.35)' : 'rgba(255, 255, 255, 0.62)';
+    for (let ry = WATERFRONT_Y + 26; ry < WATERFRONT_Y + 1450; ry += Math.max(38, Math.round((ry - WATERFRONT_Y) * 0.22))) {
+      const rowOffset = ((ry * 37) % 130) + waveShift * (ry < WATERFRONT_Y + 300 ? 1 : 0.45);
+      for (let rx = -300 + rowOffset; rx < WORLD_WIDTH + 300; rx += 135) {
+        if (Math.hypot(rx - cam.camX, ry - cam.camY) > 1750) continue;
+        const wLen = 36 + ((ry - WATERFRONT_Y) * 0.05);
+        this.drawLine3D(ctx, cam, [rx, ry, 0.08], [rx + wLen, ry + 3, 0.08], waveCol, 1.8);
+        this.drawLine3D(ctx, cam, [rx + 10, ry - 2, 0.09], [rx + wLen * 0.55, ry - 1, 0.09], foamCol, 1.1);
       }
     }
 
-    // Tagus limestone promenade curb & low parapet edge along WATERFRONT_Y
+    // Traditional Tagus Fragata Sailboats & Transtejo Catamaran gliding across the river in 3D
+    const boats = [
+      { x: 420 + ((animTime * 16) % 1600), y: WATERFRONT_Y + 185, sailCol: '#c2410c', hullCol: '#451a03', dir: 1 },
+      { x: 1880 - ((animTime * 13) % 1600), y: WATERFRONT_Y + 380, sailCol: '#f59e0b', hullCol: '#1e3a5f', dir: -1 },
+      { x: 1120 + Math.sin(animTime * 0.25) * 380, y: WATERFRONT_Y + 680, sailCol: '#f8fafc', hullCol: '#ea580c', dir: 1 }
+    ];
+    for (const b of boats) {
+      if (Math.hypot(b.x - cam.camX, b.y - cam.camY) > 1650) continue;
+      // White bow & stern wake on water
+      this.drawLine3D(ctx, cam, [b.x - b.dir * 38, b.y, 0.2], [b.x + b.dir * 20, b.y, 0.2], 'rgba(240, 249, 255, 0.7)', 2.2);
+      // Wooden hull
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [
+          [b.x - 24, b.y, 0.3],
+          [b.x + 24, b.y, 0.3],
+          [b.x + 30, b.y, 8.5],
+          [b.x - 28, b.y, 8.5]
+        ],
+        shadeColor(b.hullCol, 1, isEvening),
+        '#f8fafc',
+        1
+      );
+      // Lateen mainsail & jib sail catching the Tagus breeze
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [
+          [b.x - 16 * b.dir, b.y, 9.5],
+          [b.x + 20 * b.dir, b.y, 9.5],
+          [b.x - 2 * b.dir, b.y, 52]
+        ],
+        shadeColor(b.sailCol, 1, isEvening),
+        'rgba(255, 255, 255, 0.65)',
+        1
+      );
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [
+          [b.x + 4 * b.dir, b.y, 10],
+          [b.x + 26 * b.dir, b.y, 10],
+          [b.x + 3 * b.dir, b.y, 42]
+        ],
+        shadeColor('#fef3c7', 0.96, isEvening)
+      );
+    }
+
+    // Tagus Lioz Limestone Seawall Coping, Promenade Parapet & Cast-Iron Mooring Bollards along WATERFRONT_Y
     this.drawPoly3D(
       ctx,
       cam,
       [
-        [0, WATERFRONT_Y - 18, 0.3],
-        [WORLD_WIDTH, WATERFRONT_Y - 18, 0.3],
+        [0, WATERFRONT_Y - 22, 0.3],
+        [WORLD_WIDTH, WATERFRONT_Y - 22, 0.3],
         [WORLD_WIDTH, WATERFRONT_Y, 0.3],
         [0, WATERFRONT_Y, 0.3]
       ],
-      isEvening ? '#6e7078' : '#d2c9b8'
+      isEvening ? '#6e7078' : '#dcd3c2',
+      isEvening ? '#334155' : '#8c8273',
+      1.2
     );
+    // Vertical stone seawall face dropping down to Tagus water
+    this.drawPoly3D(
+      ctx,
+      cam,
+      [
+        [0, WATERFRONT_Y, -8],
+        [WORLD_WIDTH, WATERFRONT_Y, -8],
+        [WORLD_WIDTH, WATERFRONT_Y, 3],
+        [0, WATERFRONT_Y, 3]
+      ],
+      isEvening ? '#475569' : '#b8afa0',
+      '#64748b',
+      1
+    );
+    // Carved stone promenade pillars & cast-iron nautical mooring bollards along Cais do Sodre / Cais de Alfama
+    const minBX = Math.max(80, Math.floor((cam.camX - 580) / 90) * 90);
+    const maxBX = Math.min(WORLD_WIDTH - 80, Math.ceil((cam.camX + 580) / 90) * 90);
+    if (Math.abs(WATERFRONT_Y - cam.camY) < 680) {
+      for (let bx = minBX; bx <= maxBX; bx += 90) {
+        if (bx >= FERRY_TERMINAL.x - 16 && bx <= FERRY_TERMINAL.x + FERRY_TERMINAL.w + 16) continue;
+        this.drawLine3D(ctx, cam, [bx, WATERFRONT_Y - 2, 0], [bx, WATERFRONT_Y - 2, 11], '#1e293b', 3.2);
+        this.drawLine3D(ctx, cam, [bx - 3, WATERFRONT_Y - 2, 10], [bx + 3, WATERFRONT_Y - 2, 10], '#94a3b8', 2.2);
+      }
+    }
 
     // Project all streets, sidewalks, plazas & raised curbs cleanly in 3D perspective
     for (const st of STREETS) {
@@ -1003,8 +1365,18 @@ export class LisboaStreetView3DRenderer {
           [[x0, y1, wallH], [x1, y1, wallH], [ridgeX1, ridgeY, ridgeZ], [ridgeX0, ridgeY, ridgeZ]],
           shadeColor(roofBase, 1.0, isEvening),
           shadeColor(roofBase, 0.68, isEvening),
-          1
+          1.2
         );
+        // Terracotta barrel-tile course lines & rooftop Pombaline chimney + dormer on south roof slope
+        if (dist < 760) {
+          for (const rf of [0.32, 0.64]) {
+            const rz = wallH + roofH * rf;
+            const ry = y1 + (ridgeY - y1) * rf;
+            const rxA = x0 + (ridgeX0 - x0) * rf;
+            const rxB = x1 + (ridgeX1 - x1) * rf;
+            this.drawLine3D(ctx, cam, [rxA, ry, rz], [rxB, ry, rz], shadeColor(roofBase, 0.74, isEvening), 1);
+          }
+        }
       }
       if (cam.camY <= ridgeY) {
         this.drawPoly3D(
@@ -1013,8 +1385,17 @@ export class LisboaStreetView3DRenderer {
           [[x1, y0, wallH], [x0, y0, wallH], [ridgeX0, ridgeY, ridgeZ], [ridgeX1, ridgeY, ridgeZ]],
           shadeColor(roofBase, 0.82, isEvening),
           shadeColor(roofBase, 0.62, isEvening),
-          1
+          1.2
         );
+        if (dist < 760) {
+          for (const rf of [0.32, 0.64]) {
+            const rz = wallH + roofH * rf;
+            const ry = y0 + (ridgeY - y0) * rf;
+            const rxA = x0 + (ridgeX0 - x0) * rf;
+            const rxB = x1 + (ridgeX1 - x1) * rf;
+            this.drawLine3D(ctx, cam, [rxB, ry, rz], [rxA, ry, rz], shadeColor(roofBase, 0.64, isEvening), 1);
+          }
+        }
       }
       if (cam.camX <= ridgeX0) {
         this.drawPoly3D(
@@ -1023,7 +1404,7 @@ export class LisboaStreetView3DRenderer {
           [[x0, y0, wallH], [x0, y1, wallH], [ridgeX0, ridgeY, ridgeZ]],
           shadeColor(roofBase, 0.9, isEvening),
           shadeColor(roofBase, 0.65, isEvening),
-          1
+          1.2
         );
       }
       if (cam.camX >= ridgeX1) {
@@ -1033,12 +1414,19 @@ export class LisboaStreetView3DRenderer {
           [[x1, y1, wallH], [x1, y0, wallH], [ridgeX1, ridgeY, ridgeZ]],
           shadeColor(roofBase, 0.74, isEvening),
           shadeColor(roofBase, 0.58, isEvening),
-          1
+          1.2
         );
+      }
+      // Terracotta ridge crest beam & whitewashed Lisbon masonry chimney stack
+      this.drawLine3D(ctx, cam, [ridgeX0, ridgeY, ridgeZ], [ridgeX1, ridgeY, ridgeZ], shadeColor(roofBase, 1.15, isEvening), 2.2);
+      if (dist < 780) {
+        const chX = ridgeX0 + (ridgeX1 - ridgeX0) * 0.25;
+        this.drawLine3D(ctx, cam, [chX, ridgeY, ridgeZ - 4], [chX, ridgeY, ridgeZ + 14], shadeColor('#f5f0e6', 0.95, isEvening), 4.5);
+        this.drawLine3D(ctx, cam, [chX, ridgeY, ridgeZ + 14], [chX, ridgeY, ridgeZ + 18], shadeColor('#b84a32', 0.95, isEvening), 3.0);
       }
     }
 
-    // Draw each visible wall facade with Lisbon stone plinths, azulejo tiles, balconies, awnings & signage
+    // Draw each visible wall facade with Lisbon stone plinths, corner quoins, azulejo tiles, shuttered multipane windows, balconies, awnings & signage
     for (const face of faces) {
       const [ax, ay] = face.a;
       const [bx, by] = face.b;
@@ -1052,60 +1440,127 @@ export class LisboaStreetView3DRenderer {
         this.lastHitTargets.push({ kind: 'venue', id: venue.id, venue, poly: screenPoly });
       }
 
-      // Ground-floor limestone base plinth & story stringcourse moldings
+      // Ground-floor Lioz limestone base plinth & story stringcourse moldings
       this.drawPoly3D(
         ctx,
         cam,
         [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 36), lerpWall(0, 36)],
         shadeColor('#dfd8cb', face.shade * 0.96, isEvening)
       );
-      this.drawLine3D(ctx, cam, lerpWall(0, 36), lerpWall(1, 36), shadeColor('#8c8274', face.shade, isEvening), 1.4);
+      this.drawLine3D(ctx, cam, lerpWall(0, 36), lerpWall(1, 36), shadeColor('#8c8274', face.shade, isEvening), 1.6);
       if (wallH > 95) {
-        this.drawLine3D(ctx, cam, lerpWall(0, 78), lerpWall(1, 78), shadeColor('#8c8274', face.shade, isEvening), 1.1);
+        this.drawLine3D(ctx, cam, lerpWall(0, 78), lerpWall(1, 78), shadeColor('#8c8274', face.shade, isEvening), 1.3);
       }
-      // Cornice band under terracotta eaves
+
+      // Rusticated Lioz limestone corner quoins (alternating stone corner blocks running up both edges of each facade)
+      if (dist < 760) {
+        const quoinCol = shadeColor('#d6cec0', face.shade * 0.92, isEvening);
+        const qU = Math.min(0.045, 7 / Math.max(50, face.len));
+        for (let qz = 38; qz < wallH - 10; qz += 12) {
+          const wMult = ((Math.round(qz / 12)) % 2 === 0) ? 1.35 : 0.9;
+          this.drawPoly3D(
+            ctx,
+            cam,
+            [lerpWall(0, qz), lerpWall(qU * wMult, qz), lerpWall(qU * wMult, qz + 9), lerpWall(0, qz + 9)],
+            quoinCol
+          );
+          this.drawPoly3D(
+            ctx,
+            cam,
+            [lerpWall(1 - qU * wMult, qz), lerpWall(1, qz), lerpWall(1, qz + 9), lerpWall(1 - qU * wMult, qz + 9)],
+            quoinCol
+          );
+        }
+      }
+
+      // Cornice band & shadowed under-eave soffit under terracotta roof
       this.drawPoly3D(
         ctx,
         cam,
-        [lerpWall(0, wallH - 6), lerpWall(1, wallH - 6), lerpWall(1, wallH), lerpWall(0, wallH)],
+        [lerpWall(0, wallH - 7), lerpWall(1, wallH - 7), lerpWall(1, wallH), lerpWall(0, wallH)],
         shadeColor(trimCol, face.shade, isEvening)
       );
+      this.drawLine3D(ctx, cam, lerpWall(0, wallH - 7), lerpWall(1, wallH - 7), shadeColor('#f5efe4', face.shade, isEvening), 1.2);
 
-      // Authentic Azulejo glazed tile wall grid shimmer (cobalt or teal)
-      if (dist < 640 && tileMode) {
+      // Authentic Azulejo glazed tile wall grid shimmer & ornamental tile frieze band
+      if (dist < 680 && tileMode) {
         const tileStroke =
           tileMode === 'cobalt'
-            ? 'rgba(27, 77, 137, 0.36)'
-            : 'rgba(22, 108, 92, 0.36)';
+            ? 'rgba(27, 77, 137, 0.42)'
+            : 'rgba(22, 108, 92, 0.42)';
+        const friezeCol =
+          tileMode === 'cobalt'
+            ? shadeColor('#1d4ed8', face.shade, isEvening)
+            : shadeColor('#0f766e', face.shade, isEvening);
+        // Ornamental Azulejo frieze band above ground floor (z: 36..41)
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [lerpWall(0.03, 36.5), lerpWall(0.97, 36.5), lerpWall(0.97, 40.5), lerpWall(0.03, 40.5)],
+          friezeCol
+        );
         const cols = Math.max(5, Math.min(12, Math.round(face.len / 20)));
         for (let c = 1; c < cols; c += 1) {
-          this.drawLine3D(ctx, cam, lerpWall(c / cols, 36), lerpWall(c / cols, wallH - 6), tileStroke, 0.9);
+          this.drawLine3D(ctx, cam, lerpWall(c / cols, 36), lerpWall(c / cols, wallH - 7), tileStroke, 0.95);
         }
-        for (let tz = 50; tz < wallH - 8; tz += 15) {
-          this.drawLine3D(ctx, cam, lerpWall(0, tz), lerpWall(1, tz), tileStroke, 0.9);
+        for (let tz = 50; tz < wallH - 8; tz += 14) {
+          this.drawLine3D(ctx, cam, lerpWall(0, tz), lerpWall(1, tz), tileStroke, 0.95);
         }
       }
 
-      // Detailed multi-story Lisbon tall windows & wrought-iron Juliet balconies
-      if (dist < 820 && !isCathedral) {
+      // Detailed multi-story Lisbon tall casement windows, louvered exterior shutters, wrought-iron Juliet balconies & red geraniums!
+      if (dist < 840 && !isCathedral) {
         const bays = Math.max(2, Math.min(5, Math.floor(face.len / 46)));
-        const winGlass = isEvening ? '#fde68a' : isGolden ? '#fcd34d' : '#2c4666';
-        const shutterCol = shadeColor(trimCol, face.shade * 0.82, isEvening);
+        const winGlass = isEvening ? '#fde68a' : isGolden ? '#fcd34d' : '#1e3a5f';
+        const glassGlint = isEvening ? '#fffbeb' : '#7dd3fc';
+        const shutterCol = shadeColor(trimCol, face.shade * 0.88, isEvening);
+        const surroundCol = shadeColor('#eee8dc', face.shade, isEvening);
+        const lintelCol = shadeColor('#d6cec0', face.shade * 0.95, isEvening);
+
         for (const floorZ of [46, 86]) {
           if (floorZ + 26 > wallH - 6) continue;
           for (let i = 0; i < bays; i += 1) {
             const uc = (i + 0.5) / bays;
-            const halfU = Math.min(0.08, 12 / Math.max(40, face.len));
+            const halfU = Math.min(0.072, 11 / Math.max(40, face.len));
             const u0 = uc - halfU;
             const u1 = uc + halfU;
-            // Stone window surround
+            const shW = Math.min(0.032, halfU * 0.48);
+
+            // Carved Lioz stone window architrave surround & projecting lintel header
             this.drawPoly3D(
               ctx,
               cam,
-              [lerpWall(u0 - 0.012, floorZ - 2), lerpWall(u1 + 0.012, floorZ - 2), lerpWall(u1 + 0.012, floorZ + 25), lerpWall(u0 - 0.012, floorZ + 25)],
-              shadeColor('#ece6da', face.shade, isEvening)
+              [lerpWall(u0 - 0.013, floorZ - 2), lerpWall(u1 + 0.013, floorZ - 2), lerpWall(u1 + 0.013, floorZ + 25), lerpWall(u0 - 0.013, floorZ + 25)],
+              surroundCol
             );
-            // Window glass
+            this.drawPoly3D(
+              ctx,
+              cam,
+              [lerpWall(u0 - 0.018, floorZ + 24), lerpWall(u1 + 0.018, floorZ + 24), lerpWall(u1 + 0.018, floorZ + 27.5), lerpWall(u0 - 0.018, floorZ + 27.5)],
+              lintelCol
+            );
+
+            // Flanking louvered wooden exterior shutters (portadas)
+            if (dist < 640 && u0 - shW > 0.03 && u1 + shW < 0.97) {
+              this.drawPoly3D(
+                ctx,
+                cam,
+                [lerpWall(u0 - shW, floorZ), lerpWall(u0 - 0.004, floorZ), lerpWall(u0 - 0.004, floorZ + 22), lerpWall(u0 - shW, floorZ + 22)],
+                shutterCol,
+                '#1e293b',
+                0.7
+              );
+              this.drawPoly3D(
+                ctx,
+                cam,
+                [lerpWall(u1 + 0.004, floorZ), lerpWall(u1 + shW, floorZ), lerpWall(u1 + shW, floorZ + 22), lerpWall(u1 + 0.004, floorZ + 22)],
+                shutterCol,
+                '#1e293b',
+                0.7
+              );
+            }
+
+            // Recessed Window Glass
             this.drawPoly3D(
               ctx,
               cam,
@@ -1114,10 +1569,29 @@ export class LisboaStreetView3DRenderer {
               shutterCol,
               1.1
             );
-            // Wrought-iron Juliet balcony railing across bottom of tall window
-            if (dist < 560) {
-              this.drawLine3D(ctx, cam, lerpWall(u0 - 0.01, floorZ + 8), lerpWall(u1 + 0.01, floorZ + 8), '#1e293b', 1.4);
-              this.drawLine3D(ctx, cam, lerpWall(u0 - 0.01, floorZ + 2), lerpWall(u1 + 0.01, floorZ + 2), '#1e293b', 1.2);
+
+            // Multipane Portuguese casement mullions (center vertical stile + two horizontal transoms) & glass sky reflection
+            if (dist < 580) {
+              const mullionCol = isEvening ? 'rgba(120, 53, 15, 0.65)' : 'rgba(241, 245, 249, 0.72)';
+              this.drawLine3D(ctx, cam, lerpWall(uc, floorZ), lerpWall(uc, floorZ + 22), mullionCol, 1.0);
+              this.drawLine3D(ctx, cam, lerpWall(u0, floorZ + 7.5), lerpWall(u1, floorZ + 7.5), mullionCol, 0.9);
+              this.drawLine3D(ctx, cam, lerpWall(u0, floorZ + 15), lerpWall(u1, floorZ + 15), mullionCol, 0.9);
+              this.drawLine3D(ctx, cam, lerpWall(u0 + halfU * 0.25, floorZ + 16), lerpWall(u0 + halfU * 0.65, floorZ + 20), glassGlint, 1.1);
+            }
+
+            // Wrought-iron Juliet balcony with vertical balusters & terracotta geranium flowerbox
+            if (dist < 580) {
+              this.drawLine3D(ctx, cam, lerpWall(u0 - 0.012, floorZ + 8.5), lerpWall(u1 + 0.012, floorZ + 8.5), '#1e293b', 1.5);
+              this.drawLine3D(ctx, cam, lerpWall(u0 - 0.012, floorZ + 1.5), lerpWall(u1 + 0.012, floorZ + 1.5), '#1e293b', 1.3);
+              for (let b = 0; b <= 4; b += 1) {
+                const bu = (u0 - 0.008) + (b / 4) * (u1 - u0 + 0.016);
+                this.drawLine3D(ctx, cam, lerpWall(bu, floorZ + 1.5), lerpWall(bu, floorZ + 8.5), '#1e293b', 0.95);
+              }
+              // Terracotta planter box & blooming red Lisbon geraniums on balcony sill
+              if ((i + Math.round(floorZ)) % 2 === 0) {
+                this.drawLine3D(ctx, cam, lerpWall(uc - halfU * 0.55, floorZ + 2.5), lerpWall(uc + halfU * 0.55, floorZ + 2.5), '#b45309', 2.4);
+                this.drawLine3D(ctx, cam, lerpWall(uc - halfU * 0.45, floorZ + 4.5), lerpWall(uc + halfU * 0.45, floorZ + 4.5), '#dc2626', 2.6);
+              }
             }
           }
         }
@@ -1355,16 +1829,52 @@ export class LisboaStreetView3DRenderer {
     const y1 = f.y + f.h;
     const wallH = 88;
     const roofH = 26;
+    const ridgeX0 = x0 + 24;
+    const ridgeX1 = x1 - 24;
+    const ridgeY = (y0 + y1) * 0.5;
+    const ridgeZ = wallH + roofH;
 
-    // Pitched emerald ferry hall roof
-    this.drawPoly3D(
-      ctx,
-      cam,
-      [[x0 - 4, y0 - 2, wallH], [x1 + 4, y0 - 2, wallH], [(x0 + x1) * 0.5, (y0 + y1) * 0.5, wallH + roofH]],
-      shadeColor('#0f5c52', 0.95, isEvening),
-      '#0b3f38',
-      1.2
-    );
+    // 4-sided pitched emerald maritime terminal hip roof
+    if (cam.camY <= ridgeY) {
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [[x1 + 3, y0 - 2, wallH], [x0 - 3, y0 - 2, wallH], [ridgeX0, ridgeY, ridgeZ], [ridgeX1, ridgeY, ridgeZ]],
+        shadeColor('#0f5c52', 0.95, isEvening),
+        '#083b34',
+        1.2
+      );
+    }
+    if (cam.camY >= ridgeY) {
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [[x0 - 3, y1 + 2, wallH], [x1 + 3, y1 + 2, wallH], [ridgeX1, ridgeY, ridgeZ], [ridgeX0, ridgeY, ridgeZ]],
+        shadeColor('#0f5c52', 0.86, isEvening),
+        '#083b34',
+        1.2
+      );
+    }
+    if (cam.camX <= ridgeX0) {
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [[x0 - 2, y0 - 2, wallH], [x0 - 2, y1 + 2, wallH], [ridgeX0, ridgeY, ridgeZ]],
+        shadeColor('#0f5c52', 0.88, isEvening),
+        '#083b34',
+        1.2
+      );
+    }
+    if (cam.camX >= ridgeX1) {
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [[x1 + 2, y1 + 2, wallH], [x1 + 2, y0 - 2, wallH], [ridgeX1, ridgeY, ridgeZ]],
+        shadeColor('#0f5c52', 0.8, isEvening),
+        '#083b34',
+        1.2
+      );
+    }
 
     const drawFace = (pts, shade) => {
       const poly = this.drawPoly3D(
@@ -1378,9 +1888,10 @@ export class LisboaStreetView3DRenderer {
       if (poly) this.lastHitTargets.push({ kind: 'ferry', id: f.id, poly });
     };
 
+    const winCol = isEvening ? '#fde68a' : '#bfe3f5';
+
     if (cam.camY < y0) {
       drawFace([[x1, y0, 0], [x0, y0, 0], [x0, y0, wallH], [x1, y0, wallH]], 0.98);
-      // Grand emerald base trim & 3 arched waterfront terminal doors/windows on the north entrance facade
       this.drawPoly3D(ctx, cam, [[x1, y0, 0], [x0, y0, 0], [x0, y0, 12], [x1, y0, 12]], shadeColor('#0f5c52', 0.92, isEvening));
       this.drawPoly3D(ctx, cam, [[x1, y0, wallH - 10], [x0, y0, wallH - 10], [x0, y0, wallH], [x1, y0, wallH]], shadeColor('#0f5c52', 0.96, isEvening));
       for (const u of [0.22, 0.5, 0.78]) {
@@ -1389,16 +1900,48 @@ export class LisboaStreetView3DRenderer {
         this.drawPoly3D(
           ctx,
           cam,
-          [[wx1, y0, 0], [wx0, y0, 0], [wx0, y0, 44], [wx1, y0, 44]],
-          u === 0.5 ? '#1e3a5f' : isEvening ? '#fde68a' : '#bfe3f5',
+          [[wx1, y0, 0], [wx0, y0, 0], [wx0, y0, 46], [wx1, y0, 46]],
+          u === 0.5 ? '#1e3a5f' : winCol,
           '#0f5c52',
           1.8
         );
+        this.drawLine3D(ctx, cam, [(wx0 + wx1) * 0.5, y0, 0], [(wx0 + wx1) * 0.5, y0, 46], '#0f5c52', 1.1);
+        this.drawLine3D(ctx, cam, [wx0, y0, 24], [wx1, y0, 24], '#0f5c52', 1.0);
       }
     }
-    if (cam.camY > y1) drawFace([[x0, y1, 0], [x1, y1, 0], [x1, y1, wallH], [x0, y1, wallH]], 0.9);
-    if (cam.camX < x0) drawFace([[x0, y0, 0], [x0, y1, 0], [x0, y1, wallH], [x0, y0, wallH]], 0.85);
-    if (cam.camX > x1) drawFace([[x1, y1, 0], [x1, y0, 0], [x1, y0, wallH], [x1, y1, wallH]], 0.8);
+    if (cam.camY > y1) {
+      drawFace([[x0, y1, 0], [x1, y1, 0], [x1, y1, wallH], [x0, y1, wallH]], 0.9);
+      this.drawPoly3D(ctx, cam, [[x0, y1, 0], [x1, y1, 0], [x1, y1, 12], [x0, y1, 12]], shadeColor('#0f5c52', 0.88, isEvening));
+      this.drawPoly3D(ctx, cam, [[x0, y1, wallH - 10], [x1, y1, wallH - 10], [x1, y1, wallH], [x0, y1, wallH]], shadeColor('#0f5c52', 0.92, isEvening));
+      for (const u of [0.22, 0.5, 0.78]) {
+        const wx0 = x0 + (x1 - x0) * (u - 0.09);
+        const wx1 = x0 + (x1 - x0) * (u + 0.09);
+        this.drawPoly3D(ctx, cam, [[wx0, y1, 16], [wx1, y1, 16], [wx1, y1, 56], [wx0, y1, 56]], winCol, '#0f5c52', 1.4);
+      }
+    }
+    if (cam.camX < x0) {
+      drawFace([[x0, y0, 0], [x0, y1, 0], [x0, y1, wallH], [x0, y0, wallH]], 0.86);
+      // Detailed West Facade: emerald plinth, cornice, twin arched maritime windows & life-ring plaque!
+      this.drawPoly3D(ctx, cam, [[x0, y0, 0], [x0, y1, 0], [x0, y1, 12], [x0, y0, 12]], shadeColor('#0f5c52', 0.85, isEvening));
+      this.drawPoly3D(ctx, cam, [[x0, y0, wallH - 10], [x0, y1, wallH - 10], [x0, y1, wallH], [x0, y0, wallH]], shadeColor('#0f5c52', 0.9, isEvening));
+      for (const v of [0.28, 0.72]) {
+        const wy0 = y0 + (y1 - y0) * (v - 0.14);
+        const wy1 = y0 + (y1 - y0) * (v + 0.14);
+        this.drawPoly3D(ctx, cam, [[x0, wy0, 18], [x0, wy1, 18], [x0, wy1, 58], [x0, wy0, 58]], winCol, '#0f5c52', 1.5);
+        this.drawLine3D(ctx, cam, [x0, (wy0 + wy1) * 0.5, 18], [x0, (wy0 + wy1) * 0.5, 58], '#0f5c52', 1.1);
+        this.drawLine3D(ctx, cam, [x0, wy0, 38], [x0, wy1, 38], '#0f5c52', 1.0);
+      }
+    }
+    if (cam.camX > x1) {
+      drawFace([[x1, y1, 0], [x1, y0, 0], [x1, y0, wallH], [x1, y1, wallH]], 0.8);
+      this.drawPoly3D(ctx, cam, [[x1, y1, 0], [x1, y0, 0], [x1, y0, 12], [x1, y1, 12]], shadeColor('#0f5c52', 0.82, isEvening));
+      this.drawPoly3D(ctx, cam, [[x1, y1, wallH - 10], [x1, y0, wallH - 10], [x1, y0, wallH], [x1, y1, wallH]], shadeColor('#0f5c52', 0.86, isEvening));
+      for (const v of [0.28, 0.72]) {
+        const wy0 = y0 + (y1 - y0) * (v - 0.14);
+        const wy1 = y0 + (y1 - y0) * (v + 0.14);
+        this.drawPoly3D(ctx, cam, [[x1, wy1, 18], [x1, wy0, 18], [x1, wy0, 58], [x1, wy1, 58]], winCol, '#0f5c52', 1.5);
+      }
+    }
 
     // Transtejo green fascia banner
     const signPt = this.projectWorldPt(cam, (x0 + x1) * 0.5, y0, 68);
@@ -1557,31 +2100,112 @@ export class LisboaStreetView3DRenderer {
 
   drawTree3D(ctx, cam, tree, isEvening) {
     const base = this.projectWorldPt(cam, tree.x, tree.y, 0);
-    const crown = this.projectWorldPt(cam, tree.x, tree.y, 52);
+    const crown = this.projectWorldPt(cam, tree.x, tree.y, 58);
     if (!base || !crown) return;
     const scale = this.focal / base.cz;
-    const trunkW = clamp(6 * scale, 2, 16);
-    const canopyR = clamp(24 * scale, 5, 68);
+    const trunkW = clamp(7.5 * scale, 2.5, 20);
+    const canopyR = clamp(28 * scale, 6, 78);
+    const trunkH = Math.max(6, base.y - crown.y);
+    const isJacaranda = tree.c === '#7a58ab';
 
-    // Ground shadow
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
+    // 1. Stone sidewalk tree-well curb ring & dappled ground shadow
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.26)';
     ctx.beginPath();
-    ctx.ellipse(base.x, base.y, canopyR * 0.85, canopyR * 0.26, 0, 0, Math.PI * 2);
+    ctx.ellipse(base.x + canopyR * 0.1, base.y + 1, canopyR * 0.92, canopyR * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Trunk
-    ctx.fillStyle = shadeColor('#6c4d35', 0.9, isEvening);
-    ctx.fillRect(base.x - trunkW * 0.5, crown.y, trunkW, Math.max(4, base.y - crown.y));
+    ctx.fillStyle = shadeColor('#d6cfc0', 0.92, isEvening);
+    ctx.strokeStyle = shadeColor('#78716c', 0.9, isEvening);
+    ctx.lineWidth = Math.max(1, 1.4 * scale);
+    ctx.beginPath();
+    ctx.ellipse(base.x, base.y, trunkW * 1.45, Math.max(2.5, trunkW * 0.52), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
-    // Layered Jacaranda / Olive foliage puffs (separate beginPath per circle to prevent cutout artifacts)
-    const cMain = shadeColor(tree.c, 0.95, isEvening);
-    const cHi = shadeColor(tree.highlight, 1.0, isEvening);
+    ctx.fillStyle = shadeColor('#4a3728', 0.85, isEvening);
+    ctx.beginPath();
+    ctx.ellipse(base.x, base.y, trunkW * 1.05, Math.max(1.8, trunkW * 0.36), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fallen purple Jacaranda petals on the calcada stones around the tree base
+    if (isJacaranda && canopyR > 12) {
+      ctx.fillStyle = shadeColor('#9b72cf', 0.95, isEvening);
+      for (const [px, py] of [[-0.55, 0.08], [0.48, 0.12], [-0.25, 0.16], [0.22, -0.06], [0.62, -0.02]]) {
+        ctx.beginPath();
+        ctx.arc(base.x + px * canopyR, base.y + py * canopyR, Math.max(1.3, 2.2 * scale), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 2. Tapered organic bark trunk rising cleanly into the canopy base + 2 lower side boughs
+    const forkY = crown.y + canopyR * 0.36;
+    ctx.fillStyle = shadeColor('#5c3d28', 0.92, isEvening);
+    ctx.beginPath();
+    ctx.moveTo(base.x - trunkW * 0.62, base.y);
+    ctx.quadraticCurveTo(base.x - trunkW * 0.44, base.y - trunkH * 0.45, base.x - trunkW * 0.38, forkY);
+    ctx.lineTo(base.x + trunkW * 0.38, forkY);
+    ctx.quadraticCurveTo(base.x + trunkW * 0.44, base.y - trunkH * 0.45, base.x + trunkW * 0.62, base.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sunlit bark highlight ridge on left side of trunk
+    ctx.fillStyle = shadeColor('#855b3e', 0.98, isEvening);
+    ctx.beginPath();
+    ctx.moveTo(base.x - trunkW * 0.52, base.y);
+    ctx.quadraticCurveTo(base.x - trunkW * 0.36, base.y - trunkH * 0.45, base.x - trunkW * 0.3, forkY);
+    ctx.lineTo(base.x - trunkW * 0.05, forkY);
+    ctx.lineTo(base.x - trunkW * 0.16, base.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lower lateral wooden boughs branching seamlessly from the upper trunk into the side foliage clusters
+    ctx.strokeStyle = shadeColor('#5c3d28', 0.9, isEvening);
+    ctx.lineCap = 'round';
+    for (const [startSide, bxOff, byOff, bWidth] of [
+      [-0.22, -0.5, 0.2, 0.38],
+      [0.22, 0.48, 0.2, 0.36]
+    ]) {
+      ctx.lineWidth = Math.max(1.4, trunkW * bWidth);
+      ctx.beginPath();
+      ctx.moveTo(base.x + trunkW * startSide, forkY + canopyR * 0.16);
+      ctx.quadraticCurveTo(
+        base.x + bxOff * canopyR * 0.52,
+        forkY + canopyR * 0.04,
+        crown.x + bxOff * canopyR,
+        crown.y + byOff * canopyR
+      );
+      ctx.stroke();
+    }
+
+    // 3. Multi-layered volumetric 3D foliage canopy (deep shadow base -> mid clusters -> sunlit crown -> blossom highlights)
+    const cDeep = shadeColor(tree.c, 0.72, isEvening);
+    const cMain = shadeColor(tree.c, 0.94, isEvening);
+    const cHi = shadeColor(tree.highlight, 1.04, isEvening);
+    const cSpec = shadeColor(tree.highlight, 1.2, isEvening);
+
     for (const [ox, oy, mr, col] of [
-      [-0.45, 0.12, 0.72, cMain],
-      [0.45, 0.14, 0.7, cMain],
-      [0, -0.18, 0.84, cMain],
-      [-0.24, -0.32, 0.5, cHi],
-      [0.28, -0.1, 0.42, cHi]
+      // Under-canopy shadow clusters
+      [-0.58, 0.24, 0.48, cDeep],
+      [0.56, 0.24, 0.46, cDeep],
+      [0, 0.26, 0.54, cDeep],
+      [-0.3, 0.2, 0.52, cDeep],
+      [0.3, 0.2, 0.5, cDeep],
+      // Rich mid-canopy bough clusters
+      [-0.52, 0.04, 0.54, cMain],
+      [0.5, 0.06, 0.52, cMain],
+      [-0.24, -0.08, 0.62, cMain],
+      [0.24, -0.06, 0.58, cMain],
+      [0, -0.22, 0.6, cMain],
+      // Sunlit upper crown puffs
+      [-0.42, -0.06, 0.38, cHi],
+      [0.38, -0.04, 0.36, cHi],
+      [-0.12, -0.28, 0.44, cHi],
+      [0.16, -0.22, 0.38, cHi],
+      // Top blossom / leaf clusters catching direct Lisbon sunlight
+      [-0.22, -0.34, 0.24, cSpec],
+      [0.08, -0.32, 0.22, cSpec],
+      [-0.44, -0.12, 0.2, cSpec],
+      [0.34, -0.1, 0.18, cSpec]
     ]) {
       ctx.fillStyle = col;
       ctx.beginPath();

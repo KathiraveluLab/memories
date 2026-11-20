@@ -1241,25 +1241,132 @@ export class LisboaScenes3DRenderer {
       ctx.fill();
 
       if (f.toPortId === 'cacilhas' || f.fromPortId === 'cacilhas') {
-        // Red Ponte 25 de Abril suspension bridge & Cristo Rei + Farol de Cacilhas
-        ctx.strokeStyle = '#c81e32';
-        ctx.lineWidth = 2.6 * s;
+        // Architectural Ponte 25 de Abril suspension bridge & Santuario de Cristo Rei + Farol de Cacilhas
+        const bLeft = midX - 210 * s;
+        const bRight = midX + 165 * s;
+        const t1X = midX - 112 * s;
+        const t2X = midX + 68 * s;
+        const deckY = hy - 20 * s;
+        const towerTopY = hy - 84 * s;
+        const bridgeRed = isEvening ? '#881b24' : '#c8232c';
+        const bridgeHighlight = isEvening ? '#b02a36' : '#e33b45';
+
+        // Concrete caisson water piers
+        for (const tx of [t1X, t2X]) {
+          ctx.fillStyle = isEvening ? '#475569' : '#cbd5e1';
+          ctx.fillRect(tx - 11 * s, hy - 7 * s, 22 * s, 9 * s);
+          ctx.fillStyle = isEvening ? '#334155' : '#94a3b8';
+          ctx.fillRect(tx - 13 * s, hy - 2 * s, 26 * s, 4 * s);
+        }
+
+        // Main catenary cables & 24 vertical suspender dropper cables
+        const cableY = (x) => {
+          if (x <= t1X) {
+            const u = (x - bLeft) / Math.max(1, t1X - bLeft);
+            return (deckY - 2 * s) - u * u * ((deckY - 2 * s) - (towerTopY + 3 * s));
+          }
+          if (x >= t2X) {
+            const u = (bRight - x) / Math.max(1, bRight - t2X);
+            return (deckY - 2 * s) - u * u * ((deckY - 2 * s) - (towerTopY + 3 * s));
+          }
+          const u = (x - t1X) / Math.max(1, t2X - t1X);
+          const sag = 4 * u * (1 - u);
+          return (towerTopY + 3 * s) + sag * ((deckY - 6 * s) - (towerTopY + 3 * s));
+        };
+
+        ctx.strokeStyle = isEvening ? 'rgba(160, 38, 48, 0.72)' : 'rgba(184, 30, 40, 0.72)';
+        ctx.lineWidth = Math.max(0.8, 0.95 * s);
         ctx.beginPath();
-        ctx.moveTo(midX - 180 * s, hy - 18 * s);
-        ctx.lineTo(midX + 180 * s, hy - 18 * s);
+        for (let sx = bLeft + 8 * s; sx <= bRight - 8 * s; sx += 9 * s) {
+          if (Math.abs(sx - t1X) < 6 * s || Math.abs(sx - t2X) < 6 * s) continue;
+          ctx.moveTo(sx, cableY(sx));
+          ctx.lineTo(sx, deckY);
+        }
         ctx.stroke();
-        ctx.fillStyle = '#c81e32';
-        ctx.fillRect(midX - 96 * s, hy - 74 * s, 7 * s, 74 * s);
-        ctx.fillRect(midX + 86 * s, hy - 74 * s, 7 * s, 74 * s);
-        ctx.lineWidth = 1.6;
+
+        // Double-deck Warren stiffening truss roadway
+        ctx.fillStyle = isEvening ? 'rgba(84, 16, 22, 0.85)' : 'rgba(136, 20, 28, 0.82)';
+        ctx.fillRect(bLeft, deckY, bRight - bLeft, 5.5 * s);
+        ctx.strokeStyle = bridgeHighlight;
+        ctx.lineWidth = Math.max(1, 1.5 * s);
         ctx.beginPath();
-        ctx.moveTo(midX - 180 * s, hy - 18 * s);
-        ctx.quadraticCurveTo(midX - 138 * s, hy - 36 * s, midX - 92 * s, hy - 72 * s);
-        ctx.quadraticCurveTo(midX, hy - 22 * s, midX + 90 * s, hy - 72 * s);
-        ctx.quadraticCurveTo(midX + 138 * s, hy - 36 * s, midX + 180 * s, hy - 18 * s);
+        ctx.moveTo(bLeft, deckY);
+        ctx.lineTo(bRight, deckY);
+        ctx.moveTo(bLeft, deckY + 5.5 * s);
+        ctx.lineTo(bRight, deckY + 5.5 * s);
+        for (let wx = bLeft; wx < bRight - 6 * s; wx += 8 * s) {
+          ctx.moveTo(wx, deckY);
+          ctx.lineTo(wx + 4 * s, deckY + 5.5 * s);
+          ctx.lineTo(wx + 8 * s, deckY);
+        }
         ctx.stroke();
+
+        // Main parabolic suspension cables
+        ctx.strokeStyle = bridgeHighlight;
+        ctx.lineWidth = Math.max(1.4, 2.1 * s);
+        ctx.beginPath();
+        for (let sx = bLeft; sx <= bRight; sx += 4 * s) {
+          const cy = cableY(sx);
+          if (sx === bLeft) ctx.moveTo(sx, cy);
+          else ctx.lineTo(sx, cy);
+        }
+        ctx.stroke();
+
+        // Twin portal steel towers with diamond X-bracing
+        for (const tx of [t1X, t2X]) {
+          ctx.fillStyle = bridgeRed;
+          ctx.fillRect(tx - 6.5 * s, towerTopY, 3.4 * s, hy - 6 * s - towerTopY);
+          ctx.fillRect(tx + 3.1 * s, towerTopY, 3.4 * s, hy - 6 * s - towerTopY);
+          ctx.fillStyle = bridgeHighlight;
+          ctx.fillRect(tx - 6.5 * s, towerTopY, 1.3 * s, hy - 6 * s - towerTopY);
+          ctx.fillRect(tx + 3.1 * s, towerTopY, 1.3 * s, hy - 6 * s - towerTopY);
+          ctx.strokeStyle = bridgeRed;
+          ctx.lineWidth = Math.max(1, 1.4 * s);
+          for (const [yA, yB] of [
+            [towerTopY + 3 * s, towerTopY + 22 * s],
+            [towerTopY + 23 * s, deckY - 2 * s],
+            [deckY + 5 * s, hy - 9 * s]
+          ]) {
+            ctx.beginPath();
+            ctx.moveTo(tx - 5 * s, yA);
+            ctx.lineTo(tx + 5 * s, yA);
+            ctx.moveTo(tx - 5 * s, yA);
+            ctx.lineTo(tx + 5 * s, yB);
+            ctx.moveTo(tx + 5 * s, yA);
+            ctx.lineTo(tx - 5 * s, yB);
+            ctx.stroke();
+          }
+        }
+
+        // Santuario de Cristo Rei pedestal & outstretched-arms statue on Almada escarpment
+        const crX = midX + 186 * s;
+        const crBaseY = hy - 22 * s;
+        ctx.fillStyle = isEvening ? '#475569' : '#d6cfc2';
+        ctx.beginPath();
+        ctx.moveTo(crX - 10 * s, crBaseY);
+        ctx.lineTo(crX - 6.5 * s, crBaseY - 32 * s);
+        ctx.lineTo(crX + 6.5 * s, crBaseY - 32 * s);
+        ctx.lineTo(crX + 10 * s, crBaseY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = isEvening ? '#1e293b' : '#8c8273';
+        ctx.fillRect(crX - 2 * s, crBaseY - 27 * s, 4 * s, 27 * s);
+        ctx.fillStyle = isEvening ? '#94a3b8' : '#f8fafc';
+        ctx.fillRect(crX - 2.2 * s, crBaseY - 44 * s, 4.4 * s, 12 * s);
+        ctx.fillRect(crX - 10 * s, crBaseY - 41 * s, 20 * s, 2.6 * s);
+        ctx.beginPath();
+        ctx.arc(crX, crBaseY - 46 * s, 2.2 * s, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Crimson Farol de Cacilhas lighthouse at the point
         ctx.fillStyle = '#dc2626';
-        ctx.fillRect(midX + 132 * s, hy - 34 * s, 10 * s, 34 * s);
+        ctx.fillRect(midX + 132 * s, hy - 34 * s, 9 * s, 34 * s);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(midX + 132 * s, hy - 22 * s, 9 * s, 5 * s);
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(midX + 136.5 * s, hy - 36 * s, 3.8 * s, 0, Math.PI * 2);
+        ctx.fill();
       } else if (f.toPortId === 'seixal') {
         ctx.fillStyle = '#f8fafc';
         ctx.fillRect(midX - 44 * s, hy - 36 * s, 88 * s, 36 * s);

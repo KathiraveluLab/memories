@@ -1,11 +1,11 @@
 export class LanMultiplayerClient {
   constructor({
     baseUrl = '',
-    onStatusChange = () => {},
-    onJoined = () => {},
-    onRemotePlayers = () => {},
-    onClockSync = () => {},
-    onTransitSync = () => {}
+    onStatusChange = () => { },
+    onJoined = () => { },
+    onRemotePlayers = () => { },
+    onClockSync = () => { },
+    onTransitSync = () => { }
   } = {}) {
     this.baseUrl = baseUrl;
     this.onStatusChange = onStatusChange;
