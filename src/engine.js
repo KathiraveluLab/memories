@@ -1166,12 +1166,10 @@ export class MemoriesGameEngine {
       }
       vx = dx / dist;
       vy = dy / dist;
-      if (this.state.mode === 'overworld') {
-        const targetYaw = Math.atan2(vy, vx);
-        const curYaw = this.state.cameraYaw || 0;
-        const diff = Math.atan2(Math.sin(targetYaw - curYaw), Math.cos(targetYaw - curYaw));
-        this.state.cameraYaw = Math.atan2(Math.sin(curYaw + diff * Math.min(1, dt * 6.5)), Math.cos(curYaw + diff * Math.min(1, dt * 6.5)));
-      }
+      const targetYaw = Math.atan2(vy, vx);
+      const curYaw = this.state.cameraYaw || 0;
+      const diff = Math.atan2(Math.sin(targetYaw - curYaw), Math.cos(targetYaw - curYaw));
+      this.state.cameraYaw = Math.atan2(Math.sin(curYaw + diff * Math.min(1, dt * 6.5)), Math.cos(curYaw + diff * Math.min(1, dt * 6.5)));
     }
 
     const mag = Math.hypot(vx, vy);
@@ -1417,6 +1415,8 @@ export class MemoriesGameEngine {
         this.state.player.x = 380;
         this.state.player.y = 228;
         this.state.player.facing = 'up';
+        this.state.cameraYaw = -Math.PI * 0.5;
+        this.state.cameraPitch = 0.04;
 
         if (f.portId === FERRY_TERMINAL.id) {
           this.state.statusMessage =
@@ -1959,6 +1959,8 @@ export class MemoriesGameEngine {
     this.state.player.x = 380;
     this.state.player.y = 200;
     this.state.player.facing = 'down';
+    this.state.cameraYaw = Math.PI * 0.5;
+    this.state.cameraPitch = 0.02;
     this.state.player.walkTarget = null;
     this.state.player.walkQueue = [];
     this.state.player.isMoving = false;
@@ -2184,6 +2186,8 @@ export class MemoriesGameEngine {
     this.state.player.x = 380;
     this.state.player.y = METRO_PLATFORM_ZONES.escalatorTopY;
     this.state.player.facing = 'down';
+    this.state.cameraYaw = Math.PI * 0.5;
+    this.state.cameraPitch = 0.02;
     this.state.player.walkTarget = null;
     this.state.player.walkQueue = [];
     this.state.player.isMoving = false;

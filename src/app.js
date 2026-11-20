@@ -201,9 +201,17 @@ const dragLook = {
   lastY: 0
 };
 
+function isFirstPerson3DActive(state) {
+  if (!state || state.viewMode !== 'street3d' || state.ridingVehicleId) return false;
+  if (state.mode === 'overworld' || state.mode === 'interior') return true;
+  if (state.mode === 'metro' && state.metro.phase === 'platform') return true;
+  if (state.mode === 'ferry' && state.ferry.phase === 'terminal') return true;
+  return false;
+}
+
 function getKeyboardVector(dt = 0.016) {
   const state = engine.getState();
-  const isStreet3D = state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d';
+  const isStreet3D = isFirstPerson3DActive(state);
 
   if (isStreet3D) {
     const forward = (pressedKeys.has('ArrowUp') || pressedKeys.has('KeyW') ? 1 : 0) -
@@ -250,9 +258,45 @@ function handleCanvasClick(event) {
   const canvasX = (event.clientX - rect.left) * scaleX;
   const canvasY = (event.clientY - rect.top) * scaleY;
 
-  if (state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d') {
-    const hit3d = renderer.pickStreet3DTarget(canvasX, canvasY);
+  if (isFirstPerson3DActive(state)) {
+    const hit3d = renderer.pickStreet3DTarget(canvasX, canvasY, state);
     if (hit3d) {
+      if (hit3d.kind === 'counter') {
+        engine.setWalkTarget(INTERIOR_STATIONS.counter.x, INTERIOR_STATIONS.counter.y, { type: 'talkProprietor' });
+        return;
+      }
+      if (hit3d.kind === 'display') {
+        engine.setWalkTarget(INTERIOR_STATIONS.display.x, INTERIOR_STATIONS.display.y, { type: 'inspectDisplay' });
+        return;
+      }
+      if (hit3d.kind === 'exit-venue') {
+        engine.setWalkTarget(INTERIOR_STATIONS.exitMat.x, INTERIOR_STATIONS.exitMat.triggerY, { type: 'exitVenue' });
+        return;
+      }
+      if (hit3d.kind === 'metro-exit') {
+        engine.setWalkTarget(380, METRO_PLATFORM_ZONES.escalatorExitTriggerY, { type: 'exitMetro' });
+        return;
+      }
+      if (hit3d.kind === 'metro-board') {
+        engine.setWalkTarget(380, 260, { type: 'boardNextMetro' });
+        return;
+      }
+      if (hit3d.kind === 'ferry-exit') {
+        engine.setWalkTarget(380, FERRY_PIER_ZONES.exitY, { type: 'exitFerry' });
+        return;
+      }
+      if (hit3d.kind === 'ferry-board') {
+        engine.setWalkTarget(380, 256, { type: 'boardDefaultFerry' });
+        return;
+      }
+      if (hit3d.kind === 'south-bank-spot' && hit3d.spotId) {
+        const dest = FERRY_DESTINATIONS.find((d) => d.id === state.ferry.portId);
+        const spot = dest?.townSpots?.find((s) => s.id === hit3d.spotId);
+        if (spot) {
+          engine.setWalkTarget(spot.x, spot.y, { type: 'southBankSpot', spotId: spot.id });
+          return;
+        }
+      }
       if (hit3d.kind === 'ferry') {
         const path = buildOverworldPath(
           state.player.x,
@@ -594,9 +638,9 @@ function renderActiveContextPanel(state) {
     const southBankTownHtml =
       !isLisbon && !isSailing && curDest && Array.isArray(curDest.townSpots)
         ? curDest.townSpots
-            .map((spot) => {
-              if (spot.kind === 'landmark') {
-                return `
+          .map((spot) => {
+            if (spot.kind === 'landmark') {
+              return `
                   <div class="item-card">
                     <div>
                       <h4>${escapeHtml(spot.name)} <span class="badge-muted">${escapeHtml(spot.badge)}</span></h4>
@@ -607,15 +651,15 @@ function renderActiveContextPanel(state) {
                     </button>
                   </div>
                 `;
-              }
-              const itemsRows = (spot.items || [])
-                .map((item) => {
-                  const okFunds = state.euros >= item.costEur;
-                  const fx =
-                    item.kind === 'food'
-                      ? `+${item.fullnessDelta} Fullness, +${item.energyDelta} Energy`
-                      : `Satchel Keepsake, +${item.energyDelta} Energy`;
-                  return `
+            }
+            const itemsRows = (spot.items || [])
+              .map((item) => {
+                const okFunds = state.euros >= item.costEur;
+                const fx =
+                  item.kind === 'food'
+                    ? `+${item.fullnessDelta} Fullness, +${item.energyDelta} Energy`
+                    : `Satchel Keepsake, +${item.energyDelta} Energy`;
+                return `
                     <div class="item-card">
                       <div>
                         <h4>${escapeHtml(item.name)} <span class="badge-muted">${escapeHtml(spot.name)}</span></h4>
@@ -627,18 +671,18 @@ function renderActiveContextPanel(state) {
                       </button>
                     </div>
                   `;
-                })
-                .join('');
-              return itemsRows;
-            })
-            .join('')
+              })
+              .join('');
+            return itemsRows;
+          })
+          .join('')
         : '';
 
     const routesHtml = isLisbon
       ? FERRY_DESTINATIONS.map((dest) => {
-          const affordable = state.euros >= dest.fareEur && !isSailing;
-          const visited = state.visitedFerryPorts.includes(dest.id);
-          return `
+        const affordable = state.euros >= dest.fareEur && !isSailing;
+        const visited = state.visitedFerryPorts.includes(dest.id);
+        return `
             <div class="item-card">
               <div>
                 <h4>${escapeHtml(dest.name)}${visited ? ' (Visited)' : ''}</h4>
@@ -650,7 +694,7 @@ function renderActiveContextPanel(state) {
               </button>
             </div>
           `;
-        }).join('')
+      }).join('')
       : `
           ${southBankTownHtml}
           <div class="item-card">
@@ -1300,7 +1344,7 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
   }
   if (event.code === 'KeyV') {
-    if (!event.repeat && engine.getState().mode === 'overworld' && !engine.getState().ridingVehicleId) {
+    if (!event.repeat && !engine.getState().ridingVehicleId) {
       engine.toggleViewMode();
       refreshUi(true);
     }
@@ -1364,7 +1408,7 @@ window.addEventListener('blur', () => {
 
 canvas.addEventListener('pointerdown', (event) => {
   const state = engine.getState();
-  if (state.mode !== 'overworld' || state.ridingVehicleId || state.viewMode !== 'street3d') return;
+  if (!isFirstPerson3DActive(state)) return;
   dragLook.active = true;
   dragLook.moved = false;
   dragLook.startX = event.clientX;
@@ -1376,7 +1420,7 @@ canvas.addEventListener('pointerdown', (event) => {
 
 window.addEventListener('pointermove', (event) => {
   const state = engine.getState();
-  const isStreet3D = state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d';
+  const isStreet3D = isFirstPerson3DActive(state);
   if (dragLook.active && isStreet3D) {
     const dx = event.clientX - dragLook.lastX;
     const dy = event.clientY - dragLook.lastY;
@@ -1403,10 +1447,7 @@ window.addEventListener('pointerup', () => {
   if (!dragLook.active) return;
   dragLook.active = false;
   const state = engine.getState();
-  canvas.style.cursor =
-    state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d'
-      ? 'grab'
-      : 'pointer';
+  canvas.style.cursor = isFirstPerson3DActive(state) ? 'grab' : 'pointer';
 });
 
 canvas.addEventListener('pointerleave', () => {

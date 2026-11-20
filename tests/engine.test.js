@@ -899,7 +899,13 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
         }
       ]);
     }
+    engine.setViewMode('street3d');
     renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+    const floorPick = renderer.screenToWorld(460, 440, engine.getState());
+    assert.ok(floorPick && Number.isFinite(floorPick.x) && Number.isFinite(floorPick.y));
+    engine.setViewMode('overhead');
+    renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+    engine.setViewMode('street3d');
     engine.exitVenue();
   }
 
@@ -1170,6 +1176,7 @@ test('compliance check: no emojis, no license mentions, and no prohibited intern
     path.join('src', 'multiplayer.js'),
     path.join('src', 'audio.js'),
     path.join('src', 'streetview3d.js'),
+    path.join('src', 'scenes3d.js'),
     path.join('src', 'renderer.js'),
     path.join('src', 'app.js'),
     path.join('tests', 'engine.test.js'),

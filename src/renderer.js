@@ -20,6 +20,7 @@ import {
 } from './data.js';
 import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES, FERRY_PIER_ZONES } from './engine.js';
 import { LisboaStreetView3DRenderer } from './streetview3d.js';
+import { LisboaScenes3DRenderer } from './scenes3d.js';
 
 const ALL_STOPS = getAllTransitStops();
 
@@ -48,15 +49,28 @@ export class LisboaCanvasRenderer {
     this.animTime = 0;
     this.patterns = this.createCobblePatterns();
     this.streetView = new LisboaStreetView3DRenderer(this.viewWidth, this.viewHeight);
+    this.scenes3d = new LisboaScenes3DRenderer(this.viewWidth, this.viewHeight);
   }
 
   setStreetHover(canvasX, canvasY, state) {
-    if (this.streetView) {
-      this.streetView.setHoverPoint(canvasX, canvasY, state);
+    if (!state || state.viewMode !== 'street3d' || state.ridingVehicleId) {
+      if (this.streetView) this.streetView.setHoverPoint(null, null, state);
+      if (this.scenes3d) this.scenes3d.setHoverPoint(null, null, state);
+      return;
+    }
+    if (state.mode === 'overworld') {
+      if (this.streetView) this.streetView.setHoverPoint(canvasX, canvasY, state);
+      if (this.scenes3d) this.scenes3d.setHoverPoint(null, null, state);
+    } else {
+      if (this.scenes3d) this.scenes3d.setHoverPoint(canvasX, canvasY, state);
+      if (this.streetView) this.streetView.setHoverPoint(null, null, state);
     }
   }
 
-  pickStreet3DTarget(canvasX, canvasY) {
+  pickStreet3DTarget(canvasX, canvasY, state = null) {
+    if (state && state.mode !== 'overworld') {
+      return this.scenes3d ? this.scenes3d.pickTarget(canvasX, canvasY) : null;
+    }
     return this.streetView ? this.streetView.pickInteractiveTarget(canvasX, canvasY) : null;
   }
 
@@ -143,6 +157,9 @@ export class LisboaCanvasRenderer {
 
   screenToWorld(canvasX, canvasY, state) {
     if (state.mode === 'interior' || state.mode === 'metro' || state.mode === 'ferry') {
+      if (state.viewMode === 'street3d') {
+        return this.scenes3d.screenToFloor(canvasX, canvasY, state);
+      }
       const offsetX = (this.viewWidth - INTERIOR_WIDTH) / 2;
       const offsetY = (this.viewHeight - INTERIOR_HEIGHT) / 2;
       return {
@@ -174,11 +191,26 @@ export class LisboaCanvasRenderer {
     ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
 
     if (state.mode === 'interior') {
-      this.renderInterior(ctx, state, nearbyInteraction);
+      if (state.viewMode === 'street3d') {
+        this.scenes3d.renderInterior3D(ctx, state, nearbyInteraction, this.animTime);
+        if (nearbyInteraction) this.drawInteractionBanner(ctx, nearbyInteraction);
+      } else {
+        this.renderInterior(ctx, state, nearbyInteraction);
+      }
     } else if (state.mode === 'metro') {
-      this.renderMetro(ctx, state, nearbyInteraction);
+      if (state.viewMode === 'street3d') {
+        this.scenes3d.renderMetro3D(ctx, state, nearbyInteraction, this.animTime);
+        if (nearbyInteraction) this.drawInteractionBanner(ctx, nearbyInteraction);
+      } else {
+        this.renderMetro(ctx, state, nearbyInteraction);
+      }
     } else if (state.mode === 'ferry') {
-      this.renderFerry(ctx, state, nearbyInteraction);
+      if (state.viewMode === 'street3d') {
+        this.scenes3d.renderFerry3D(ctx, state, nearbyInteraction, this.animTime);
+        if (nearbyInteraction) this.drawInteractionBanner(ctx, nearbyInteraction);
+      } else {
+        this.renderFerry(ctx, state, nearbyInteraction);
+      }
     } else if (state.ridingVehicleId === 'bus-737-758') {
       this.renderBusInteriorView(ctx, state, nearbyInteraction);
     } else if (state.ridingVehicleId === 'tram-28e') {
