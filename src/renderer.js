@@ -4523,6 +4523,23 @@ export class LisboaCanvasRenderer {
     );
 
     this.drawMetroRouteStrip(ctx, origin.id, dest.id, m.phaseProgress, 72);
+    if (state.metroDoorChime) {
+      drawRoundedRect(ctx, 150, 102, 460, 24, 6);
+      ctx.fillStyle = 'rgba(153, 27, 27, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = '#fb923c';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#fde68a';
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        `${(state.metroDoorChime.triggeredBy || 'LINHA AZUL').toUpperCase()} CHIME: "${state.metroDoorChime.text}"`,
+        380,
+        118,
+        440
+      );
+    }
     ctx.restore();
   }
 
@@ -6150,6 +6167,24 @@ export class LisboaCanvasRenderer {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    if (state.ferryHornSignal) {
+      drawRoundedRect(ctx, 150, 94, 460, 24, 6);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        `${(state.ferryHornSignal.triggeredBy || 'CAPTAIN').toUpperCase()} HORN: "${state.ferryHornSignal.text}"`,
+        380,
+        110,
+        440
+      );
+    }
 
     ctx.restore();
   }

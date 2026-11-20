@@ -414,6 +414,8 @@ export function createInitialState() {
     busScrollOffset: 0,
     tramScrollOffset: 0,
     transitAnnouncement: null,
+    ferryHornSignal: null,
+    metroDoorChime: null,
     ridingVehicleId: null,
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
@@ -463,8 +465,13 @@ export class MemoriesGameEngine {
     this.globalTransitSynced = false;
     this.serverMetro = null;
     this.serverFerries = null;
+    this.signalSeq = 0;
     this.lastServerBellIds = new Map();
     this.lastLocalBellAt = 0;
+    this.lastServerMetroChimeId = 0;
+    this.lastLocalMetroChimeAt = 0;
+    this.lastServerFerryHornIds = new Map();
+    this.lastLocalFerryHornAt = 0;
   }
 
   emitTransitIntent(payload) {
@@ -554,9 +561,33 @@ export class MemoriesGameEngine {
     // 2. Authoritative Underground Metro Linha Azul Train
     if (transit.metro && typeof transit.metro === 'object') {
       this.serverMetro = transit.metro;
+      const sm = transit.metro;
+      if (sm.doorChime && Number.isFinite(sm.doorChime.id) && sm.doorChime.id > this.lastServerMetroChimeId) {
+        this.lastServerMetroChimeId = sm.doorChime.id;
+        const justChimedLocally =
+          sm.doorChime.triggeredBy === this.state.player.name &&
+          Date.now() - this.lastLocalMetroChimeAt < 2500;
+        const m = this.state.metro;
+        const inSameMetroContext =
+          this.state.mode === 'metro' &&
+          (m.phase === 'riding' ||
+            m.stationId === sm.doorChime.stationId ||
+            m.stationId === sm.doorChime.toStationId);
+        if (inSameMetroContext && !justChimedLocally) {
+          this.signalSeq += 1;
+          this.state.metroDoorChime = {
+            id: this.signalSeq,
+            stationId: sm.doorChime.stationId,
+            toStationId: sm.doorChime.toStationId,
+            triggeredBy: sm.doorChime.triggeredBy || 'Linha Azul',
+            text: sm.doorChime.text || 'Atencao as portas - Doors closing!',
+            timer: 3.4
+          };
+          this.state.statusMessage = `${this.state.metroDoorChime.triggeredBy} - ${this.state.metroDoorChime.text}`;
+        }
+      }
       if (this.state.mode === 'metro') {
         const m = this.state.metro;
-        const sm = transit.metro;
         if (m.phase === 'platform') {
           if (sm.stationId === m.stationId && sm.phase === 'docked') {
             m.trainX = 380;
@@ -578,6 +609,39 @@ export class MemoriesGameEngine {
     // 3. Authoritative Transtejo Tagus Catamaran Fleet
     if (Array.isArray(transit.ferries)) {
       this.serverFerries = transit.ferries;
+      for (const sf of transit.ferries) {
+        if (sf.hornSignal && Number.isFinite(sf.hornSignal.id)) {
+          const prevHornId = this.lastServerFerryHornIds.get(sf.routeId) || 0;
+          if (sf.hornSignal.id > prevHornId) {
+            this.lastServerFerryHornIds.set(sf.routeId, sf.hornSignal.id);
+            const justHornedLocally =
+              sf.hornSignal.triggeredBy === this.state.player.name &&
+              Date.now() - this.lastLocalFerryHornAt < 2500;
+            const f = this.state.ferry;
+            const localRouteId =
+              f.toPortId === FERRY_TERMINAL.id ? f.fromPortId : (f.toPortId || f.portId);
+            const inSameFerryContext =
+              this.state.mode === 'ferry' &&
+              (localRouteId === sf.routeId ||
+                f.portId === sf.hornSignal.fromPortId ||
+                f.portId === sf.hornSignal.toPortId ||
+                f.portId === FERRY_TERMINAL.id);
+            if (inSameFerryContext && !justHornedLocally) {
+              this.signalSeq += 1;
+              this.state.ferryHornSignal = {
+                id: this.signalSeq,
+                routeId: sf.routeId,
+                fromPortId: sf.hornSignal.fromPortId,
+                toPortId: sf.hornSignal.toPortId,
+                triggeredBy: sf.hornSignal.triggeredBy || 'Transtejo Captain',
+                text: sf.hornSignal.text || 'Transtejo Departure Horn!',
+                timer: 3.6
+              };
+              this.state.statusMessage = `${this.state.ferryHornSignal.triggeredBy} sounded the Transtejo horn - ${this.state.ferryHornSignal.text}`;
+            }
+          }
+        }
+      }
       if (this.state.mode === 'ferry' && this.state.ferry.phase === 'sailing') {
         const f = this.state.ferry;
         const routeId = f.toPortId === FERRY_TERMINAL.id ? f.fromPortId : f.toPortId;
@@ -1806,6 +1870,20 @@ export class MemoriesGameEngine {
       this.advanceMinutes(mins);
     }
 
+    if (this.state.metroDoorChime && this.state.metroDoorChime.timer > 0) {
+      this.state.metroDoorChime.timer = Math.max(0, this.state.metroDoorChime.timer - dt);
+      if (this.state.metroDoorChime.timer === 0) {
+        this.state.metroDoorChime = null;
+      }
+    }
+
+    if (this.state.ferryHornSignal && this.state.ferryHornSignal.timer > 0) {
+      this.state.ferryHornSignal.timer = Math.max(0, this.state.ferryHornSignal.timer - dt);
+      if (this.state.ferryHornSignal.timer === 0) {
+        this.state.ferryHornSignal = null;
+      }
+    }
+
     if (this.state.mode === 'metro') {
       this.updateMetroSimulation(dt);
       if (this.state.mode === 'metro' && this.state.metro.phase === 'platform') {
@@ -1901,7 +1979,7 @@ export class MemoriesGameEngine {
         return {
           type: 'metro-transition',
           label: `Riding Metropolitano de Lisboa -> ${dest ? dest.name : 'next station'}`,
-          sublabel: 'Underground Linha Azul tunnel transit in progress'
+          sublabel: 'Press [E] to ring shared Atencao as Portas door chime'
         };
       }
       // On underground platform
@@ -1940,7 +2018,7 @@ export class MemoriesGameEngine {
         return {
           type: 'ferry-transition',
           label: `Sailing Transtejo Ferry across the Tagus -> ${toLabel}`,
-          sublabel: 'Enjoy the river breeze and Lisbon skyline crossing'
+          sublabel: 'Press [E] to sound shared Transtejo Tagus foghorn'
         };
       }
       const px = state.player.x;
@@ -2159,7 +2237,16 @@ export class MemoriesGameEngine {
     if (nearby.type === 'metro-board' && nearby.destId) {
       return this.rideMetro(this.state.metro.stationId, nearby.destId);
     }
-    if (nearby.type === 'metro-transition' || nearby.type === 'ferry-transition') {
+    if (nearby.type === 'metro-transition') {
+      if (this.state.mode === 'metro' && this.state.metro.phase === 'riding') {
+        return this.triggerMetroDoorChime();
+      }
+      return { ok: true, state: this.state };
+    }
+    if (nearby.type === 'ferry-transition') {
+      if (this.state.mode === 'ferry' && this.state.ferry.phase === 'sailing') {
+        return this.soundFerryHorn();
+      }
       return { ok: true, state: this.state };
     }
     if (nearby.type === 'ferry') {
@@ -2301,9 +2388,26 @@ export class MemoriesGameEngine {
 
     this.state.statusMessage = `Sailing aboard Transtejo Catamaran from ${fromLabel} to ${destLabel} (-${fareEur.toFixed(2)} EUR, +6 Energy).`;
     recordLog(this.state, 'ferry', `Boarded Transtejo ferry from ${fromLabel} to ${destLabel} (-${fareEur.toFixed(2)} EUR).`);
+    const routeId = targetPortId === FERRY_TERMINAL.id ? fromPortId : targetPortId;
+    this.signalSeq += 1;
+    this.lastLocalFerryHornAt = Date.now();
+    this.state.ferryHornSignal = {
+      id: this.signalSeq,
+      routeId,
+      fromPortId,
+      toPortId: targetPortId,
+      triggeredBy: this.state.player.name || 'Traveler',
+      text: `Transtejo Foghorn - Sailing toward ${destLabel}`,
+      timer: 3.6
+    };
     if (this.globalTransitSynced) {
-      const routeId = targetPortId === FERRY_TERMINAL.id ? fromPortId : targetPortId;
-      this.emitTransitIntent({ action: 'ferry-board', routeId, fromPortId, toPortId: targetPortId });
+      this.emitTransitIntent({
+        action: 'ferry-board',
+        routeId,
+        fromPortId,
+        toPortId: targetPortId,
+        triggeredBy: this.state.player.name || 'Traveler'
+      });
     }
 
     return {
@@ -2315,6 +2419,45 @@ export class MemoriesGameEngine {
       newMemory,
       state: this.state
     };
+  }
+
+  soundFerryHorn() {
+    if (this.state.mode !== 'ferry') {
+      return { ok: false, error: 'Step onto a Transtejo ferry pier or catamaran to sound the ferry horn.' };
+    }
+    const f = this.state.ferry;
+    const fromPortId = f.fromPortId || f.portId || FERRY_TERMINAL.id;
+    const toPortId = f.toPortId || (f.portId === FERRY_TERMINAL.id ? 'cacilhas' : FERRY_TERMINAL.id);
+    const routeId = toPortId === FERRY_TERMINAL.id ? (fromPortId === FERRY_TERMINAL.id ? 'cacilhas' : fromPortId) : toPortId;
+    const destInfo = getFerryDestinationById(toPortId);
+    const toLabel =
+      toPortId === FERRY_TERMINAL.id
+        ? FERRY_TERMINAL.shortName
+        : (destInfo?.shortName || destInfo?.name || 'Tagus South Bank');
+    const ringer = this.state.player.name || 'Traveler';
+
+    this.signalSeq += 1;
+    this.lastLocalFerryHornAt = Date.now();
+    this.state.ferryHornSignal = {
+      id: this.signalSeq,
+      routeId,
+      fromPortId,
+      toPortId,
+      triggeredBy: ringer,
+      text: `Transtejo Foghorn - Sailing toward ${toLabel}`,
+      timer: 3.6
+    };
+    this.state.statusMessage = `Sounded the Transtejo catamaran foghorn across the Tagus (${toLabel})!`;
+    if (this.globalTransitSynced) {
+      this.emitTransitIntent({
+        action: 'ferry-horn',
+        routeId,
+        fromPortId,
+        toPortId,
+        triggeredBy: ringer
+      });
+    }
+    return { ok: true, hornSignal: this.state.ferryHornSignal, state: this.state };
   }
 
   exitFerryTerminal({ immediate = false } = {}) {
@@ -2617,8 +2760,24 @@ export class MemoriesGameEngine {
 
     this.state.statusMessage = `Boarded Metropolitano de Lisboa (Linha Azul) from ${origin.name} toward ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`;
     recordLog(this.state, 'metro', `Boarded Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`);
+    const destShort = destination.name.replace('Metro ', '');
+    this.signalSeq += 1;
+    this.lastLocalMetroChimeAt = Date.now();
+    this.state.metroDoorChime = {
+      id: this.signalSeq,
+      stationId: origin.id,
+      toStationId: destination.id,
+      triggeredBy: this.state.player.name || 'Traveler',
+      text: `Atencao as portas - Doors closing for ${destShort}`,
+      timer: 3.4
+    };
     if (this.globalTransitSynced) {
-      this.emitTransitIntent({ action: 'metro-depart', fromStationId: origin.id, toStationId: destination.id });
+      this.emitTransitIntent({
+        action: 'metro-depart',
+        fromStationId: origin.id,
+        toStationId: destination.id,
+        triggeredBy: this.state.player.name || 'Traveler'
+      });
     }
 
     return {
@@ -2629,6 +2788,39 @@ export class MemoriesGameEngine {
       newMemory,
       state: this.state
     };
+  }
+
+  triggerMetroDoorChime() {
+    if (this.state.mode !== 'metro') {
+      return { ok: false, error: 'Step into a Metro station or train to sound the door-closing chime.' };
+    }
+    const m = this.state.metro;
+    const fromId = m.fromStationId || m.stationId || this.state.activeMetroStationId;
+    const toId = m.toStationId || METRO_STATIONS.find((s) => s.id !== fromId)?.id || fromId;
+    const dest = getMetroStationById(toId);
+    const destShort = dest ? dest.name.replace('Metro ', '') : 'Linha Azul';
+    const ringer = this.state.player.name || 'Traveler';
+
+    this.signalSeq += 1;
+    this.lastLocalMetroChimeAt = Date.now();
+    this.state.metroDoorChime = {
+      id: this.signalSeq,
+      stationId: fromId,
+      toStationId: toId,
+      triggeredBy: ringer,
+      text: `Atencao as portas - Doors closing for ${destShort}`,
+      timer: 3.4
+    };
+    this.state.statusMessage = `Metro Linha Azul door-closing chime: "Atencao as portas - Doors closing for ${destShort}!"`;
+    if (this.globalTransitSynced) {
+      this.emitTransitIntent({
+        action: 'metro-chime',
+        fromStationId: fromId,
+        toStationId: toId,
+        triggeredBy: ringer
+      });
+    }
+    return { ok: true, doorChime: this.state.metroDoorChime, state: this.state };
   }
 
   enterVenue(venueId) {

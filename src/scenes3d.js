@@ -1011,17 +1011,35 @@ export class LisboaScenes3DRenderer {
       ctx.fillStyle = '#c81e32';
       ctx.fillRect(128, 72, w - 256, 8);
       ctx.fillRect(128, h - 114, w - 256, 8);
-      // Overhead LED Linha Azul Next-Station display
-      drawRoundedRect(ctx, 210, 14, 500, 48, 8);
+      // Overhead LED Linha Azul Next-Station display & Synchronized Door-Closing Chime Alert
+      const chimeActive = Boolean(state.metroDoorChime);
+      drawRoundedRect(ctx, 195, 12, 530, chimeActive ? 56 : 48, 8);
       ctx.fillStyle = '#090d16';
       ctx.fill();
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = chimeActive ? '#f97316' : '#38bdf8';
+      ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = chimeActive ? '#fb923c' : '#38bdf8';
       ctx.font = '700 13px "Consolas", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`LINHA AZUL  |  PROXIMA ESTACAO: ${(dest?.name || 'LISBOA').toUpperCase()}`, w * 0.5, 43);
+      ctx.fillText(
+        chimeActive
+          ? `ATENCAO AS PORTAS  |  PROXIMA ESTACAO: ${(dest?.name || 'LISBOA').toUpperCase()}`
+          : `LINHA AZUL  |  PROXIMA ESTACAO: ${(dest?.name || 'LISBOA').toUpperCase()}`,
+        w * 0.5,
+        chimeActive ? 34 : 43,
+        506
+      );
+      if (chimeActive) {
+        ctx.fillStyle = '#fde68a';
+        ctx.font = '600 10.5px "Segoe UI", sans-serif';
+        ctx.fillText(
+          `${(state.metroDoorChime.triggeredBy || 'LINHA AZUL').toUpperCase()} CHIME: "${state.metroDoorChime.text}"`,
+          w * 0.5,
+          54,
+          506
+        );
+      }
       const metroPeers = (state.remotePlayers || []).filter(
         (rp) => rp.mode === 'metro' && rp.metroPhase === 'riding'
       );
@@ -1116,9 +1134,10 @@ export class LisboaScenes3DRenderer {
       { kind: 'metro-board' }
     );
     // Crimson Lisbon Metro stripe & illuminated passenger doors along the train side facing platform (y = 302)
+    const doorColor = state.metroDoorChime ? '#fb923c' : '#fef08a';
     this.drawPoly3D(ctx, cam, [[tx + 175, 301.5, 4], [tx - 175, 301.5, 4], [tx - 175, 301.5, 16], [tx + 175, 301.5, 16]], '#c81e32');
     for (let dx = -140; dx <= 120; dx += 52) {
-      this.drawPoly3D(ctx, cam, [[tx + dx + 34, 301, 18], [tx + dx, 301, 18], [tx + dx, 301, 38], [tx + dx + 34, 301, 38]], '#fef08a', '#1e293b', 1.2);
+      this.drawPoly3D(ctx, cam, [[tx + dx + 34, 301, 18], [tx + dx, 301, 18], [tx + dx, 301, 38], [tx + dx + 34, 301, 38]], doorColor, '#1e293b', 1.2);
     }
 
     // Hover ring on platform
@@ -1151,7 +1170,9 @@ export class LisboaScenes3DRenderer {
       ctx,
       cam,
       `3D METRO  -  ${station.name}`,
-      `${station.lines.join(' & ')}  |  Click Train to Board or Escalator to Exit`,
+      state.metroDoorChime
+        ? `${(state.metroDoorChime.triggeredBy || 'LINHA AZUL').toUpperCase()} CHIME: "${state.metroDoorChime.text}"`
+        : `${station.lines.join(' & ')}  |  Click Train to Board or Escalator to Exit`,
       {
         floorRect: { x: 50, y: 140, w: 660, h: 146 },
         floorColor: 'rgba(148, 163, 184, 0.3)',
@@ -1353,27 +1374,53 @@ export class LisboaScenes3DRenderer {
         }
       });
 
-      // Progress Header
-      const headerH = ferryPeers.length > 0 ? 60 : 50;
-      drawRoundedRect(ctx, midX - 245, 14, 490, headerH, 8);
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
+      // Progress Header & Synchronized Transtejo Ferry Horn Alert
+      const hornActive = Boolean(state.ferryHornSignal);
+      if (hornActive) {
+        // Acoustic brass horn wave rings pulsing across the Tagus bow sky
+        ctx.save();
+        for (let r = 0; r < 3; r += 1) {
+          const rad = 38 + r * 22 + ((animTime * 55) % 22);
+          ctx.strokeStyle = `rgba(253, 224, 71, ${0.55 - r * 0.15})`;
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.arc(midX, 92, rad, Math.PI * 0.15, Math.PI * 0.85);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      const hasSubLine = hornActive || ferryPeers.length > 0;
+      const headerH = hasSubLine ? 60 : 50;
+      drawRoundedRect(ctx, midX - 255, 14, 510, headerH, 8);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
       ctx.fill();
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = hornActive ? '#facc15' : '#38bdf8';
+      ctx.lineWidth = 1.8;
       ctx.stroke();
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = hornActive ? '#fde047' : '#ffffff';
       ctx.font = '700 13px Georgia, serif';
       ctx.textAlign = 'center';
       ctx.fillText(
-        `TRANSTEJO 3D BOW DECK  -  TO ${toLabel.toUpperCase()} (${Math.round(progress * 100)}%)`,
+        hornActive
+          ? `TRANSTEJO HORN SIGNAL  -  TO ${toLabel.toUpperCase()} (${Math.round(progress * 100)}%)`
+          : `TRANSTEJO 3D BOW DECK  -  TO ${toLabel.toUpperCase()} (${Math.round(progress * 100)}%)`,
         midX,
-        ferryPeers.length > 0 ? 39 : 44,
-        466
+        hasSubLine ? 38 : 44,
+        486
       );
-      if (ferryPeers.length > 0) {
+      if (hornActive) {
         ctx.fillStyle = '#fde68a';
         ctx.font = '700 10.5px "Segoe UI", sans-serif';
-        ctx.fillText(`SAILING TOGETHER WITH: ${ferryPeers.map((p) => p.name).join(', ')}`, midX, 60, 466);
+        ctx.fillText(
+          `${(state.ferryHornSignal.triggeredBy || 'CAPTAIN').toUpperCase()} SOUNDED HORN: "${state.ferryHornSignal.text}"`,
+          midX,
+          58,
+          486
+        );
+      } else if (ferryPeers.length > 0) {
+        ctx.fillStyle = '#fde68a';
+        ctx.font = '700 10.5px "Segoe UI", sans-serif';
+        ctx.fillText(`SAILING TOGETHER WITH: ${ferryPeers.map((p) => p.name).join(', ')}`, midX, 60, 486);
       }
       ctx.textAlign = 'left';
       return;
@@ -1795,7 +1842,9 @@ export class LisboaScenes3DRenderer {
       ctx,
       cam,
       isLisbon ? '3D PIER  -  CAIS DO SODRE PORT' : `3D PROMENADE  -  ${(destInfo?.name || 'SOUTH BANK').toUpperCase()}`,
-      isLisbon ? 'Click Transtejo Ferry to Sail or Gate to Exit' : 'Explore Eatery, Landmark & Shop | Click Ferry to Return',
+      state.ferryHornSignal
+        ? `${(state.ferryHornSignal.triggeredBy || 'CAPTAIN').toUpperCase()} HORN: "${state.ferryHornSignal.text}"`
+        : (isLisbon ? 'Click Transtejo Ferry to Sail or Gate to Exit' : 'Explore Eatery, Landmark & Shop | Click Ferry to Return'),
       {
         floorRect: { x: 48, y: 148, w: 664, h: 138 },
         floorColor: 'rgba(226, 218, 202, 0.28)',

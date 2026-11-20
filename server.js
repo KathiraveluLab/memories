@@ -162,6 +162,8 @@ export function createMultiplayerServer({
 
   // Authoritative server-owned Tram 28E & Carris Bus 737/758 simulation
   let bellAnnouncementSeq = 0;
+  let ferryHornSeq = 0;
+  let metroChimeSeq = 0;
   let sharedFadoTrackIndex = 0;
   const transitVehicles = TRANSIT_LINES.map((line, i) => {
     const startIdx = i === 0 ? 1 : 2;
@@ -198,7 +200,8 @@ export function createMultiplayerServer({
     progress: 0,
     rideDuration: 3.0,
     dwellRemaining: 4.5,
-    trainX: 380
+    trainX: 380,
+    doorChime: null
   };
 
   // Authoritative server-owned Transtejo Tagus Catamaran fleet (Cacilhas, Seixal, Montijo)
@@ -210,8 +213,43 @@ export function createMultiplayerServer({
     toPortId: dest.id,
     progress: 0,
     sailDuration: dest.sailDurationSec || 4.5,
-    dwellRemaining: 6.0
+    dwellRemaining: 6.0,
+    hornSignal: null
   }));
+
+  function triggerServerMetroDoorChime(fromStationId, toStationId, triggeredBy = 'Metropolitano de Lisboa') {
+    const dest = METRO_STATIONS.find((s) => s.id === toStationId);
+    const destName = dest ? dest.name.replace('Metro ', '') : 'Linha Azul';
+    metroChimeSeq += 1;
+    sharedMetro.doorChime = {
+      id: metroChimeSeq,
+      stationId: fromStationId || sharedMetro.stationId,
+      toStationId: toStationId || sharedMetro.toStationId,
+      triggeredBy: sanitizeText(triggeredBy, 'Metropolitano de Lisboa', 24),
+      text: `Atencao as portas - Doors closing for ${destName}`,
+      expiresAt: Date.now() + 3600
+    };
+    return sharedMetro.doorChime;
+  }
+
+  function triggerServerFerryHorn(ferry, fromPortId, toPortId, triggeredBy = 'Transtejo Captain') {
+    const destInfo = FERRY_DESTINATIONS.find((d) => d.id === toPortId);
+    const toName =
+      toPortId === FERRY_TERMINAL.id
+        ? FERRY_TERMINAL.shortName
+        : (destInfo?.shortName || destInfo?.name || 'Tagus South Bank');
+    ferryHornSeq += 1;
+    ferry.hornSignal = {
+      id: ferryHornSeq,
+      routeId: ferry.routeId,
+      fromPortId: fromPortId || ferry.fromPortId,
+      toPortId: toPortId || ferry.toPortId,
+      triggeredBy: sanitizeText(triggeredBy, 'Transtejo Captain', 24),
+      text: `Transtejo Foghorn - Sailing toward ${toName}`,
+      expiresAt: Date.now() + 3800
+    };
+    return ferry.hornSignal;
+  }
 
   // Authoritative server-owned Ambient Lisboa Villagers patrolling strictly on sidewalks
   const sharedNpcs = AMBIENT_NPCS.map((npc) => ({
@@ -402,6 +440,9 @@ export function createMultiplayerServer({
     }
 
     // 2. Shared Underground Metro Linha Azul Train
+    if (sharedMetro.doorChime && nowMs >= sharedMetro.doorChime.expiresAt) {
+      sharedMetro.doorChime = null;
+    }
     if (sharedMetro.phase === 'docked') {
       sharedMetro.trainX = 380;
       sharedMetro.dwellRemaining = Math.max(0, sharedMetro.dwellRemaining - dt);
@@ -417,6 +458,7 @@ export function createMultiplayerServer({
         sharedMetro.phase = 'riding';
         sharedMetro.progress = 0;
         sharedMetro.rideDuration = 3.0;
+        triggerServerMetroDoorChime(sharedMetro.fromStationId, sharedMetro.toStationId, 'Linha Azul');
       }
     } else if (sharedMetro.phase === 'riding') {
       sharedMetro.progress = Math.min(1, sharedMetro.progress + dt / Math.max(1.2, sharedMetro.rideDuration));
@@ -444,6 +486,9 @@ export function createMultiplayerServer({
 
     // 3. Shared Transtejo Tagus Catamaran Fleet
     for (const ferry of sharedFerries) {
+      if (ferry.hornSignal && nowMs >= ferry.hornSignal.expiresAt) {
+        ferry.hornSignal = null;
+      }
       if (ferry.phase === 'docked') {
         ferry.dwellRemaining = Math.max(0, ferry.dwellRemaining - dt);
         if (ferry.dwellRemaining <= 0) {
@@ -452,6 +497,7 @@ export function createMultiplayerServer({
           ferry.toPortId = nextPort;
           ferry.phase = 'sailing';
           ferry.progress = 0;
+          triggerServerFerryHorn(ferry, ferry.fromPortId, ferry.toPortId, 'Transtejo Captain');
         }
       } else if (ferry.phase === 'sailing') {
         ferry.progress = Math.min(1, ferry.progress + dt / Math.max(1.5, ferry.sailDuration));
@@ -506,7 +552,16 @@ export function createMultiplayerServer({
         progress: Math.round(sharedMetro.progress * 1000) / 1000,
         rideDuration: sharedMetro.rideDuration,
         dwellRemaining: Math.round(sharedMetro.dwellRemaining * 100) / 100,
-        trainX: Math.round(sharedMetro.trainX * 10) / 10
+        trainX: Math.round(sharedMetro.trainX * 10) / 10,
+        doorChime: sharedMetro.doorChime
+          ? {
+              id: sharedMetro.doorChime.id,
+              stationId: sharedMetro.doorChime.stationId,
+              toStationId: sharedMetro.doorChime.toStationId,
+              triggeredBy: sharedMetro.doorChime.triggeredBy,
+              text: sharedMetro.doorChime.text
+            }
+          : null
       },
       ferries: sharedFerries.map((f) => ({
         routeId: f.routeId,
@@ -516,7 +571,17 @@ export function createMultiplayerServer({
         toPortId: f.toPortId,
         progress: Math.round(f.progress * 1000) / 1000,
         sailDuration: f.sailDuration,
-        dwellRemaining: Math.round(f.dwellRemaining * 100) / 100
+        dwellRemaining: Math.round(f.dwellRemaining * 100) / 100,
+        hornSignal: f.hornSignal
+          ? {
+              id: f.hornSignal.id,
+              routeId: f.hornSignal.routeId,
+              fromPortId: f.hornSignal.fromPortId,
+              toPortId: f.hornSignal.toPortId,
+              triggeredBy: f.hornSignal.triggeredBy,
+              text: f.hornSignal.text
+            }
+          : null
       })),
       npcs: sharedNpcs.map((n) => ({
         id: n.id,
@@ -918,6 +983,8 @@ export function createMultiplayerServer({
             sendJson(res, 400, { ok: false, error: 'Invalid Metro route.' });
             return;
           }
+          const triggeredBy =
+            body.triggeredBy || players.get(requesterId)?.name || 'Linha Azul Passenger';
           const companionRiding = [...players.values()].some(
             (p) => p.id !== requesterId && p.mode === 'metro' && p.metroPhase === 'riding'
           );
@@ -932,9 +999,21 @@ export function createMultiplayerServer({
               sharedMetro.phase = 'riding';
               sharedMetro.progress = 0;
             }
+            triggerServerMetroDoorChime(origin.id, dest.id, triggeredBy);
             broadcastTransit('metro-depart');
           }
-          sendJson(res, 200, { ok: true, transit: getTransitSnapshot() });
+          sendJson(res, 200, { ok: true, doorChime: sharedMetro.doorChime, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'metro-chime') {
+          const fromId = body.fromStationId || sharedMetro.fromStationId || sharedMetro.stationId;
+          const toId = body.toStationId || sharedMetro.toStationId || sharedMetro.stationId;
+          const triggeredBy =
+            body.triggeredBy || players.get(requesterId)?.name || 'Linha Azul Passenger';
+          const chime = triggerServerMetroDoorChime(fromId, toId, triggeredBy);
+          broadcastTransit('metro-chime');
+          sendJson(res, 200, { ok: true, doorChime: chime, transit: getTransitSnapshot() });
           return;
         }
 
@@ -946,6 +1025,8 @@ export function createMultiplayerServer({
           }
           const fromPort = body.fromPortId || ferry.portId;
           const toPort = body.toPortId || (fromPort === FERRY_TERMINAL.id ? ferry.routeId : FERRY_TERMINAL.id);
+          const triggeredBy =
+            body.triggeredBy || players.get(requesterId)?.name || 'Transtejo Passenger';
           const companionSailingOtherWay = [...players.values()].some(
             (p) =>
               p.id !== requesterId &&
@@ -962,9 +1043,29 @@ export function createMultiplayerServer({
               ferry.phase = 'sailing';
               ferry.progress = 0;
             }
+            triggerServerFerryHorn(ferry, fromPort, toPort, triggeredBy);
             broadcastTransit('ferry-board');
           }
-          sendJson(res, 200, { ok: true, transit: getTransitSnapshot() });
+          sendJson(res, 200, { ok: true, hornSignal: ferry.hornSignal, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'ferry-horn') {
+          const ferry =
+            sharedFerries.find((f) => f.routeId === body.routeId) ||
+            sharedFerries.find((f) => f.toPortId === body.toPortId) ||
+            sharedFerries[0];
+          if (!ferry) {
+            sendJson(res, 404, { ok: false, error: 'Unknown Transtejo ferry route for horn signal.' });
+            return;
+          }
+          const fromPort = body.fromPortId || ferry.fromPortId || ferry.portId;
+          const toPort = body.toPortId || ferry.toPortId || ferry.routeId;
+          const triggeredBy =
+            body.triggeredBy || players.get(requesterId)?.name || 'Transtejo Passenger';
+          const signal = triggerServerFerryHorn(ferry, fromPort, toPort, triggeredBy);
+          broadcastTransit('ferry-horn');
+          sendJson(res, 200, { ok: true, hornSignal: signal, transit: getTransitSnapshot() });
           return;
         }
 

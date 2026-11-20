@@ -1150,6 +1150,11 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   assert.equal(ferrySailProfile.ferryEngine, 1);
   sound.update(state);
   assert.ok(sound.ferryBus.gain.value > 0.4);
+  const hornTriggerRes = engine.triggerNearbyInteraction();
+  assert.equal(hornTriggerRes.ok, true);
+  assert.ok(state.ferryHornSignal?.text.includes('Transtejo Foghorn'));
+  sound.playEffect('ferry-horn');
+  sound.playEffect('metro-door-chime');
   for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   const southBankTownProfile = computeSoundscapeProfile(state);
   assert.ok(southBankTownProfile.riverWater >= 0.6);

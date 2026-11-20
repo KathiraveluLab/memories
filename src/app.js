@@ -118,8 +118,9 @@ const soundEngine = new LisboaSoundEngine();
 let prevAudioMode = 'overworld';
 let prevAudioVenueId = null;
 let prevAudioRidingId = null;
-let prevAudioFerryPhase = null;
 let lastAnnouncementId = 0;
+let lastFerryHornId = 0;
+let lastMetroDoorChimeId = 0;
 let lastTransitIntentId = 0;
 
 const pressedKeys = new Set();
@@ -622,6 +623,9 @@ function renderActiveContextPanel(state) {
         <span>${escapeHtml(METRO_LINE.phrase.en)}</span>
       </div>
       ${destHtml}
+      <div class="action-strip">
+        <button type="button" class="btn btn-sm" data-metro-chime="true">Door-Closing Chime [E]</button>
+      </div>
     `;
     return;
   }
@@ -741,6 +745,9 @@ function renderActiveContextPanel(state) {
         <span>${escapeHtml(phraseObj.en)}</span>
       </div>
       ${routesHtml}
+      <div class="action-strip">
+        <button type="button" class="btn btn-sm" data-ferry-horn="true">Sound Transtejo Horn [E]</button>
+      </div>
     `;
     return;
   }
@@ -1588,6 +1595,16 @@ dom.activeContextPanel.addEventListener('click', (event) => {
     refreshUi(true);
     return;
   }
+  if (event.target.closest('[data-ferry-horn]')) {
+    engine.soundFerryHorn();
+    refreshUi(true);
+    return;
+  }
+  if (event.target.closest('[data-metro-chime]')) {
+    engine.triggerMetroDoorChime();
+    refreshUi(true);
+    return;
+  }
   if (event.target.closest('[data-next-fado]')) {
     const nextTrack = soundEngine.nextFadoTrack();
     if (mpStatusInfo.status === 'connected') {
@@ -1850,8 +1867,13 @@ function frame(now) {
   if (state.mode === 'metro' && prevAudioMode !== 'metro') {
     soundEngine.playEffect('metro-chime');
   }
-  if (state.mode === 'ferry' && state.ferry.phase === 'sailing' && prevAudioFerryPhase !== 'sailing') {
+  if (state.ferryHornSignal && state.ferryHornSignal.id !== lastFerryHornId) {
+    lastFerryHornId = state.ferryHornSignal.id;
     soundEngine.playEffect('ferry-horn');
+  }
+  if (state.metroDoorChime && state.metroDoorChime.id !== lastMetroDoorChimeId) {
+    lastMetroDoorChimeId = state.metroDoorChime.id;
+    soundEngine.playEffect('metro-door-chime');
   }
   if (state.ridingVehicleId === 'tram-28e' && prevAudioRidingId !== 'tram-28e') {
     soundEngine.playEffect('tram-bell');
@@ -1870,9 +1892,13 @@ function frame(now) {
       if (intent.action === 'summon-surface') {
         mpClient.requestSurfaceSummon(intent.lineId, intent.stopId);
       } else if (intent.action === 'metro-depart') {
-        mpClient.requestMetroDepart(intent.fromStationId, intent.toStationId);
+        mpClient.requestMetroDepart(intent.fromStationId, intent.toStationId, intent.triggeredBy);
+      } else if (intent.action === 'metro-chime') {
+        mpClient.requestMetroChime(intent.fromStationId, intent.toStationId, intent.triggeredBy);
       } else if (intent.action === 'ferry-board') {
-        mpClient.requestFerryBoard(intent.routeId, intent.fromPortId, intent.toPortId);
+        mpClient.requestFerryBoard(intent.routeId, intent.fromPortId, intent.toPortId, intent.triggeredBy);
+      } else if (intent.action === 'ferry-horn') {
+        mpClient.requestFerryHorn(intent.routeId, intent.fromPortId, intent.toPortId, intent.triggeredBy);
       } else if (intent.action === 'ring-bell') {
         mpClient.requestRingBell(intent.lineId, intent.stopName, intent.ringerName);
       }
@@ -1884,7 +1910,6 @@ function frame(now) {
   prevAudioMode = state.mode;
   prevAudioVenueId = state.currentVenueId;
   prevAudioRidingId = state.ridingVehicleId;
-  prevAudioFerryPhase = state.mode === 'ferry' ? state.ferry.phase : null;
   soundEngine.update(state);
 
   mpClient.syncState(engine.getNetworkSnapshot());

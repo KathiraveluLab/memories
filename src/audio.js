@@ -1335,6 +1335,43 @@ export class LisboaSoundEngine {
       return;
     }
 
+    if (kind === 'metro-door-chime') {
+      // Authentic Lisbon Metro rapid 3-pulse door-closing warning chime + pneumatic sliding-door hiss
+      for (const [idx, freq] of [880.0, 698.46, 880.0].entries()) {
+        const t = now + idx * 0.11;
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.linearRampToValueAtTime(0.14, t + 0.008);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        osc.connect(env);
+        env.connect(this.sfxBus);
+        osc.start(t);
+        osc.stop(t + 0.21);
+      }
+      if (this.noiseBuffer) {
+        const hissT = now + 0.34;
+        const src = ctx.createBufferSource();
+        src.buffer = this.noiseBuffer;
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1450;
+        bp.Q.value = 1.6;
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.0001, hissT);
+        env.gain.linearRampToValueAtTime(0.07, hissT + 0.03);
+        env.gain.exponentialRampToValueAtTime(0.0001, hissT + 0.26);
+        src.connect(bp);
+        bp.connect(env);
+        env.connect(this.sfxBus);
+        src.start(hissT);
+        src.stop(hissT + 0.28);
+      }
+      return;
+    }
+
     if (kind === 'metro-chime') {
       for (const [idx, freq] of [783.99, 659.25, 523.25].entries()) {
         const t = now + idx * 0.14;

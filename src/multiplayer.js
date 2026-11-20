@@ -288,12 +288,20 @@ export class LanMultiplayerClient {
     return this.postTransitAction({ action: 'summon-surface', lineId, stopId });
   }
 
-  requestMetroDepart(fromStationId, toStationId) {
-    return this.postTransitAction({ action: 'metro-depart', fromStationId, toStationId });
+  requestMetroDepart(fromStationId, toStationId, triggeredBy) {
+    return this.postTransitAction({ action: 'metro-depart', fromStationId, toStationId, triggeredBy });
   }
 
-  requestFerryBoard(routeId, fromPortId, toPortId) {
-    return this.postTransitAction({ action: 'ferry-board', routeId, fromPortId, toPortId });
+  requestMetroChime(fromStationId, toStationId, triggeredBy) {
+    return this.postTransitAction({ action: 'metro-chime', fromStationId, toStationId, triggeredBy });
+  }
+
+  requestFerryBoard(routeId, fromPortId, toPortId, triggeredBy) {
+    return this.postTransitAction({ action: 'ferry-board', routeId, fromPortId, toPortId, triggeredBy });
+  }
+
+  requestFerryHorn(routeId, fromPortId, toPortId, triggeredBy) {
+    return this.postTransitAction({ action: 'ferry-horn', routeId, fromPortId, toPortId, triggeredBy });
   }
 
   requestRingBell(lineId, stopName, ringerName) {

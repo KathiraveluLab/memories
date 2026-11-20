@@ -286,7 +286,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       const fadoOnB = await streamB.waitFor((evt) => evt.transit?.fadoTrackIndex === 1);
       assert.equal(fadoOnB.transit.fadoTrackIndex, 1);
 
-      // Shared Metro Linha Azul departure -> BOTH clients sync on the exact same tunnel ride
+      // Shared Metro Linha Azul departure & door-closing chime -> BOTH clients sync on tunnel ride + Atencao as portas chime
       const metroDeptRes = await fetch(`${baseUrl}/api/transit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -294,18 +294,50 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
           playerId: joinA.player.id,
           action: 'metro-depart',
           fromStationId: 'metro-baixa-chiado',
-          toStationId: 'metro-santa-apolonia'
+          toStationId: 'metro-santa-apolonia',
+          triggeredBy: 'Alice'
         })
       });
-      assert.equal((await metroDeptRes.json()).ok, true);
+      const metroDeptJson = await metroDeptRes.json();
+      assert.equal(metroDeptJson.ok, true);
+      assert.ok(metroDeptJson.doorChime?.text.includes('Atencao as portas'));
       const metroOnB = await streamB.waitFor(
         (evt) =>
           evt.transit?.metro?.phase === 'riding' &&
-          evt.transit.metro.toStationId === 'metro-santa-apolonia'
+          evt.transit.metro.toStationId === 'metro-santa-apolonia' &&
+          evt.transit.metro.doorChime?.triggeredBy === 'Alice'
       );
       assert.equal(metroOnB.transit.metro.fromStationId, 'metro-baixa-chiado');
 
-      // Shared Transtejo Ferry departure -> BOTH clients sail across the Tagus together on Cacilhas catamaran
+      // Verify Bruno riding/waiting in Metro Baixa-Chiado receives Alice's synchronized door-closing chime!
+      brunoEngine.disembarkTransit({ immediateToNextStop: true });
+      brunoEngine.openMetroStation('metro-baixa-chiado');
+      brunoEngine.syncGlobalTransit(metroOnB.transit);
+      assert.ok(brunoEngine.getState().metroDoorChime);
+      assert.equal(brunoEngine.getState().metroDoorChime.triggeredBy, 'Alice');
+      assert.ok(brunoEngine.getState().metroDoorChime.text.includes('Atencao as portas'));
+
+      // Manual Metro door-closing chime ('metro-chime') broadcasts cleanly to companions
+      const manualChimeRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'metro-chime',
+          fromStationId: 'metro-baixa-chiado',
+          toStationId: 'metro-santa-apolonia',
+          triggeredBy: 'Alice'
+        })
+      });
+      const manualChimeJson = await manualChimeRes.json();
+      assert.equal(manualChimeJson.ok, true);
+      const chimeOnB = await streamB.waitFor(
+        (evt) => evt.transit?.metro?.doorChime?.id === manualChimeJson.doorChime.id
+      );
+      brunoEngine.syncGlobalTransit(chimeOnB.transit);
+      assert.equal(brunoEngine.getState().metroDoorChime.triggeredBy, 'Alice');
+
+      // Shared Transtejo Ferry departure & foghorn signal -> BOTH clients sail together + hear synchronized ferry horn
       const ferryDeptRes = await fetch(`${baseUrl}/api/transit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -314,19 +346,58 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
           action: 'ferry-board',
           routeId: 'cacilhas',
           fromPortId: 'cais-do-sodre',
-          toPortId: 'cacilhas'
+          toPortId: 'cacilhas',
+          triggeredBy: 'Alice'
         })
       });
-      assert.equal((await ferryDeptRes.json()).ok, true);
+      const ferryDeptJson = await ferryDeptRes.json();
+      assert.equal(ferryDeptJson.ok, true);
+      assert.ok(ferryDeptJson.hornSignal?.text.includes('Transtejo Foghorn'));
       const ferryOnB = await streamB.waitFor(
         (evt) =>
           evt.transit?.ferries?.some(
-            (f) => f.routeId === 'cacilhas' && f.phase === 'sailing' && f.toPortId === 'cacilhas'
+            (f) =>
+              f.routeId === 'cacilhas' &&
+              f.phase === 'sailing' &&
+              f.toPortId === 'cacilhas' &&
+              f.hornSignal?.triggeredBy === 'Alice'
           )
       );
       assert.ok(
         ferryOnB.transit.ferries.some((f) => f.routeId === 'cacilhas' && f.phase === 'sailing')
       );
+
+      // Verify Bruno at Cais do Sodre Ferry Terminal receives Alice's synchronized Transtejo foghorn blast!
+      brunoEngine.exitMetroStation({ immediate: true });
+      brunoEngine.openFerryTerminal();
+      brunoEngine.syncGlobalTransit(ferryOnB.transit);
+      assert.ok(brunoEngine.getState().ferryHornSignal);
+      assert.equal(brunoEngine.getState().ferryHornSignal.triggeredBy, 'Alice');
+      assert.ok(brunoEngine.getState().ferryHornSignal.text.includes('Transtejo Foghorn'));
+
+      // Manual onboard ferry horn signal ('ferry-horn') broadcasts cleanly to companions
+      const manualHornRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'ferry-horn',
+          routeId: 'cacilhas',
+          fromPortId: 'cais-do-sodre',
+          toPortId: 'cacilhas',
+          triggeredBy: 'Alice'
+        })
+      });
+      const manualHornJson = await manualHornRes.json();
+      assert.equal(manualHornJson.ok, true);
+      const hornOnB = await streamB.waitFor(
+        (evt) =>
+          evt.transit?.ferries?.some(
+            (f) => f.routeId === 'cacilhas' && f.hornSignal?.id === manualHornJson.hornSignal.id
+          )
+      );
+      brunoEngine.syncGlobalTransit(hornOnB.transit);
+      assert.equal(brunoEngine.getState().ferryHornSignal.triggeredBy, 'Alice');
 
       // 4d. Server-Authoritative Ambient Villagers & Ferry-Mode Remote Players stay synchronized across clients!
       assert.ok(Array.isArray(joinA.transit.npcs) && joinA.transit.npcs.length === 6);
