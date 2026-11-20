@@ -23,10 +23,13 @@
   - Run `npm start` on one computer and share the displayed network address (such as `http://192.168.x.x:3000`) with another computer on the same Wi-Fi or LAN.
   - Both players explore Lisboa completely independently across Bairro Alto, Chiado, and Alfama, see each other live on cobblestone sidewalks, inside shared shops, bakeries, restaurants, and underground Metro platforms, appear on the mini-map, and can wave with `[G]`.
   - Every joining player automatically receives a distinct clothing style from 6 unique Lisboa traveler outfits (*Chiado Trench & Scarf*, *Alfama Sundress & Sun Hat*, *Tagus Sailor Knit & Beret*, *Bairro Alto Woven Poncho*, *Azulejo Overalls & Flat Cap*, and *Linen Blazer & Fedora*), customizable anytime.
-- **Atmospheric Lisboa Soundscapes (Web Audio API)**:
-  - Entering the bakeries (*Casa da Rosa - Padaria* and *Arcadas do Chiado*) surrounds you with the warm rumble and crackling embers of a brick wood-fired bread oven.
-  - Stepping into *Tasca do Fado* plays procedural minor-key **Fado music** featuring a shimmering 12-string *Guitarra Portuguesa* melody and warm *Viola de Fado* accompaniment.
-  - Walking south toward the **Tagus Riverfront** smoothly swells the sound of gentle estuary currents and waves lapping against Cais de Alfama, paired with subtle shop-door chimes, cash-register bells, and Tram 28E bells (toggle anytime with `Sound: ON / OFF` or `[M]`).
+- **Atmospheric Lisboa Soundscapes & Cultural Music (Web Audio API)**:
+  - **Bakeries (`Casa da Rosa - Padaria` & `Arcadas do Chiado`)**: Warm rumble and crackling oak embers of a brick wood-fired bread oven.
+  - **Fado Tavern (`Tasca do Fado`) & Vinyl Shop (`Vinil & Gravuras do Alto`)**: Procedural minor-key Lisbon **Fado music** (*Guitarra Portuguesa* 12-string melody and *Viola de Fado* accompaniment), paired with warm analog turntable crackle inside the vinyl shop.
+  - **Alfama Sardine Grill (`Taberna da Sardinha`)**: Sizzling charcoal sardine grill pops and sea-salt hiss blended with warm tavern Fado guitar.
+  - **Historic Cafes (`Cafe A Brasileira` & `Quiosque de Sao Pedro`)**: Pressurized espresso steam wand bursts, delicate porcelain teacup clinks, and cozy salon murmur.
+  - **Underground Metro & Streetcars**: Subterranean station vault hum and 3-note platform chime shifting into deep tunnel train rumble and rhythmic rail-joint clacks while riding *Linha Azul* (plus streetcar rail hum and brass bell aboard Tram 28E).
+  - **Cathedral & Cultural Shops**: Resonant pipe-organ chords inside *Se de Lisboa (1147)*, sunlit Portuguese folk guitar across bookshops, galleries, and ateliers (with a warm ceramic kiln hum in *Oficina de Azulejos*), and spatially swelling **Tagus Riverfront** waves along Avenida Ribeira and Cais de Alfama (toggle anytime with `Sound: ON / OFF` or `[M]`).
 - **Gentle Memories Collection Loop**:
   - Manage **Wallet (EUR)**, **Energy**, and **Fullness** as Lisbon shifts from Morning through Afternoon, Golden Hour, and Lantern Evening.
   - Rest free at three scenic **Miradouro Benches** or take a gentle overnight stay at a neighborhood pensao without harsh game-over lockouts.

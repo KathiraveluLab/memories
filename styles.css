@@ -276,6 +276,12 @@ h1, h2, h3, h4, p {
   border: 1px solid #0284c7;
 }
 
+.badge-audio.metro {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #4f46e5;
+}
+
 .badge-muted {
   font-size: 0.74rem;
   font-weight: 600;

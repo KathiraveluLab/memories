@@ -629,18 +629,18 @@ function renderLists(state) {
   dom.satchelList.innerHTML =
     state.satchel.length > 0
       ? state.satchel
-          .map(
-            (s) =>
-              `<li><strong>${escapeHtml(s.name)}</strong> - ${escapeHtml(s.venueName)} (${escapeHtml(s.neighborhood)}, Day ${s.day})</li>`
-          )
-          .join('')
+        .map(
+          (s) =>
+            `<li><strong>${escapeHtml(s.name)}</strong> - ${escapeHtml(s.venueName)} (${escapeHtml(s.neighborhood)}, Day ${s.day})</li>`
+        )
+        .join('')
       : '<li class="empty-note">No souvenirs collected yet. Visit shops in Bairro Alto, Chiado, or Alfama.</li>';
 
   dom.tastedList.innerHTML =
     state.tastedFoods.length > 0
       ? state.tastedFoods
-          .map((f) => `<li><strong>${escapeHtml(f.name)}</strong> at ${escapeHtml(f.venueName)} (Day ${f.day})</li>`)
-          .join('')
+        .map((f) => `<li><strong>${escapeHtml(f.name)}</strong> at ${escapeHtml(f.venueName)} (Day ${f.day})</li>`)
+        .join('')
       : '<li class="empty-note">No Lisbon dishes tasted yet. Stop by Cafe A Brasileira or a local tasca!</li>';
 
   dom.journalList.innerHTML = state.journal
@@ -766,20 +766,20 @@ function updateAudioIndicator() {
   }
 
   if (dom.liveAudioStatus) {
-    dom.liveAudioStatus.classList.remove('active', 'water');
+    dom.liveAudioStatus.classList.remove('active', 'water', 'metro');
     if (muted) {
       dom.liveAudioStatus.textContent = '[AUDIO] Muted';
     } else if (!unlocked) {
       dom.liveAudioStatus.textContent = '[AUDIO] Click or Move';
-    } else if (profile.fadoMusic > 0.05) {
-      dom.liveAudioStatus.textContent = '[AUDIO] Fado Music';
+    } else if (profile.badgeTone === 'warm') {
+      dom.liveAudioStatus.textContent = `[AUDIO] ${profile.activeLabel}`;
       dom.liveAudioStatus.classList.add('active');
-    } else if (profile.bakeryFire > 0.05) {
-      dom.liveAudioStatus.textContent = '[AUDIO] Bakery Oven Fire';
-      dom.liveAudioStatus.classList.add('active');
-    } else if (profile.riverWater >= 0.12) {
-      dom.liveAudioStatus.textContent = '[AUDIO] Tagus Riverfront';
+    } else if (profile.badgeTone === 'water') {
+      dom.liveAudioStatus.textContent = `[AUDIO] ${profile.activeLabel}`;
       dom.liveAudioStatus.classList.add('water');
+    } else if (profile.badgeTone === 'metro') {
+      dom.liveAudioStatus.textContent = `[AUDIO] ${profile.activeLabel}`;
+      dom.liveAudioStatus.classList.add('metro');
     } else {
       dom.liveAudioStatus.textContent = '[AUDIO] On';
     }
@@ -1300,6 +1300,9 @@ function frame(now) {
   // Trigger subtle audio transition effects & update continuous ambient soundscapes
   if (state.mode === 'interior' && (prevAudioMode !== 'interior' || prevAudioVenueId !== state.currentVenueId)) {
     soundEngine.playEffect('door');
+  }
+  if (state.mode === 'metro' && prevAudioMode !== 'metro') {
+    soundEngine.playEffect('metro-chime');
   }
   if (state.ridingVehicleId === 'tram-28e' && prevAudioRidingId !== 'tram-28e') {
     soundEngine.playEffect('tram-bell');

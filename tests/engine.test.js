@@ -704,7 +704,7 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   assert.ok(drawCalls > 600, `Expected substantial canvas draw calls, got ${drawCalls}`);
 });
 
-test('AC-09: ambient soundscapes for bakery wood oven fire, Fado restaurant music, and Tagus riverfront water', () => {
+test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, espresso cafe, Metro rumble, Cathedral organ, vinyl, folk guitar, Tagus river)', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
@@ -726,7 +726,7 @@ test('AC-09: ambient soundscapes for bakery wood oven fire, Fado restaurant musi
   assert.equal(atRiverfront.riverWater, 1);
   assert.equal(atRiverfront.activeLabel, 'Tagus Riverfront');
 
-  // 3. Entering Casa da Rosa - Padaria bakery: oven fire & crackle active, river silent
+  // 3. Bakeries (Casa da Rosa - Padaria & Arcadas do Chiado): brick oven fire & crackle
   engine.enterVenue('casa-da-rosa');
   const inBakery = computeSoundscapeProfile(state);
   assert.equal(inBakery.bakeryFire, 1);
@@ -735,22 +735,78 @@ test('AC-09: ambient soundscapes for bakery wood oven fire, Fado restaurant musi
   assert.equal(inBakery.activeLabel, 'Bakery Wood Oven');
   engine.exitVenue();
 
-  // Also Arcadas do Chiado confeitaria has warm bakery oven sound
   engine.enterVenue('arcadas-chiado');
   const inConfeitaria = computeSoundscapeProfile(state);
   assert.ok(inConfeitaria.bakeryFire >= 0.7);
-  assert.equal(inConfeitaria.fadoMusic, 0);
+  assert.ok(inConfeitaria.folkGuitar > 0.2);
   engine.exitVenue();
 
-  // 4. Entering Tasca do Fado: Portuguese Fado music active, bakery oven & river silent
+  // 4. Fado Restaurant (Tasca do Fado): Portuguese Fado music
   engine.enterVenue('tasca-do-fado');
   const inFado = computeSoundscapeProfile(state);
   assert.equal(inFado.fadoMusic, 1);
   assert.equal(inFado.bakeryFire, 0);
-  assert.equal(inFado.riverWater, 0);
   assert.equal(inFado.activeLabel, 'Fado Music');
+  engine.exitVenue();
 
-  // 5. LisboaSoundEngine Web Audio graph & scheduler smoke test with mock AudioContext
+  // 5. Alfama Grill Restaurant (Taberna da Sardinha): charcoal sardine grill sizzle + background Fado
+  engine.enterVenue('taberna-sardinha');
+  const inGrill = computeSoundscapeProfile(state);
+  assert.equal(inGrill.grillSizzle, 1);
+  assert.ok(inGrill.fadoMusic >= 0.4);
+  assert.equal(inGrill.activeLabel, 'Charcoal Grill & Fado');
+  engine.exitVenue();
+
+  // 6. Historic Cafe (Cafe A Brasileira): espresso steam & porcelain clinks + gentle guitar
+  engine.enterVenue('cafe-do-poeta');
+  const inCafe = computeSoundscapeProfile(state);
+  assert.equal(inCafe.cafeSteam, 1);
+  assert.ok(inCafe.folkGuitar > 0.2);
+  assert.equal(inCafe.activeLabel, 'Espresso Steam & Cafe');
+  engine.exitVenue();
+
+  // 7. Se de Lisboa Cathedral: resonant stone-nave pipe organ
+  engine.enterVenue('se-de-lisboa');
+  const inCathedral = computeSoundscapeProfile(state);
+  assert.equal(inCathedral.cathedralOrgan, 1);
+  assert.equal(inCathedral.activeLabel, 'Se Cathedral Organ');
+  engine.exitVenue();
+
+  // 8. Vinyl Shop (Vinil & Gravuras do Alto): Fado vinyl record + warm needle crackle
+  engine.enterVenue('vinil-do-alto');
+  const inVinyl = computeSoundscapeProfile(state);
+  assert.ok(inVinyl.fadoMusic >= 0.8);
+  assert.ok(inVinyl.vinylCrackle >= 0.8);
+  assert.equal(inVinyl.activeLabel, 'Fado Vinyl & Crackle');
+  engine.exitVenue();
+
+  // 9. Bookshop & Tile Atelier: Portuguese cultural folk guitar (+ tile kiln hum in Oficina de Azulejos)
+  engine.enterVenue('livraria-chiado');
+  const inBookshop = computeSoundscapeProfile(state);
+  assert.ok(inBookshop.folkGuitar >= 0.7);
+  engine.exitVenue();
+
+  engine.enterVenue('oficina-azulejos');
+  const inTileShop = computeSoundscapeProfile(state);
+  assert.ok(inTileShop.folkGuitar >= 0.7);
+  assert.ok(inTileShop.bakeryFire >= 0.25);
+  engine.exitVenue();
+
+  // 10. Underground Metro de Lisboa: station vault hum -> full tunnel train rumble when riding
+  engine.openMetroStation('metro-baixa-chiado');
+  for (let i = 0; i < 14; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  const metroPlatform = computeSoundscapeProfile(state);
+  assert.ok(metroPlatform.metroRumble > 0.5 && metroPlatform.metroRumble < 0.9);
+  assert.equal(metroPlatform.metroRiding, false);
+  assert.equal(metroPlatform.activeLabel, 'Metro Station Vault');
+
+  engine.rideMetro('metro-baixa-chiado', 'metro-santa-apolonia');
+  const metroTunnel = computeSoundscapeProfile(state);
+  assert.equal(metroTunnel.metroRumble, 1);
+  assert.equal(metroTunnel.metroRiding, true);
+  assert.equal(metroTunnel.activeLabel, 'Metro Tunnel Rumble');
+
+  // 11. LisboaSoundEngine Web Audio graph & scheduler smoke test across all 9 buses
   const createMockParam = (initial = 0) => ({
     value: initial,
     setValueAtTime: () => {},
@@ -796,24 +852,50 @@ test('AC-09: ambient soundscapes for bakery wood oven fire, Fado restaurant musi
   assert.equal(sound.unlock(), true);
   assert.equal(sound.isUnlocked(), true);
 
-  sound.update(state); // Inside Tasca do Fado -> Fado music + immediate opening note
-  assert.ok(sound.fadoBus.gain.value > 0.5);
-  assert.equal(sound.bakeryBus.gain.value, 0);
+  sound.update(state); // Inside Metro tunnel -> full metroRumble bus
+  assert.ok(sound.metroBus.gain.value > 0.5);
+  sound.triggerRailClack();
+
+  engine.exitMetroStation({ immediate: true });
+  engine.enterVenue('taberna-sardinha');
+  sound.update(state); // Alfama Grill -> grillSizzle + warm Fado
+  assert.ok(sound.grillBus.gain.value > 0.4);
+  assert.ok(sound.fadoBus.gain.value > 0.25);
+  sound.triggerGrillPop();
+
+  engine.exitVenue();
+  engine.enterVenue('cafe-do-poeta');
+  sound.update(state); // Cafe A Brasileira -> espresso steam + cup clinks
+  assert.ok(sound.cafeBus.gain.value > 0.5);
+  sound.triggerEspressoSteam();
+  sound.triggerCupClink();
+
+  engine.exitVenue();
+  engine.enterVenue('se-de-lisboa');
+  sound.update(state); // Se Cathedral -> pipe organ
+  assert.ok(sound.organBus.gain.value > 0.5);
+
+  engine.exitVenue();
+  engine.enterVenue('vinil-do-alto');
+  sound.update(state); // Vinyl shop -> Fado + vinyl crackle
+  assert.ok(sound.vinylBus.gain.value > 0.4);
+  sound.triggerVinylTick();
 
   engine.exitVenue();
   engine.enterVenue('casa-da-rosa');
-  sound.update(state); // Inside bakery -> fire oven bed + crackle
+  sound.update(state); // Bakery -> oven fire + crackle
   assert.ok(sound.bakeryBus.gain.value > 0.4);
   sound.triggerOvenCrackle();
 
   engine.exitVenue();
   engine.setPlayerPosition(1420, 1002);
-  sound.update(state); // Tagus Riverfront -> lapping water bed
+  sound.update(state); // Tagus Riverfront -> water bed
   assert.ok(sound.riverBus.gain.value > 0.35);
 
   sound.playEffect('door');
   sound.playEffect('register');
   sound.playEffect('tram-bell');
+  sound.playEffect('metro-chime');
 
   assert.equal(sound.toggleMute(), true);
   assert.equal(sound.masterGain.gain.value, 0);
@@ -822,7 +904,7 @@ test('AC-09: ambient soundscapes for bakery wood oven fire, Fado restaurant musi
 
   sound.dispose();
   assert.equal(closed, true);
-  assert.ok(startedNodes >= 10, `Expected multiple audio nodes started, got ${startedNodes}`);
+  assert.ok(startedNodes >= 25, `Expected comprehensive audio nodes started, got ${startedNodes}`);
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {
