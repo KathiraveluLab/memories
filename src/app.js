@@ -123,6 +123,8 @@ let lastFerryHornId = 0;
 let lastMetroDoorChimeId = 0;
 let lastMiradouroEncoreId = 0;
 let lastSharedToastId = 0;
+let lastCathedralChimeId = 0;
+let lastSharedPostcardId = 0;
 let lastTransitIntentId = 0;
 
 const pressedKeys = new Set();
@@ -160,6 +162,7 @@ const dom = {
   mpNameInput: document.getElementById('mp-name-input'),
   mpOutfitSelect: document.getElementById('mp-outfit-select'),
   btnWave: document.getElementById('btn-wave'),
+  btnPostcard: document.getElementById('btn-postcard'),
   lanPlayersList: document.getElementById('lan-players-list'),
   btnContextAction: document.getElementById('btn-context-action'),
   btnSecondaryAction: document.getElementById('btn-secondary-action'),
@@ -175,6 +178,7 @@ const dom = {
   phraseCountBadge: document.getElementById('phrase-count-badge'),
   phrasebookList: document.getElementById('phrasebook-list'),
   satchelCountBadge: document.getElementById('satchel-count-badge'),
+  postcardsList: document.getElementById('postcards-list'),
   satchelList: document.getElementById('satchel-list'),
   tastedList: document.getElementById('tasted-list'),
   journalList: document.getElementById('journal-list')
@@ -824,6 +828,8 @@ function renderActiveContextPanel(state) {
         <button type="button" class="btn btn-sm" data-venue-action="talk">Chat with ${escapeHtml(venue.proprietor)}</button>
         <button type="button" class="btn btn-sm" data-venue-action="inspect">Inspect Display</button>
         <button type="button" class="btn btn-primary btn-sm" data-venue-action="toast">Raise a Toast ("Saude!") [T]</button>
+        <button type="button" class="btn btn-sm" data-venue-action="postcard">Shared Postcard [P]</button>
+        ${venue.id === 'se-de-lisboa' ? '<button type="button" class="btn btn-sm" data-venue-action="cathedral-bell">Toll 1147 Bell Tower</button>' : ''}
       </div>
     `;
     return;
@@ -839,6 +845,8 @@ function renderLists(state) {
     memories: state.memories.map((m) => m.id),
     phrases: state.learnedPhrases.length,
     satchel: state.satchel.length,
+    postcards: (state.postcards || []).length,
+    postcardHead: state.postcards?.[0]?.id || 0,
     tasted: state.tastedFoods.length,
     journalLen: state.journal.length,
     journalHead: state.journal[0]?.id || 0,
@@ -972,6 +980,19 @@ function renderLists(state) {
     `
     )
     .join('');
+
+  if (dom.postcardsList) {
+    const cards = state.postcards || [];
+    dom.postcardsList.innerHTML =
+      cards.length > 0
+        ? cards
+          .map(
+            (c) =>
+              `<li><strong>${escapeHtml(c.locationName)}</strong> (${escapeHtml(c.neighborhood)}, Day ${c.day} ${escapeHtml(c.clock)}) - "${escapeHtml(c.caption)}"</li>`
+          )
+          .join('')
+        : '<li class="empty-note">No shared postcards captured yet. Press [P] or click Postcard [P] to snap a photo with companions in your location!</li>';
+  }
 
   dom.satchelList.innerHTML =
     state.satchel.length > 0
@@ -1415,6 +1436,17 @@ window.addEventListener('keydown', (event) => {
     }
     return;
   }
+  if (event.code === 'KeyP') {
+    if (!event.repeat) {
+      const res = engine.triggerSharedPostcard();
+      mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+      if (res?.postcard) {
+        setStatusBanner(`Captured Shared Lisboa Postcard: "${res.postcard.caption}"`);
+      }
+      refreshUi(true);
+    }
+    return;
+  }
   if (event.code === 'KeyE' || event.code === 'Space') {
     if (!event.repeat) {
       const res = engine.triggerNearbyInteraction();
@@ -1661,6 +1693,11 @@ dom.activeContextPanel.addEventListener('click', (event) => {
     else if (act === 'toast') {
       engine.triggerSharedToast();
       mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+    } else if (act === 'postcard') {
+      engine.triggerSharedPostcard();
+      mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+    } else if (act === 'cathedral-bell') {
+      engine.triggerCathedralChime();
     }
     refreshUi(true);
     return;
@@ -1792,6 +1829,17 @@ if (dom.btnWave) {
   });
 }
 
+if (dom.btnPostcard) {
+  dom.btnPostcard.addEventListener('click', () => {
+    const res = engine.triggerSharedPostcard();
+    mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+    if (res?.postcard) {
+      setStatusBanner(`Captured Shared Lisboa Postcard: "${res.postcard.caption}"`);
+    }
+    refreshUi(true);
+  });
+}
+
 if (dom.btnCopyLan) {
   dom.btnCopyLan.addEventListener('click', async () => {
     const text = dom.lanJoinUrl?.textContent || window.location.origin;
@@ -1901,6 +1949,14 @@ function frame(now) {
     lastSharedToastId = state.sharedToast.id;
     soundEngine.playEffect('cafe-toast');
   }
+  if (state.cathedralChime && state.cathedralChime.id !== lastCathedralChimeId) {
+    lastCathedralChimeId = state.cathedralChime.id;
+    soundEngine.playEffect('cathedral-bells');
+  }
+  if (state.sharedPostcard && state.sharedPostcard.id !== lastSharedPostcardId) {
+    lastSharedPostcardId = state.sharedPostcard.id;
+    soundEngine.playEffect('camera-shutter');
+  }
   if (state.ridingVehicleId === 'tram-28e' && prevAudioRidingId !== 'tram-28e') {
     soundEngine.playEffect('tram-bell');
   }
@@ -1931,6 +1987,10 @@ function frame(now) {
         mpClient.requestMiradouroPerform(intent.spotId, intent.requestedBy);
       } else if (intent.action === 'cafe-toast') {
         mpClient.requestCafeToast(intent);
+      } else if (intent.action === 'cathedral-chime') {
+        mpClient.requestCathedralChime(intent.hour, intent.triggeredBy);
+      } else if (intent.action === 'shared-postcard') {
+        mpClient.requestSharedPostcard(intent);
       }
     }
   }

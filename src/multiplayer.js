@@ -327,6 +327,27 @@ export class LanMultiplayerClient {
     });
   }
 
+  requestCathedralChime(hour, triggeredBy) {
+    return this.postTransitAction({
+      action: 'cathedral-chime',
+      hour,
+      triggeredBy
+    });
+  }
+
+  requestSharedPostcard({ locationKey, locationName, neighborhood, photographer, companions, clock, caption } = {}) {
+    return this.postTransitAction({
+      action: 'shared-postcard',
+      locationKey,
+      locationName,
+      neighborhood,
+      photographer,
+      companions,
+      clock,
+      caption
+    });
+  }
+
   handleBeforeUnload() {
     if (!this.playerId) return;
     const payload = JSON.stringify({ playerId: this.playerId });

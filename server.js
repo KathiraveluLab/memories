@@ -167,8 +167,34 @@ export function createMultiplayerServer({
   let metroChimeSeq = 0;
   let miradouroEncoreSeq = 0;
   let cafeToastSeq = 0;
+  let cathedralChimeSeq = 0;
+  let postcardSeq = 0;
   let sharedFadoTrackIndex = 0;
   let sharedCafeToast = null;
+  let sharedCathedralChime = null;
+  let sharedPostcardSnapshot = null;
+  let lastChimedHourKey = `${worldClock.day}:${Math.floor(worldClock.minutesOfDay / 60)}`;
+
+  function triggerServerCathedralChime(hourInput = null, triggeredBy = 'Se de Lisboa (1147)') {
+    const rawHour = Number.isFinite(hourInput)
+      ? ((Math.floor(hourInput) % 24) + 24) % 24
+      : Math.floor(worldClock.minutesOfDay / 60);
+    const clockLabel = `${String(rawHour).padStart(2, '0')}:00`;
+    const tolls = ((rawHour + 11) % 12) + 1;
+    cathedralChimeSeq += 1;
+    lastChimedHourKey = `${worldClock.day}:${rawHour}`;
+    sharedCathedralChime = {
+      id: cathedralChimeSeq,
+      day: worldClock.day,
+      hour: rawHour,
+      clockLabel,
+      tolls,
+      triggeredBy: sanitizeText(triggeredBy, 'Se de Lisboa (1147)', 28),
+      text: `Se de Lisboa (1147) Bell Towers toll ${tolls} ${tolls === 1 ? 'chime' : 'chimes'} for ${clockLabel} across Lisboa`,
+      expiresAt: Date.now() + 5500
+    };
+    return sharedCathedralChime;
+  }
   const sharedMiradouros = REST_SPOTS.map((spot) => ({
     spotId: spot.id,
     spotName: spot.name,
@@ -534,6 +560,12 @@ export function createMultiplayerServer({
     if (sharedCafeToast && nowMs >= sharedCafeToast.expiresAt) {
       sharedCafeToast = null;
     }
+    if (sharedCathedralChime && nowMs >= sharedCathedralChime.expiresAt) {
+      sharedCathedralChime = null;
+    }
+    if (sharedPostcardSnapshot && nowMs >= sharedPostcardSnapshot.expiresAt) {
+      sharedPostcardSnapshot = null;
+    }
 
     // 5. Shared Ambient Lisboa Sidewalk Villagers
     stepServerNpcs(dt);
@@ -648,6 +680,30 @@ export function createMultiplayerServer({
             itemName: sharedCafeToast.itemName,
             text: sharedCafeToast.text
           }
+        : null,
+      cathedralChime: sharedCathedralChime
+        ? {
+            id: sharedCathedralChime.id,
+            day: sharedCathedralChime.day,
+            hour: sharedCathedralChime.hour,
+            clockLabel: sharedCathedralChime.clockLabel,
+            tolls: sharedCathedralChime.tolls,
+            triggeredBy: sharedCathedralChime.triggeredBy,
+            text: sharedCathedralChime.text
+          }
+        : null,
+      sharedPostcard: sharedPostcardSnapshot
+        ? {
+            id: sharedPostcardSnapshot.id,
+            locationKey: sharedPostcardSnapshot.locationKey,
+            locationName: sharedPostcardSnapshot.locationName,
+            neighborhood: sharedPostcardSnapshot.neighborhood,
+            photographer: sharedPostcardSnapshot.photographer,
+            companions: sharedPostcardSnapshot.companions,
+            day: sharedPostcardSnapshot.day,
+            clock: sharedPostcardSnapshot.clock,
+            caption: sharedPostcardSnapshot.caption
+          }
         : null
     };
   }
@@ -678,6 +734,11 @@ export function createMultiplayerServer({
       worldClock.day += Math.floor(total / 1440);
       worldClock.minutesOfDay = ((total % 1440) + 1440) % 1440;
       worldClock.updatedAt += elapsedMins * worldClock.msPerGameMinute;
+      const curHour = Math.floor(worldClock.minutesOfDay / 60);
+      const hourKey = `${worldClock.day}:${curHour}`;
+      if (hourKey !== lastChimedHourKey) {
+        triggerServerCathedralChime(curHour, 'Se de Lisboa (1147)');
+      }
     }
     return {
       day: worldClock.day,
@@ -692,6 +753,7 @@ export function createMultiplayerServer({
     worldClock.day += 1;
     worldClock.minutesOfDay = 9 * 60;
     worldClock.updatedAt = Date.now();
+    triggerServerCathedralChime(9, 'Se de Lisboa (1147)');
     return getWorldClockSnapshot();
   }
 
@@ -990,9 +1052,15 @@ export function createMultiplayerServer({
           worldClock.minutesOfDay = ((Math.floor(body.minutesOfDay) % 1440) + 1440) % 1440;
           if (Number.isFinite(body.day) && body.day >= 1) worldClock.day = Math.floor(body.day);
           worldClock.updatedAt = Date.now();
+          const curHour = Math.floor(worldClock.minutesOfDay / 60);
+          const hourKey = `${worldClock.day}:${curHour}`;
+          if (worldClock.minutesOfDay % 60 === 0 || hourKey !== lastChimedHourKey) {
+            triggerServerCathedralChime(curHour, 'Se de Lisboa (1147)');
+            broadcastTransit('cathedral-chime');
+          }
           const clock = getWorldClockSnapshot();
           broadcastPlayers('clock-set');
-          sendJson(res, 200, { ok: true, clock });
+          sendJson(res, 200, { ok: true, clock, cathedralChime: sharedCathedralChime });
           return;
         }
         sendJson(res, 200, { ok: true, clock: getWorldClockSnapshot() });
@@ -1234,6 +1302,67 @@ export function createMultiplayerServer({
           }
           broadcastTransit('cafe-toast');
           sendJson(res, 200, { ok: true, cafeToast: sharedCafeToast, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'cathedral-chime') {
+          const triggeredBy = sanitizeText(
+            body.triggeredBy || players.get(requesterId)?.name || 'Se de Lisboa (1147)',
+            'Se de Lisboa (1147)',
+            28
+          );
+          const hour = Number.isFinite(body.hour)
+            ? body.hour
+            : Math.floor(getWorldClockSnapshot().minutesOfDay / 60);
+          const chime = triggerServerCathedralChime(hour, triggeredBy);
+          broadcastTransit('cathedral-chime');
+          sendJson(res, 200, { ok: true, cathedralChime: chime, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'shared-postcard') {
+          const photographer = sanitizeText(
+            body.photographer || players.get(requesterId)?.name || 'Traveler',
+            'Traveler',
+            22
+          );
+          const locationKey = sanitizeText(body.locationKey, 'overworld:chiado', 48);
+          const locationName = sanitizeText(body.locationName, 'Praca Luis de Camoes', 48);
+          const neighborhood = sanitizeText(body.neighborhood, 'Chiado', 32);
+          const rawCompanions = Array.isArray(body.companions)
+            ? body.companions.map((c) => sanitizeText(String(c), '', 22)).filter(Boolean)
+            : [photographer];
+          const companions = rawCompanions.length > 0 ? rawCompanions.slice(0, 6) : [photographer];
+          const clockSnap = getWorldClockSnapshot();
+          const hh = String(Math.floor(clockSnap.minutesOfDay / 60)).padStart(2, '0');
+          const mm = String(clockSnap.minutesOfDay % 60).padStart(2, '0');
+          const clockStr = sanitizeText(body.clock || `${hh}:${mm}`, `${hh}:${mm}`, 12);
+          const caption = sanitizeText(
+            body.caption || `Postcard from ${locationName} with ${companions.join(' & ')}`,
+            `Postcard from ${locationName}`,
+            110
+          );
+          postcardSeq += 1;
+          sharedPostcardSnapshot = {
+            id: postcardSeq,
+            locationKey,
+            locationName,
+            neighborhood,
+            photographer,
+            companions,
+            day: clockSnap.day,
+            clock: clockStr,
+            caption,
+            expiresAt: Date.now() + 5500
+          };
+          const record = players.get(requesterId);
+          if (record) {
+            record.emoteText = 'Sorria!';
+            record.lastSeen = Date.now();
+            broadcastPlayers('postcard');
+          }
+          broadcastTransit('shared-postcard');
+          sendJson(res, 200, { ok: true, postcard: sharedPostcardSnapshot, transit: getTransitSnapshot() });
           return;
         }
 

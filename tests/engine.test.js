@@ -1157,6 +1157,14 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   sound.playEffect('metro-door-chime');
   sound.playEffect('miradouro-strum');
   sound.playEffect('cafe-toast');
+  sound.playEffect('cathedral-bells');
+  sound.playEffect('camera-shutter');
+  const cardRes = engine.triggerSharedPostcard();
+  assert.equal(cardRes.ok, true);
+  assert.equal(state.postcards.length, 1);
+  const bellRes = engine.triggerCathedralChime({ hour: 10 });
+  assert.equal(bellRes.ok, true);
+  assert.equal(state.cathedralChime.clockLabel, '10:00');
   for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   const southBankTownProfile = computeSoundscapeProfile(state);
   assert.ok(southBankTownProfile.riverWater >= 0.6);

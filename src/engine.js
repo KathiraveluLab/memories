@@ -429,6 +429,9 @@ export function createInitialState() {
     })),
     miradouroEncore: null,
     sharedToast: null,
+    cathedralChime: null,
+    sharedPostcard: null,
+    postcards: [],
     ridingVehicleId: null,
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
@@ -489,6 +492,28 @@ export class MemoriesGameEngine {
     this.lastLocalEncoreAt = 0;
     this.lastServerToastId = 0;
     this.lastLocalToastAt = 0;
+    this.lastHourlyChimeKey = '1:9';
+    this.lastServerCathedralChimeId = 0;
+    this.lastLocalCathedralChimeAt = 0;
+    this.lastServerPostcardId = 0;
+    this.lastLocalPostcardAt = 0;
+  }
+
+  getCompanionsInSameLocation() {
+    const s = this.state;
+    const remotes = Array.isArray(s.remotePlayers) ? s.remotePlayers : [];
+    return remotes.filter((rp) => {
+      if (s.ridingVehicleId) return rp.ridingVehicleId === s.ridingVehicleId;
+      if (s.mode === 'interior') return rp.mode === 'interior' && rp.currentVenueId === s.currentVenueId;
+      if (s.mode === 'metro') return rp.mode === 'metro' && rp.metroStationId === s.metro?.stationId;
+      if (s.mode === 'ferry') return rp.mode === 'ferry' && (rp.ferryPortId === s.ferry?.portId || rp.ferryPhase === s.ferry?.phase);
+      return (
+        rp.mode === 'overworld' &&
+        !rp.ridingVehicleId &&
+        (rp.neighborhoodName === s.currentNeighborhoodName ||
+          distance(s.player.x, s.player.y, rp.x, rp.y) <= 520)
+      );
+    });
   }
 
   getCurrentLocationInfo() {
@@ -804,6 +829,71 @@ export class MemoriesGameEngine {
         this.state.statusMessage = `${this.state.sharedToast.speakerName} raised a toast at ${this.state.sharedToast.locationName}: "${this.state.sharedToast.text}"`;
       }
     }
+
+    // 7. Authoritative Se de Lisboa (1147) Hourly & On-Demand Cathedral Bell-Tower Chimes
+    if (
+      transit.cathedralChime &&
+      Number.isFinite(transit.cathedralChime.id) &&
+      transit.cathedralChime.id > this.lastServerCathedralChimeId
+    ) {
+      this.lastServerCathedralChimeId = transit.cathedralChime.id;
+      const cc = transit.cathedralChime;
+      const justChimedLocally =
+        cc.triggeredBy === this.state.player.name &&
+        Date.now() - this.lastLocalCathedralChimeAt < 2500;
+      if (!justChimedLocally) {
+        this.signalSeq += 1;
+        this.lastHourlyChimeKey = `${cc.day || this.state.day}:${cc.hour}`;
+        this.state.cathedralChime = {
+          id: this.signalSeq,
+          day: cc.day || this.state.day,
+          hour: cc.hour,
+          clockLabel: cc.clockLabel || `${String(cc.hour).padStart(2, '0')}:00`,
+          tolls: cc.tolls || (((cc.hour + 11) % 12) + 1),
+          triggeredBy: cc.triggeredBy || 'Se de Lisboa (1147)',
+          text: cc.text || `Se de Lisboa (1147) Bell Towers toll across Lisboa`,
+          timer: 4.8
+        };
+        this.state.statusMessage = this.state.cathedralChime.text;
+      }
+    }
+
+    // 8. Authoritative Shared Lisboa Postcard Photo Snapshots across co-located companions
+    if (
+      transit.sharedPostcard &&
+      Number.isFinite(transit.sharedPostcard.id) &&
+      transit.sharedPostcard.id > this.lastServerPostcardId
+    ) {
+      this.lastServerPostcardId = transit.sharedPostcard.id;
+      const sp = transit.sharedPostcard;
+      const justSnappedLocally =
+        sp.photographer === this.state.player.name &&
+        Date.now() - this.lastLocalPostcardAt < 2500;
+      const myLoc = this.getCurrentLocationInfo();
+      const inPhoto =
+        myLoc.locationKey === sp.locationKey ||
+        (Array.isArray(sp.companions) && sp.companions.includes(this.state.player.name));
+      if (inPhoto && !justSnappedLocally) {
+        this.signalSeq += 1;
+        const card = {
+          id: this.signalSeq,
+          locationKey: sp.locationKey,
+          locationName: sp.locationName || myLoc.locationName,
+          neighborhood: sp.neighborhood || this.state.currentNeighborhoodName || 'Lisboa',
+          photographer: sp.photographer || 'Companion',
+          companions: Array.isArray(sp.companions) ? sp.companions : [sp.photographer || 'Companion', this.state.player.name],
+          day: sp.day || this.state.day,
+          clock: sp.clock || formatClock(this.state.minutesOfDay),
+          caption: sp.caption || `Postcard from ${myLoc.locationName}`,
+          timer: 4.8
+        };
+        this.state.sharedPostcard = card;
+        this.state.postcards = [card, ...(this.state.postcards || [])].slice(0, 12);
+        this.triggerEmote('Sorria!', 3.8);
+        this.state.statusMessage = `${card.photographer} captured a Shared Lisboa Postcard at ${card.locationName}: "${card.caption}"`;
+        recordLog(this.state, 'postcard', `Captured in shared postcard at ${card.locationName} with ${card.companions.join(' & ')}.`);
+      }
+    }
   }
 
   clearGlobalTransit() {
@@ -1063,7 +1153,18 @@ export class MemoriesGameEngine {
     if (!Number.isFinite(minutes) || minutes <= 0) return;
     // In LAN multiplayer, keep every player locked to the central server's global sky clock
     if (this.globalClockSynced && !force) return;
+    const prevHour = Math.floor(this.state.minutesOfDay / 60);
     this.state.minutesOfDay = Math.min(23 * 60 + 45, this.state.minutesOfDay + minutes);
+    const nextHour = Math.floor(this.state.minutesOfDay / 60);
+    const hourKey = `${this.state.day}:${nextHour}`;
+    if (nextHour > prevHour && hourKey !== this.lastHourlyChimeKey) {
+      this.triggerCathedralChime({
+        hour: nextHour,
+        triggeredBy: 'Se de Lisboa (1147)',
+        emitNetwork: false,
+        updateStatus: false
+      });
+    }
     if (this.state.minutesOfDay >= EVENING_SUGGEST_MINUTES && !this.state.eveningNoticeShown) {
       this.state.eveningNoticeShown = true;
       this.state.statusMessage =
@@ -2023,6 +2124,20 @@ export class MemoriesGameEngine {
       this.state.sharedToast.timer = Math.max(0, this.state.sharedToast.timer - dt);
       if (this.state.sharedToast.timer === 0) {
         this.state.sharedToast = null;
+      }
+    }
+
+    if (this.state.cathedralChime && this.state.cathedralChime.timer > 0) {
+      this.state.cathedralChime.timer = Math.max(0, this.state.cathedralChime.timer - dt);
+      if (this.state.cathedralChime.timer === 0) {
+        this.state.cathedralChime = null;
+      }
+    }
+
+    if (this.state.sharedPostcard && this.state.sharedPostcard.timer > 0) {
+      this.state.sharedPostcard.timer = Math.max(0, this.state.sharedPostcard.timer - dt);
+      if (this.state.sharedPostcard.timer === 0) {
+        this.state.sharedPostcard = null;
       }
     }
 
@@ -3413,6 +3528,89 @@ export class MemoriesGameEngine {
       });
     }
     return { ok: true, toast: this.state.sharedToast, state: this.state };
+  }
+
+  triggerCathedralChime({ hour = null, triggeredBy = '', emitNetwork = true, updateStatus = true } = {}) {
+    const rawHour = Number.isFinite(hour)
+      ? ((Math.floor(hour) % 24) + 24) % 24
+      : Math.floor(this.state.minutesOfDay / 60);
+    const clockLabel = `${String(rawHour).padStart(2, '0')}:00`;
+    const tolls = ((rawHour + 11) % 12) + 1;
+    const ringer = String(triggeredBy || this.state.player.name || 'Se de Lisboa (1147)').trim();
+
+    this.signalSeq += 1;
+    this.lastHourlyChimeKey = `${this.state.day}:${rawHour}`;
+    if (emitNetwork) {
+      this.lastLocalCathedralChimeAt = Date.now();
+    }
+    this.state.cathedralChime = {
+      id: this.signalSeq,
+      day: this.state.day,
+      hour: rawHour,
+      clockLabel,
+      tolls,
+      triggeredBy: ringer,
+      text: `Se de Lisboa (1147) Bell Towers toll ${tolls} ${tolls === 1 ? 'chime' : 'chimes'} for ${clockLabel} across Lisboa`,
+      timer: 4.8
+    };
+    if (updateStatus) {
+      this.state.statusMessage = this.state.cathedralChime.text;
+    }
+    if (emitNetwork && this.globalTransitSynced) {
+      this.emitTransitIntent({
+        action: 'cathedral-chime',
+        hour: rawHour,
+        triggeredBy: ringer
+      });
+    }
+    return { ok: true, cathedralChime: this.state.cathedralChime, state: this.state };
+  }
+
+  triggerSharedPostcard({ caption = '' } = {}) {
+    const loc = this.getCurrentLocationInfo();
+    const photographer = this.state.player.name || 'Traveler';
+    const peersHere = this.getCompanionsInSameLocation();
+    const companions = [photographer, ...peersHere.map((p) => p.name)];
+    const clockStr = formatClock(this.state.minutesOfDay);
+    const cleanCaption =
+      String(caption || '').trim() ||
+      (peersHere.length > 0
+        ? `Postcard from ${loc.locationName} with ${companions.join(' & ')}`
+        : `Postcard from ${loc.locationName} (${this.state.currentNeighborhoodName || 'Lisboa'})`);
+
+    this.triggerEmote('Sorria!', 4.0);
+    this.signalSeq += 1;
+    this.lastLocalPostcardAt = Date.now();
+    const card = {
+      id: this.signalSeq,
+      locationKey: loc.locationKey,
+      locationName: loc.locationName,
+      neighborhood: this.state.currentNeighborhoodName || 'Lisboa',
+      photographer,
+      companions,
+      day: this.state.day,
+      clock: clockStr,
+      caption: cleanCaption,
+      timer: 4.8
+    };
+    this.state.sharedPostcard = card;
+    this.state.postcards = [card, ...(this.state.postcards || [])].slice(0, 12);
+    this.state.statusMessage = `Captured Shared Lisboa Postcard at ${loc.locationName}: "${cleanCaption}"`;
+    recordLog(this.state, 'postcard', `Snapped Lisboa Postcard at ${loc.locationName} (${companions.join(' & ')}).`);
+
+    if (this.globalTransitSynced) {
+      this.emitTransitIntent({
+        action: 'shared-postcard',
+        locationKey: loc.locationKey,
+        locationName: loc.locationName,
+        neighborhood: card.neighborhood,
+        photographer,
+        companions,
+        clock: clockStr,
+        caption: cleanCaption
+      });
+    }
+    return { ok: true, postcard: card, state: this.state };
   }
 
   restOvernight() {

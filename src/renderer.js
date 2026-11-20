@@ -226,6 +226,100 @@ export class LisboaCanvasRenderer {
       this.updateCamera(state);
       this.renderOverworld(ctx, state, nearbyInteraction);
     }
+
+    this.drawSharedOverlays(ctx, state);
+  }
+
+  drawSharedOverlays(ctx, state) {
+    // 1. Synchronized Se de Lisboa (1147) Hourly Cathedral Bell-Tower Chime Banner
+    if (state.cathedralChime) {
+      ctx.save();
+      const w = 590;
+      const h = 44;
+      const x = Math.round((this.viewWidth - w) / 2);
+      const y = 70;
+      drawRoundedRect(ctx, x, y, w, h, 8);
+      ctx.fillStyle = 'rgba(28, 22, 14, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 11.5px Georgia, serif';
+      ctx.fillText(
+        `SE DE LISBOA (1147) BELL TOWERS  |  ${state.cathedralChime.clockLabel || 'HOURLY CHIME'}`,
+        this.viewWidth / 2,
+        y + 18,
+        w - 24
+      );
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = '600 10px "Segoe UI", sans-serif';
+      ctx.fillText(state.cathedralChime.text, this.viewWidth / 2, y + 34, w - 24);
+      ctx.restore();
+    }
+
+    // 2. Synchronized Shared Lisboa Postcard Photo Snapshot Viewfinder & Shutter Flash
+    if (state.sharedPostcard) {
+      const card = state.sharedPostcard;
+      ctx.save();
+      // Subtle vintage camera flash during the first 0.45s of capture
+      if (card.timer > 4.35) {
+        const flashAlpha = clamp((card.timer - 4.35) / 0.45, 0, 1) * 0.38;
+        ctx.fillStyle = `rgba(255, 253, 240, ${flashAlpha})`;
+        ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+      }
+
+      // Vintage cream-and-gold Lisboa Postcard border corners
+      ctx.strokeStyle = 'rgba(254, 243, 199, 0.85)';
+      ctx.lineWidth = 3;
+      const m = 14;
+      const cLen = 28;
+      for (const [cx, cy, dx, dy] of [
+        [m, m, 1, 1],
+        [this.viewWidth - m, m, -1, 1],
+        [m, this.viewHeight - m, 1, -1],
+        [this.viewWidth - m, this.viewHeight - m, -1, -1]
+      ]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + dx * cLen, cy);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx, cy + dy * cLen);
+        ctx.stroke();
+      }
+
+      // Postcard stamp card at top-center
+      const pw = 610;
+      const ph = 52;
+      const px = Math.round((this.viewWidth - pw) / 2);
+      const py = state.cathedralChime ? 120 : 68;
+      drawRoundedRect(ctx, px, py, pw, ph, 8);
+      ctx.fillStyle = 'rgba(254, 252, 232, 0.95)';
+      ctx.fill();
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#78350f';
+      ctx.font = '700 12px Georgia, serif';
+      ctx.fillText(
+        `SHARED LISBOA POSTCARD  -  ${(card.locationName || 'LISBOA').toUpperCase()} (Day ${card.day} ${card.clock})`,
+        this.viewWidth / 2,
+        py + 20,
+        pw - 24
+      );
+      ctx.fillStyle = '#1e3a5f';
+      ctx.font = '600 10.5px "Segoe UI", sans-serif';
+      ctx.fillText(
+        `"${card.caption}"  |  Photographer: ${card.photographer}`,
+        this.viewWidth / 2,
+        py + 39,
+        pw - 24
+      );
+      ctx.restore();
+    }
   }
 
   renderOverworld(ctx, state, nearbyInteraction) {

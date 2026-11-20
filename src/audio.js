@@ -1457,6 +1457,68 @@ export class LisboaSoundEngine {
       return;
     }
 
+    if (kind === 'cathedral-bells') {
+      // Solemn 1147 Se de Lisboa Romanesque bronze bell-tower hourly tolls (D3 + D4 + A4 + F5 overtones)
+      for (const delay of [0, 0.48, 0.96]) {
+        const t = now + delay;
+        for (const [freq, gainVal, dur] of [
+          [146.83, 0.14, 1.35],
+          [293.66, 0.11, 1.15],
+          [440.0, 0.06, 0.9],
+          [698.46, 0.04, 0.7]
+        ]) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t);
+          const env = ctx.createGain();
+          env.gain.setValueAtTime(0.0001, t);
+          env.gain.linearRampToValueAtTime(gainVal, t + 0.014);
+          env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          osc.connect(env);
+          env.connect(this.sfxBus);
+          osc.start(t);
+          osc.stop(t + dur + 0.05);
+        }
+      }
+      return;
+    }
+
+    if (kind === 'camera-shutter') {
+      // Vintage mechanical camera shutter click-clack + soft postcard flash chime
+      if (this.noiseBuffer) {
+        for (const [delay, centerFreq] of [[0, 2600], [0.055, 1950]]) {
+          const t = now + delay;
+          const src = ctx.createBufferSource();
+          src.buffer = this.noiseBuffer;
+          const bp = ctx.createBiquadFilter();
+          bp.type = 'bandpass';
+          bp.frequency.value = centerFreq;
+          bp.Q.value = 2.0;
+          const env = ctx.createGain();
+          env.gain.setValueAtTime(0.0001, t);
+          env.gain.linearRampToValueAtTime(0.16, t + 0.004);
+          env.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+          src.connect(bp);
+          bp.connect(env);
+          env.connect(this.sfxBus);
+          src.start(t);
+          src.stop(t + 0.055);
+        }
+      }
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1760.0, now + 0.06);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, now + 0.06);
+      env.gain.linearRampToValueAtTime(0.08, now + 0.07);
+      env.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+      osc.connect(env);
+      env.connect(this.sfxBus);
+      osc.start(now + 0.06);
+      osc.stop(now + 0.35);
+      return;
+    }
+
     if (kind === 'door') {
       for (const [idx, freq] of [659.25, 880.0].entries()) {
         const t = now + idx * 0.09;

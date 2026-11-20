@@ -456,6 +456,59 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       assert.equal(brunoEngine.getState().sharedToast.locationKey, 'venue:cafe-do-poeta');
       assert.equal(brunoEngine.getState().player.emoteText, 'Saude!');
 
+      // 4c-iv. Synchronized Se de Lisboa (1147) Hourly Cathedral Bell-Tower Chimes & Shared Postcard Photo Snapshots!
+      const bellTowerRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'cathedral-chime',
+          hour: 12,
+          triggeredBy: 'Se de Lisboa (1147)'
+        })
+      });
+      const bellTowerJson = await bellTowerRes.json();
+      assert.equal(bellTowerJson.ok, true);
+      assert.equal(bellTowerJson.cathedralChime.clockLabel, '12:00');
+      assert.equal(bellTowerJson.cathedralChime.tolls, 12);
+
+      const cathedralOnB = await streamB.waitFor(
+        (evt) => evt.transit?.cathedralChime?.id === bellTowerJson.cathedralChime.id
+      );
+      brunoEngine.syncGlobalTransit(cathedralOnB.transit);
+      assert.ok(brunoEngine.getState().cathedralChime);
+      assert.equal(brunoEngine.getState().cathedralChime.clockLabel, '12:00');
+      assert.equal(brunoEngine.getState().cathedralChime.tolls, 12);
+
+      // Shared Postcard Photo Snapshot inside Cafe A Brasileira -> Bruno receives the postcard in his album & poses with "Sorria!"
+      const postcardRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'shared-postcard',
+          locationKey: 'venue:cafe-do-poeta',
+          locationName: 'Cafe A Brasileira',
+          neighborhood: 'Chiado',
+          photographer: 'Alice',
+          companions: ['Alice', 'Bruno'],
+          caption: 'Postcard from Cafe A Brasileira with Alice & Bruno'
+        })
+      });
+      const postcardJson = await postcardRes.json();
+      assert.equal(postcardJson.ok, true);
+      assert.equal(postcardJson.postcard.photographer, 'Alice');
+
+      const postcardOnB = await streamB.waitFor(
+        (evt) => evt.transit?.sharedPostcard?.id === postcardJson.postcard.id
+      );
+      brunoEngine.syncGlobalTransit(postcardOnB.transit);
+      assert.ok(brunoEngine.getState().sharedPostcard);
+      assert.equal(brunoEngine.getState().sharedPostcard.photographer, 'Alice');
+      assert.equal(brunoEngine.getState().postcards.length, 1);
+      assert.equal(brunoEngine.getState().postcards[0].caption, 'Postcard from Cafe A Brasileira with Alice & Bruno');
+      assert.equal(brunoEngine.getState().player.emoteText, 'Sorria!');
+
       // 4d. Server-Authoritative Ambient Villagers & Ferry-Mode Remote Players stay synchronized across clients!
       assert.ok(Array.isArray(joinA.transit.npcs) && joinA.transit.npcs.length === 6);
       const initialNpc1X = joinA.transit.npcs.find((n) => n.id === 'npc-1').x;
