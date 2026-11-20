@@ -10,6 +10,7 @@ import {
 import {
   MemoriesGameEngine,
   INTERIOR_STATIONS,
+  METRO_PLATFORM_ZONES,
   formatClock,
   getDayPhase,
   isOverworldPositionValid,
@@ -187,6 +188,23 @@ function handleCanvasClick(event) {
     return;
   }
 
+  if (state.mode === 'metro') {
+    if (state.metro.phase !== 'platform') return;
+    if (
+      worldPt.y <= METRO_PLATFORM_ZONES.escalatorExitTriggerY + 12 &&
+      Math.abs(worldPt.x - 380) <= METRO_PLATFORM_ZONES.escalatorHalfWidth + 16
+    ) {
+      engine.setWalkTarget(380, METRO_PLATFORM_ZONES.escalatorExitTriggerY, { type: 'exitMetro' });
+      return;
+    }
+    if (worldPt.y >= 245 && Math.abs(worldPt.x - 380) <= METRO_PLATFORM_ZONES.boardingHalfWidth) {
+      engine.setWalkTarget(380, 260, { type: 'boardNextMetro' });
+      return;
+    }
+    engine.setWalkTarget(worldPt.x, Math.max(170, Math.min(272, worldPt.y)), null);
+    return;
+  }
+
   if (state.mode === 'interior') {
     const counterDist = Math.hypot(worldPt.x - INTERIOR_STATIONS.counter.x, worldPt.y - INTERIOR_STATIONS.counter.y);
     if (counterDist <= 78 || (worldPt.y <= 195 && worldPt.x >= 220 && worldPt.x <= 540)) {
@@ -303,6 +321,8 @@ function renderActiveContextPanel(state) {
     mode: state.mode,
     venueId: venue?.id || null,
     metroId: metroStation?.id || null,
+    metroPhase: state.metro?.phase || null,
+    metroTo: state.metro?.toStationId || null,
     ridingId: riding?.id || null,
     stopId: riding?.currentStopId || null,
     nextStop: riding?.nextStopName || null,
@@ -343,8 +363,18 @@ function renderActiveContextPanel(state) {
 
   if (metroStation) {
     dom.activeContextPanel.classList.remove('hidden');
+    const isBusy = state.mode === 'metro' && state.metro.phase !== 'platform';
+    const phaseNote =
+      state.metro.phase === 'descending'
+        ? 'Riding escalators down to the underground platform...'
+        : state.metro.phase === 'ascending'
+          ? 'Riding escalators up to the Lisboa street exit...'
+          : state.metro.phase === 'riding'
+            ? `Traveling underground on Linha Azul toward ${escapeHtml((METRO_STATIONS.find((s) => s.id === state.metro.toStationId)?.name) || 'destination')}...`
+            : metroStation.note;
+
     const destinations = METRO_STATIONS.filter((s) => s.id !== metroStation.id);
-    const affordable = state.euros >= METRO_LINE.fareEur;
+    const affordable = state.euros >= METRO_LINE.fareEur && !isBusy;
     const destHtml = destinations
       .map(
         (dest) => `
@@ -352,7 +382,7 @@ function renderActiveContextPanel(state) {
           <div>
             <h4>${escapeHtml(dest.name)}</h4>
             <div class="item-meta">${escapeHtml(dest.lines.join(' & '))} | ${escapeHtml(dest.note)}</div>
-            <div class="item-meta"><strong>${METRO_LINE.fareEur.toFixed(2)} EUR</strong> | ${METRO_LINE.travelMinutes} min underground ride (+4 Energy)</div>
+            <div class="item-meta"><strong>${METRO_LINE.fareEur.toFixed(2)} EUR</strong> | Underground Linha Azul ride (+4 Energy)</div>
           </div>
           <button
             type="button"
@@ -360,7 +390,7 @@ function renderActiveContextPanel(state) {
             data-ride-metro="${escapeHtml(dest.id)}"
             ${affordable ? '' : 'disabled'}
           >
-            Ride Metro
+            Board Train
           </button>
         </div>
       `
@@ -371,11 +401,11 @@ function renderActiveContextPanel(state) {
       <div class="context-header">
         <div>
           <h3>${escapeHtml(metroStation.name)}</h3>
-          <div class="item-meta">${escapeHtml(metroStation.lines.join(' & '))} | Metropolitano de Lisboa</div>
+          <div class="item-meta">${escapeHtml(metroStation.lines.join(' & '))} | Underground Platform</div>
         </div>
-        <button type="button" class="btn btn-sm" data-metro-close="true">Close</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-metro-close="true" ${isBusy ? 'disabled' : ''}>Take Escalator Out</button>
       </div>
-      <p class="helper-text">${escapeHtml(metroStation.note)}</p>
+      <p class="helper-text">${phaseNote}</p>
       <div class="phrase-callout">
         <span class="pt">${escapeHtml(METRO_LINE.phrase.pt)}</span>
         <span class="pron">${escapeHtml(METRO_LINE.phrase.pronunciation)}</span>
@@ -611,7 +641,23 @@ function refreshUi(force = false) {
 
   const venue = engine.getCurrentVenue();
   const riding = engine.getRidingVehicle();
-  if (venue) {
+  const metroStation = engine.getActiveMetroStation();
+  if (state.mode === 'metro') {
+    const destStation = METRO_STATIONS.find((s) => s.id === state.metro.toStationId);
+    if (state.metro.phase === 'riding') {
+      dom.sceneTitle.textContent = `Underground Metro (Linha Azul) -> ${destStation ? destStation.name : 'Next Station'}`;
+      dom.sceneSubtitle.textContent = 'Riding beneath Lisboa on Metropolitano de Lisboa.';
+    } else if (state.metro.phase === 'descending') {
+      dom.sceneTitle.textContent = `Descending into ${metroStation ? metroStation.name : 'Metro'}`;
+      dom.sceneSubtitle.textContent = 'Taking the escalators down to the Linha Azul underground platform.';
+    } else if (state.metro.phase === 'ascending') {
+      dom.sceneTitle.textContent = `Ascending from ${metroStation ? metroStation.name : 'Metro'}`;
+      dom.sceneSubtitle.textContent = 'Taking the escalators up to the Lisboa street sidewalk.';
+    } else {
+      dom.sceneTitle.textContent = `${metroStation ? metroStation.name : 'Metro Station'} - Underground Platform`;
+      dom.sceneSubtitle.textContent = 'Board a Linha Azul train to another station, or take the escalator back up to the street (Esc).';
+    }
+  } else if (venue) {
     dom.sceneTitle.textContent = `Inside ${venue.name} (${venue.memory.neighborhood})`;
     dom.sceneSubtitle.textContent = `Walk to ${venue.proprietor}'s counter, browse the display, or walk to EXIT TO STREET.`;
   } else if (riding) {
@@ -650,13 +696,19 @@ function refreshUi(force = false) {
     dom.btnContextAction.textContent =
       state.mode === 'interior'
         ? 'Walk to counter, display, or EXIT mat'
-        : 'Walk near a shop, Metro entrance, transit stop, or bench';
+        : state.mode === 'metro'
+          ? 'Walk to BOARD METRO zone or ESCALATOR TO STREET'
+          : 'Walk near a shop, Metro entrance, transit stop, or bench';
   }
 
   if (state.mode === 'interior') {
     dom.btnSecondaryAction.classList.remove('hidden');
     dom.btnSecondaryAction.textContent = 'Step Outside (Esc)';
     dom.btnSecondaryAction.dataset.action = 'exit-venue';
+  } else if (state.mode === 'metro' && state.metro.phase === 'platform') {
+    dom.btnSecondaryAction.classList.remove('hidden');
+    dom.btnSecondaryAction.textContent = 'Take Escalator to Street (Esc)';
+    dom.btnSecondaryAction.dataset.action = 'exit-metro';
   } else if (state.ridingVehicleId) {
     dom.btnSecondaryAction.classList.remove('hidden');
     dom.btnSecondaryAction.textContent = 'Hop Off at Next Stop Now';
@@ -692,8 +744,8 @@ window.addEventListener('keydown', (event) => {
     if (engine.getState().mode === 'interior') {
       engine.exitVenue();
       refreshUi(true);
-    } else if (engine.getState().activeMetroStationId) {
-      engine.closeMetroStation();
+    } else if (engine.getState().mode === 'metro' && engine.getState().metro.phase === 'platform') {
+      engine.exitMetroStation();
       refreshUi(true);
     }
     return;
@@ -723,6 +775,8 @@ dom.btnSecondaryAction.addEventListener('click', () => {
   const action = dom.btnSecondaryAction.dataset.action;
   if (action === 'exit-venue') {
     engine.exitVenue();
+  } else if (action === 'exit-metro') {
+    engine.exitMetroStation();
   } else if (action === 'alight-now') {
     engine.disembarkTransit({ immediateToNextStop: true });
   }
@@ -790,6 +844,9 @@ dom.guideList.addEventListener('click', (event) => {
   const state = engine.getState();
   if (state.mode === 'interior') {
     engine.exitVenue();
+  } else if (state.mode === 'metro') {
+    if (state.metro.phase === 'riding') return;
+    engine.exitMetroStation({ immediate: true });
   }
   const metroBtn = event.target.closest('[data-walk-metro]');
   if (metroBtn) {

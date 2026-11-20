@@ -187,6 +187,7 @@ export const METRO_STATIONS = [
     id: 'metro-baixa-chiado',
     name: 'Metro Baixa-Chiado',
     neighborhood: 'chiado',
+    order: 0,
     lines: ['Linha Azul', 'Linha Verde'],
     lineColors: ['#2563eb', '#16a34a'],
     x: 1266,
@@ -196,12 +197,20 @@ export const METRO_STATIONS = [
     doorX: 1295,
     doorY: 525,
     spawnOutside: { x: 1295, y: 546 },
+    undergroundTheme: {
+      wallPrimary: '#ded8ce',
+      tileAccent: '#1b4d89',
+      platformFloor: '#d4cec2',
+      trim: '#1e3a5f',
+      artLabel: 'ALVARO SIZA LIMESTONE VAULT - DEEP ESCALATORS'
+    },
     note: 'Deep transfer station right beside Cafe A Brasileira on Largo do Chiado, serving both Chiado and nearby hilltop Bairro Alto.'
   },
   {
     id: 'metro-terreiro-paco',
     name: 'Metro Terreiro do Paco',
     neighborhood: 'chiado',
+    order: 1,
     lines: ['Linha Azul'],
     lineColors: ['#2563eb'],
     x: 1516,
@@ -211,12 +220,20 @@ export const METRO_STATIONS = [
     doorX: 1550,
     doorY: 864,
     spawnOutside: { x: 1550, y: 880 },
+    undergroundTheme: {
+      wallPrimary: '#d4e8f5',
+      tileAccent: '#14669c',
+      platformFloor: '#cfd8df',
+      trim: '#0f4c75',
+      artLabel: 'TAGUS RIVER BLUE GLAZED TILE GALLERY'
+    },
     note: 'Tagus riverside Blue Line station at the edge of Baixa and lower Alfama.'
   },
   {
     id: 'metro-santa-apolonia',
     name: 'Metro Santa Apolonia',
     neighborhood: 'alfama',
+    order: 2,
     lines: ['Linha Azul'],
     lineColors: ['#2563eb'],
     x: 1990,
@@ -226,6 +243,13 @@ export const METRO_STATIONS = [
     doorX: 2024,
     doorY: 864,
     spawnOutside: { x: 2024, y: 880 },
+    undergroundTheme: {
+      wallPrimary: '#efe4d2',
+      tileAccent: '#1d568a',
+      platformFloor: '#d8d0c3',
+      trim: '#16406b',
+      artLabel: 'ALFAMA WATERFRONT & RAIL TERMINUS VAULT'
+    },
     note: 'Eastern Blue Line terminus along the Alfama riverfront, framing the steep hillside below Portas do Sol.'
   }
 ];

@@ -12,7 +12,7 @@
 - **Live Street-Level Public Transit & Metro de Lisboa**:
   - **Eletrico 28E (Carris Tram)**: Glides along steel rails between Rua do Loreto, Praca Luis de Camoes, Largo do Chiado, Se de Lisboa, and Portas do Sol (`3.10 EUR`).
   - **Carris Bus 737 / 758**: Loops past Miradouro de Sao Pedro de Alcantara, Rua Garrett, Miradouro de Santa Luzia, and the Tagus waterfront (`2.10 EUR`).
-  - **Metropolitano de Lisboa (`Linha Azul` & `Linha Verde`)**: Placed accurately where Metro stations exist in Lisbon (**Metro Baixa-Chiado** beside Cafe A Brasileira, **Metro Terreiro do Paco**, and **Metro Santa Apolonia** along the Alfama waterfront; `1.80 EUR`), reflecting that hilltop Bairro Alto and upper Alfama rely on trams, buses, and footwalks.
+  - **Metropolitano de Lisboa (`Linha Azul` & `Linha Verde`)**: Placed accurately where Metro stations exist in Lisbon (**Metro Baixa-Chiado** beside Cafe A Brasileira, **Metro Terreiro do Paco**, and **Metro Santa Apolonia** along the Alfama waterfront; `1.80 EUR`), reflecting that hilltop Bairro Alto and upper Alfama rely on trams, buses, and footwalks. Entering a station rides the escalators down to a tiled underground platform, boards the silver-and-crimson Lisbon Metro train for an animated underground tunnel ride with live station progress, and ascends the escalators back to the destination sidewalk.
   - **Sidewalk & Pedestrian Safety**: Pedestrians walk on sidewalks and cross at crosswalks, cannot walk into passing vehicles or clip through other people, and trams and buses automatically brake and yield rather than crashing into pedestrians.
 - **9 Enterable Shops, Cafes, and Restaurants**:
   - **Bairro Alto**: *Quiosque de Sao Pedro*, *Tasca do Fado*, *Vinil & Gravuras do Alto*.

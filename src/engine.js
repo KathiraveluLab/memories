@@ -55,6 +55,19 @@ export const INTERIOR_STATIONS = {
   exitMat: { x: 380, y: 416, halfWidth: 60, triggerY: 404 }
 };
 
+export const METRO_PLATFORM_ZONES = {
+  escalatorTopY: 74,
+  escalatorBottomY: 174,
+  escalatorExitTriggerY: 172,
+  escalatorHalfWidth: 56,
+  boardingZoneY: 266,
+  boardingHalfWidth: 165
+};
+
+export const METRO_ESCALATOR_DURATION = 1.0;
+export const METRO_RIDE_BASE_DURATION = 3.0;
+export const METRO_RIDE_EXTRA_HOP_DURATION = 1.2;
+
 const SOLID_INTERIOR_RECTS = [
   { x: 62, y: 204, w: 72, h: 118 },
   { x: 590, y: 225, w: 92, h: 54 },
@@ -175,6 +188,13 @@ export function isInteriorPositionValid(x, y, radius = PLAYER_RADIUS) {
       return false;
     }
   }
+  return true;
+}
+
+export function isMetroPlatformPositionValid(x, y, radius = PLAYER_RADIUS) {
+  // Walkable tiled concourse & platform safely behind the yellow track safety line
+  if (x < 64 + radius || x > INTERIOR_WIDTH - 64 - radius) return false;
+  if (y < 156 + radius || y > 286 - radius) return false;
   return true;
 }
 
@@ -299,7 +319,7 @@ export function createInitialState() {
   const startHood = getNeighborhoodForX(startX);
 
   const state = {
-    mode: 'overworld', // 'overworld' | 'interior'
+    mode: 'overworld', // 'overworld' | 'interior' | 'metro'
     euros: INITIAL_EUROS,
     energy: INITIAL_ENERGY,
     fullness: INITIAL_FULLNESS,
@@ -323,6 +343,17 @@ export function createInitialState() {
     currentVenueId: null,
     visitedVenues: [],
     activeMetroStationId: null,
+    metro: {
+      stationId: null,
+      phase: null, // 'descending' | 'platform' | 'riding' | 'ascending'
+      phaseProgress: 0,
+      fromStationId: null,
+      toStationId: null,
+      rideDuration: METRO_RIDE_BASE_DURATION,
+      direction: 1, // 1 = eastbound (Baixa-Chiado -> Santa Apolonia), -1 = westbound
+      trainX: 380,
+      tunnelOffset: 0
+    },
     ridingVehicleId: null,
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
@@ -404,14 +435,16 @@ export class MemoriesGameEngine {
 
   setWalkTarget(x, y, onArriveAction = null) {
     if (this.state.ridingVehicleId) return;
-    this.state.activeMetroStationId = null;
+    if (this.state.mode === 'metro' && this.state.metro.phase !== 'platform') return;
+    if (this.state.mode === 'overworld') this.state.activeMetroStationId = null;
     this.state.player.walkQueue = [];
     this.state.player.walkTarget = { x, y, onArriveAction };
   }
 
   setWalkPath(waypoints = []) {
     if (this.state.ridingVehicleId || !Array.isArray(waypoints) || waypoints.length === 0) return;
-    this.state.activeMetroStationId = null;
+    if (this.state.mode === 'metro' && this.state.metro.phase !== 'platform') return;
+    if (this.state.mode === 'overworld') this.state.activeMetroStationId = null;
     const [first, ...rest] = waypoints;
     this.state.player.walkTarget = first;
     this.state.player.walkQueue = rest;
@@ -460,6 +493,9 @@ export class MemoriesGameEngine {
   canPlayerStepTo(x, y) {
     if (this.state.mode === 'interior') {
       return { ok: isInteriorPositionValid(x, y), blocker: null };
+    }
+    if (this.state.mode === 'metro') {
+      return { ok: isMetroPlatformPositionValid(x, y), blocker: null };
     }
     if (!isOverworldPositionValid(x, y)) {
       return { ok: false, blocker: { kind: 'structure' } };
@@ -614,7 +650,9 @@ export class MemoriesGameEngine {
     if (Math.abs(vx) > 0.01 || Math.abs(vy) > 0.01) {
       player.walkTarget = null;
       player.walkQueue = [];
-      this.state.activeMetroStationId = null;
+      if (this.state.mode === 'overworld') {
+        this.state.activeMetroStationId = null;
+      }
     } else if (player.walkTarget) {
       const dx = player.walkTarget.x - player.x;
       const dy = player.walkTarget.y - player.y;
@@ -701,6 +739,14 @@ export class MemoriesGameEngine {
         ) {
           this.exitVenue();
         }
+      } else if (this.state.mode === 'metro' && this.state.metro.phase === 'platform') {
+        if (
+          vy < -0.25 &&
+          player.y <= METRO_PLATFORM_ZONES.escalatorExitTriggerY &&
+          Math.abs(player.x - 380) <= METRO_PLATFORM_ZONES.escalatorHalfWidth
+        ) {
+          this.exitMetroStation();
+        }
       }
     } else {
       player.isMoving = false;
@@ -740,7 +786,132 @@ export class MemoriesGameEngine {
       this.inspectVenueDisplay();
     } else if (action.type === 'exitVenue') {
       this.exitVenue();
+    } else if (action.type === 'exitMetro') {
+      this.exitMetroStation();
+    } else if (action.type === 'boardNextMetro') {
+      const origin = this.state.metro.stationId;
+      const dest = METRO_STATIONS.find((s) => s.id !== origin);
+      if (origin && dest) {
+        this.rideMetro(origin, dest.id);
+      }
     }
+  }
+
+  updateMetroSimulation(dt) {
+    if (this.state.mode !== 'metro') return;
+    const m = this.state.metro;
+    const player = this.state.player;
+
+    if (m.phase === 'descending') {
+      m.phaseProgress = Math.min(1, m.phaseProgress + dt / METRO_ESCALATOR_DURATION);
+      const t = m.phaseProgress;
+      player.x = 380;
+      player.y =
+        METRO_PLATFORM_ZONES.escalatorTopY +
+        (METRO_PLATFORM_ZONES.escalatorBottomY - METRO_PLATFORM_ZONES.escalatorTopY) * t;
+      player.facing = 'down';
+      player.isMoving = false;
+      // Metro train glides smoothly into the station while you descend
+      const easeOut = 1 - Math.pow(1 - t, 3);
+      m.trainX = -260 + (380 - -260) * easeOut;
+
+      if (m.phaseProgress >= 1) {
+        m.phase = 'platform';
+        m.phaseProgress = 0;
+        m.trainX = 380;
+        player.y = METRO_PLATFORM_ZONES.escalatorBottomY + 8;
+        const station = getMetroStationById(m.stationId);
+        this.state.statusMessage = station
+          ? `Arrived on ${station.name} underground platform (${station.lines.join(' & ')}). Choose a Linha Azul destination or ride the escalator back to the street.`
+          : 'Arrived on the underground Metro platform.';
+      }
+      return;
+    }
+
+    if (m.phase === 'riding') {
+      m.phaseProgress = Math.min(1, m.phaseProgress + dt / m.rideDuration);
+      const p = m.phaseProgress;
+      const dir = m.direction || 1;
+      player.isMoving = false;
+
+      if (p < 0.16) {
+        // Departing origin platform
+        const k = p / 0.16;
+        m.trainX = 380 + dir * k * k * 560;
+        m.tunnelOffset = (m.tunnelOffset + dt * 180 * k * dir) % 1200;
+      } else if (p < 0.84) {
+        // Full-speed underground tunnel sequence
+        m.trainX = 380;
+        m.tunnelOffset = (m.tunnelOffset + dt * 520 * dir) % 1200;
+      } else {
+        // Decelerating smoothly into destination station platform
+        const k = (p - 0.84) / 0.16;
+        const ease = 1 - Math.pow(1 - k, 3);
+        m.stationId = m.toStationId;
+        this.state.activeMetroStationId = m.toStationId;
+        m.trainX = 380 - dir * (1 - ease) * 560;
+        m.tunnelOffset = (m.tunnelOffset + dt * 160 * (1 - k) * dir) % 1200;
+      }
+
+      if (m.phaseProgress >= 1) {
+        const dest = getMetroStationById(m.toStationId);
+        m.stationId = m.toStationId;
+        this.state.activeMetroStationId = m.toStationId;
+        m.phase = 'platform';
+        m.phaseProgress = 0;
+        m.trainX = 380;
+        player.x = 380;
+        player.y = 254;
+        player.facing = 'up';
+        if (dest) {
+          player.overworldX = dest.spawnOutside.x;
+          player.overworldY = dest.spawnOutside.y;
+          const hood = getNeighborhoodForX(dest.spawnOutside.x);
+          this.state.currentNeighborhoodId = hood.id;
+          this.state.currentNeighborhoodName = hood.name;
+          if (!this.state.visitedNeighborhoods.includes(hood.id)) {
+            this.state.visitedNeighborhoods.push(hood.id);
+          }
+          this.state.statusMessage = `Metro train arrived at ${dest.name}. Step onto the ascending escalator (or press Esc) to exit onto the ${hood.name} sidewalk.`;
+        }
+      }
+      return;
+    }
+
+    if (m.phase === 'ascending') {
+      m.phaseProgress = Math.min(1, m.phaseProgress + dt / METRO_ESCALATOR_DURATION);
+      const t = m.phaseProgress;
+      player.x = 380;
+      player.y =
+        METRO_PLATFORM_ZONES.escalatorBottomY -
+        (METRO_PLATFORM_ZONES.escalatorBottomY - METRO_PLATFORM_ZONES.escalatorTopY) * t;
+      player.facing = 'up';
+      player.isMoving = false;
+
+      if (m.phaseProgress >= 1) {
+        const station = getMetroStationById(m.stationId);
+        this.state.mode = 'overworld';
+        this.state.activeMetroStationId = null;
+        m.phase = null;
+        m.phaseProgress = 0;
+        m.stationId = null;
+        m.fromStationId = null;
+        m.toStationId = null;
+        if (station) {
+          player.x = station.spawnOutside.x;
+          player.y = station.spawnOutside.y;
+          player.overworldX = station.spawnOutside.x;
+          player.overworldY = station.spawnOutside.y;
+          player.facing = 'down';
+          this.updateNeighborhoodTracking();
+          this.state.statusMessage = `Rode the escalator up from ${station.name} onto the Lisboa sidewalk.`;
+        }
+      }
+      return;
+    }
+
+    // Platform idle state: gently keep train docked at center
+    m.trainX = 380;
   }
 
   tick(dtSeconds, input = { x: 0, y: 0 }) {
@@ -756,6 +927,14 @@ export class MemoriesGameEngine {
       const mins = Math.floor(this.timeAccumulator / 2.4);
       this.timeAccumulator -= mins * 2.4;
       this.advanceMinutes(mins);
+    }
+
+    if (this.state.mode === 'metro') {
+      this.updateMetroSimulation(dt);
+      if (this.state.mode === 'metro' && this.state.metro.phase === 'platform') {
+        this.movePlayerByInput(input.x || 0, input.y || 0, dt);
+      }
+      return this.state;
     }
 
     if (this.state.ridingVehicleId) {
@@ -793,6 +972,56 @@ export class MemoriesGameEngine {
             : `Ring Bell to exit at ${vehicle.nextStopName}`,
         sublabel: atStop ? 'Doors open - Press [E] to step out onto the sidewalk' : 'Press [E] to ring bell (or again to alight at next stop)'
       };
+    }
+
+    if (state.mode === 'metro') {
+      const m = state.metro;
+      const station = getMetroStationById(m.stationId);
+      if (m.phase === 'descending') {
+        return {
+          type: 'metro-transition',
+          label: `Descending escalators into ${station ? station.name : 'Metro'}...`,
+          sublabel: 'Heading underground to the Linha Azul platform'
+        };
+      }
+      if (m.phase === 'ascending') {
+        return {
+          type: 'metro-transition',
+          label: `Riding escalators up to ${station ? station.name : 'street'}...`,
+          sublabel: 'Returning to the sunlit Lisboa sidewalk'
+        };
+      }
+      if (m.phase === 'riding') {
+        const dest = getMetroStationById(m.toStationId);
+        return {
+          type: 'metro-transition',
+          label: `Riding Metropolitano de Lisboa -> ${dest ? dest.name : 'next station'}`,
+          sublabel: 'Underground Linha Azul tunnel transit in progress'
+        };
+      }
+      // On underground platform
+      const px = state.player.x;
+      const py = state.player.y;
+      if (
+        py <= METRO_PLATFORM_ZONES.escalatorExitTriggerY + 18 &&
+        Math.abs(px - 380) <= METRO_PLATFORM_ZONES.escalatorHalfWidth + 14
+      ) {
+        return {
+          type: 'metro-exit',
+          label: `Take Escalator to Street (${station ? station.name : 'Exit'})`,
+          sublabel: 'Press [E] or walk up onto the escalator to return outside'
+        };
+      }
+      if (py >= 242 && Math.abs(px - 380) <= METRO_PLATFORM_ZONES.boardingHalfWidth) {
+        const nextDest = METRO_STATIONS.find((s) => s.id !== m.stationId);
+        return {
+          type: 'metro-board',
+          destId: nextDest?.id || null,
+          label: `Board Metro Linha Azul -> ${nextDest ? nextDest.name : 'Next Station'} (${METRO_LINE.fareEur.toFixed(2)} EUR)`,
+          sublabel: 'Press [E] to board now, or pick any station in the Metro panel'
+        };
+      }
+      return null;
     }
 
     if (state.mode === 'interior') {
@@ -925,6 +1154,15 @@ export class MemoriesGameEngine {
     if (nearby.type === 'metro') {
       return this.openMetroStation(nearby.id);
     }
+    if (nearby.type === 'metro-exit') {
+      return this.exitMetroStation();
+    }
+    if (nearby.type === 'metro-board' && nearby.destId) {
+      return this.rideMetro(this.state.metro.stationId, nearby.destId);
+    }
+    if (nearby.type === 'metro-transition') {
+      return { ok: true, state: this.state };
+    }
     if (nearby.type === 'venue') {
       return this.enterVenue(nearby.id);
     }
@@ -947,28 +1185,101 @@ export class MemoriesGameEngine {
   }
 
   openMetroStation(stationId) {
-    if (this.state.mode !== 'overworld' || this.state.ridingVehicleId) {
-      return { ok: false, error: 'Walk up to a Metro de Lisboa entrance on the sidewalk first.' };
+    if (this.state.ridingVehicleId) {
+      return { ok: false, error: 'Step off surface transit before descending into the Metro.' };
+    }
+    if (this.state.mode === 'interior') {
+      return { ok: false, error: 'Step outside onto the sidewalk before entering the Metro.' };
     }
     const station = getMetroStationById(stationId);
     if (!station) {
       return { ok: false, error: `Unknown metro station: ${stationId}` };
     }
+
+    this.state.mode = 'metro';
     this.state.activeMetroStationId = station.id;
-    this.state.statusMessage = `At ${station.name} (${station.lines.join(' & ')}). Choose a destination on Linha Azul (${METRO_LINE.fareEur.toFixed(2)} EUR).`;
+    this.state.player.overworldX = station.spawnOutside.x;
+    this.state.player.overworldY = station.spawnOutside.y;
+    this.state.player.x = 380;
+    this.state.player.y = METRO_PLATFORM_ZONES.escalatorTopY;
+    this.state.player.facing = 'down';
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+
+    this.state.metro = {
+      stationId: station.id,
+      phase: 'descending',
+      phaseProgress: 0,
+      fromStationId: station.id,
+      toStationId: null,
+      rideDuration: METRO_RIDE_BASE_DURATION,
+      direction: 1,
+      trainX: -260,
+      tunnelOffset: 0
+    };
+
+    this.state.statusMessage = `Descending the escalators into ${station.name} (${station.lines.join(' & ')})...`;
+    recordLog(this.state, 'metro', `Entered ${station.name} underground station.`);
+    return { ok: true, station, state: this.state };
+  }
+
+  exitMetroStation({ immediate = false } = {}) {
+    if (this.state.mode !== 'metro') {
+      return { ok: false, error: 'You are not currently inside a Metro station.' };
+    }
+    if (this.state.metro.phase === 'riding') {
+      return { ok: false, error: 'Wait until the Metro train arrives at the platform before exiting.' };
+    }
+
+    const station = getMetroStationById(this.state.metro.stationId);
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+
+    if (immediate) {
+      this.state.mode = 'overworld';
+      this.state.activeMetroStationId = null;
+      this.state.metro.phase = null;
+      this.state.metro.phaseProgress = 0;
+      this.state.metro.stationId = null;
+      if (station) {
+        this.state.player.x = station.spawnOutside.x;
+        this.state.player.y = station.spawnOutside.y;
+        this.state.player.overworldX = station.spawnOutside.x;
+        this.state.player.overworldY = station.spawnOutside.y;
+        this.state.player.facing = 'down';
+        this.updateNeighborhoodTracking();
+      }
+      return { ok: true, station, state: this.state };
+    }
+
+    this.state.metro.phase = 'ascending';
+    this.state.metro.phaseProgress = 0;
+    this.state.player.x = 380;
+    this.state.player.y = METRO_PLATFORM_ZONES.escalatorBottomY;
+    this.state.player.facing = 'up';
+    this.state.statusMessage = `Riding the escalator up to ${station ? station.name : 'street'} exit...`;
     return { ok: true, station, state: this.state };
   }
 
   closeMetroStation() {
+    if (this.state.mode === 'metro') {
+      return this.exitMetroStation();
+    }
     this.state.activeMetroStationId = null;
     return { ok: true, state: this.state };
   }
 
   rideMetro(fromStationId, toStationId) {
-    if (this.state.mode !== 'overworld' || this.state.ridingVehicleId) {
-      return { ok: false, error: 'Step onto the sidewalk at a Metro station before riding the Metro.' };
+    if (this.state.ridingVehicleId || this.state.mode === 'interior') {
+      return { ok: false, error: 'Enter a Metro station before riding the Metro.' };
     }
-    const origin = getMetroStationById(fromStationId);
+    if (this.state.mode === 'metro' && this.state.metro.phase === 'riding') {
+      return { ok: false, error: 'Already riding a Metro train underground.' };
+    }
+
+    const originId = fromStationId || this.state.metro.stationId || this.state.activeMetroStationId;
+    const origin = getMetroStationById(originId);
     const destination = getMetroStationById(toStationId);
     if (!origin || !destination) {
       return { ok: false, error: 'Unknown Metro station selected.' };
@@ -987,20 +1298,33 @@ export class MemoriesGameEngine {
     this.state.energy = clamp(this.state.energy + 4, 0, 100);
     this.advanceMinutes(METRO_LINE.travelMinutes);
 
-    this.state.player.x = destination.spawnOutside.x;
-    this.state.player.y = destination.spawnOutside.y;
-    this.state.player.overworldX = destination.spawnOutside.x;
-    this.state.player.overworldY = destination.spawnOutside.y;
+    const hops = Math.max(1, Math.abs((destination.order ?? 0) - (origin.order ?? 0)));
+    const direction = (destination.order ?? 0) >= (origin.order ?? 0) ? 1 : -1;
+    const rideDuration =
+      METRO_RIDE_BASE_DURATION + (hops - 1) * METRO_RIDE_EXTRA_HOP_DURATION;
+
+    this.state.mode = 'metro';
+    this.state.activeMetroStationId = origin.id;
     this.state.player.walkTarget = null;
     this.state.player.walkQueue = [];
-    this.state.activeMetroStationId = null;
-    this.updateNeighborhoodTracking();
+    this.state.player.isMoving = false;
+    this.state.metro = {
+      stationId: origin.id,
+      phase: 'riding',
+      phaseProgress: 0,
+      fromStationId: origin.id,
+      toStationId: destination.id,
+      rideDuration,
+      direction,
+      trainX: 380,
+      tunnelOffset: 0
+    };
 
     const newPhrase = recordPhrase(this.state, METRO_LINE.phrase, METRO_LINE.name);
     const newMemory = unlockMemory(this.state, METRO_LINE.memory);
 
-    this.state.statusMessage = `Rode Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR, +${METRO_LINE.travelMinutes} min).`;
-    recordLog(this.state, 'metro', `Took Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`);
+    this.state.statusMessage = `Boarded Metropolitano de Lisboa (Linha Azul) from ${origin.name} toward ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`;
+    recordLog(this.state, 'metro', `Boarded Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`);
 
     return {
       ok: true,
@@ -1328,6 +1652,13 @@ export class MemoriesGameEngine {
     }
     if (this.state.mode === 'interior') {
       this.exitVenue();
+    }
+    if (this.state.mode === 'metro') {
+      if (this.state.metro.phase === 'riding' && this.state.metro.toStationId) {
+        this.state.metro.stationId = this.state.metro.toStationId;
+        this.state.metro.phase = 'platform';
+      }
+      this.exitMetroStation({ immediate: true });
     }
     this.state.activeMetroStationId = null;
 

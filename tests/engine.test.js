@@ -230,24 +230,62 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.equal(engine.exitVenue().ok, true);
 });
 
-test('AC-05 & AC-06: Metro Linha Azul rides, gentle non-punitive loop, and full 17-memory completion', () => {
+test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, and 17-memory completion', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
-  // Ride Metro from Baixa-Chiado to Santa Apolonia (Alfama waterfront)
+  // Step 1: Descend escalators into Metro Baixa-Chiado (does NOT teleport)
   const openRes = engine.openMetroStation('metro-baixa-chiado');
   assert.equal(openRes.ok, true);
+  assert.equal(state.mode, 'metro');
+  assert.equal(state.metro.phase, 'descending');
   assert.equal(state.activeMetroStationId, 'metro-baixa-chiado');
 
+  // Tick escalator descent smoothly to the underground platform
+  for (let i = 0; i < 15; i += 1) {
+    engine.tick(0.1, { x: 0, y: 0 });
+  }
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.stationId, 'metro-baixa-chiado');
+
+  // Step 2: Board Metro Linha Azul to Santa Apolonia -> enters animated underground 'riding' phase (NOT instant teleport)
   const eurosBeforeMetro = state.euros;
   const metroRes = engine.rideMetro('metro-baixa-chiado', 'metro-santa-apolonia');
   assert.equal(metroRes.ok, true);
+  assert.equal(state.mode, 'metro');
+  assert.equal(state.metro.phase, 'riding');
+  assert.equal(state.metro.fromStationId, 'metro-baixa-chiado');
+  assert.equal(state.metro.toStationId, 'metro-santa-apolonia');
   assert.equal(state.euros, Math.round((eurosBeforeMetro - METRO_LINE.fareEur) * 100) / 100);
   assert.equal(state.stats.metroRides, 1);
-  assert.equal(state.currentNeighborhoodId, 'alfama');
-  assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
   assert.ok(state.memories.some((m) => m.id === 'mem-ride-metro-lisboa'));
   assert.ok(state.learnedPhrases.some((p) => p.source === METRO_LINE.name));
+
+  // Mid-ride check: still traveling underground through the tunnel
+  for (let i = 0; i < 20; i += 1) {
+    engine.tick(0.1, { x: 0, y: 0 });
+  }
+  assert.equal(state.metro.phase, 'riding');
+  assert.ok(state.metro.phaseProgress > 0.3 && state.metro.phaseProgress < 0.85);
+
+  // Finish underground tunnel ride -> arrives smoothly at Santa Apolonia platform
+  for (let i = 0; i < 30; i += 1) {
+    engine.tick(0.1, { x: 0, y: 0 });
+  }
+  assert.equal(state.mode, 'metro');
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.stationId, 'metro-santa-apolonia');
+
+  // Step 3: Take escalator back up to sunlit Alfama sidewalk
+  const exitMetroRes = engine.exitMetroStation();
+  assert.equal(exitMetroRes.ok, true);
+  assert.equal(state.metro.phase, 'ascending');
+  for (let i = 0; i < 15; i += 1) {
+    engine.tick(0.1, { x: 0, y: 0 });
+  }
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.currentNeighborhoodId, 'alfama');
+  assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 
   // Free bench rest restores energy and unlocks viewpoint memory
   state.energy = 35;
@@ -365,6 +403,7 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   const mockCtx = {
     save: noop,
     restore: noop,
+    clip: noop,
     translate: noop,
     rotate: noop,
     clearRect: () => { drawCalls += 1; },
@@ -419,6 +458,19 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   engine.boardTransitAtStop('stop-tram-camoes', { waitIfApproaching: true });
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   engine.disembarkTransit({ immediateToNextStop: true });
+
+  // Render full underground Metro experience (escalator descent, platform, tunnel ride, ascent)
+  engine.openMetroStation('metro-baixa-chiado');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  for (let i = 0; i < 12; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.rideMetro('metro-baixa-chiado', 'metro-santa-apolonia');
+  for (let i = 0; i < 22; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  for (let i = 0; i < 28; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  engine.exitMetroStation();
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  for (let i = 0; i < 12; i += 1) engine.tick(0.1, { x: 0, y: 0 });
 
   for (const venue of VENUES) {
     engine.enterVenue(venue.id);
