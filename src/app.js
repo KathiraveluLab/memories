@@ -1048,11 +1048,15 @@ function renderGameOverModal(state) {
   const sum = state.gameOverSummary;
   const sig = JSON.stringify({
     go: state.gameOver,
+    reason: sum.gameOverReason,
+    title: sum.title,
     score: sum.totalScore,
     mem: sum.memoriesCaptured,
     ven: sum.venuesVisited,
     meals: sum.mealsEaten,
-    mp: (sum.multiplayerComparison || []).map((p) => `${p.id}:${p.totalScore}:${p.memoriesCaptured}:${p.gameOver}`)
+    en: sum.energyRemaining,
+    fl: sum.fullnessRemaining,
+    mp: (sum.multiplayerComparison || []).map((p) => `${p.id}:${p.totalScore}:${p.memoriesCaptured}:${p.gameOver}:${p.gameOverReason}`)
   });
   dom.gameOverModal.classList.remove('hidden');
   if (sig === lastGameOverSignature) return;
@@ -1117,7 +1121,9 @@ function renderGameOverModal(state) {
     dom.gameOverMultiplayerList.innerHTML = sum.multiplayerComparison
       .map((entry) => {
         const outfit = getOutfitById(entry.outfitId);
-        const walletTag = entry.gameOver ? 'Finished (0.00 EUR)' : `Exploring (${entry.eurosRemaining.toFixed(2)} EUR)`;
+        const walletTag = entry.gameOver
+          ? `Finished (${entry.reasonLabel || '0.00 EUR'})`
+          : `Exploring (${entry.eurosRemaining.toFixed(2)} EUR)`;
         return `
           <div class="mp-score-row ${entry.isLocal ? 'local' : ''}">
             <div>

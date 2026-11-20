@@ -649,6 +649,47 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   const parsedCard = JSON.parse(exportedJson.cardText);
   assert.equal(parsedCard.memoriesCaptured, 26);
   assert.equal(parsedCard.multiplayerComparison.length, 2);
+
+  // Verify Game Over also triggers with the full Final Memories Scorecard when Energy goes to 0, Fullness goes to 0, or both go to 0
+  engine.exitVenue();
+  engine.setRemotePlayers([], { snap: true });
+  state.gameOver = false;
+  state.gameOverReason = null;
+  state.gameOverSummary = null;
+  state.euros = 50;
+  state.energy = 0.001;
+  state.fullness = 40;
+  engine.tick(0.2, { x: 1, y: 0 });
+  assert.equal(state.energy, 0);
+  assert.equal(state.gameOver, true);
+  assert.equal(state.gameOverReason, 'energy');
+  assert.equal(state.gameOverSummary.title, 'GAME OVER - Energy Reached 0');
+  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
+
+  state.gameOver = false;
+  state.gameOverReason = null;
+  state.gameOverSummary = null;
+  state.energy = 60;
+  state.fullness = 0.001;
+  engine.tick(0.2, { x: -1, y: 0 });
+  assert.equal(state.fullness, 0);
+  assert.equal(state.gameOver, true);
+  assert.equal(state.gameOverReason, 'fullness');
+  assert.equal(state.gameOverSummary.title, 'GAME OVER - Fullness Reached 0');
+  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
+
+  state.gameOver = false;
+  state.gameOverReason = null;
+  state.gameOverSummary = null;
+  state.energy = 0.001;
+  state.fullness = 0.001;
+  engine.tick(0.2, { x: 1, y: 0 });
+  assert.equal(state.energy, 0);
+  assert.equal(state.fullness, 0);
+  assert.equal(state.gameOver, true);
+  assert.equal(state.gameOverReason, 'energy-and-fullness');
+  assert.equal(state.gameOverSummary.title, 'GAME OVER - Energy & Fullness Reached 0');
+  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
 });
 
 test('AC-08: directional arrow-key doorway entry for south/north buildings and Metro entrances, plus exit cooldown', () => {

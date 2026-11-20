@@ -809,9 +809,12 @@ export function createMultiplayerServer({
       phrasesLearned: p.phrasesLearned || 1,
       postcardsCaptured: p.postcardsCaptured || 0,
       eurosRemaining: Number.isFinite(p.eurosRemaining) ? p.eurosRemaining : 120,
+      energyRemaining: Number.isFinite(p.energyRemaining) ? p.energyRemaining : 100,
+      fullnessRemaining: Number.isFinite(p.fullnessRemaining) ? p.fullnessRemaining : 85,
       totalScore: p.totalScore || 25,
       explorerRank: p.explorerRank || 'Bairro Alto Cobblestone Stroller',
-      gameOver: Boolean(p.gameOver)
+      gameOver: Boolean(p.gameOver),
+      gameOverReason: p.gameOverReason || null
     }));
   }
 
@@ -1075,6 +1078,12 @@ export function createMultiplayerServer({
         if (Number.isFinite(st.eurosRemaining)) {
           record.eurosRemaining = Math.max(0, Math.round(st.eurosRemaining * 100) / 100);
         }
+        if (Number.isFinite(st.energyRemaining)) {
+          record.energyRemaining = Math.max(0, Math.min(100, Math.round(st.energyRemaining)));
+        }
+        if (Number.isFinite(st.fullnessRemaining)) {
+          record.fullnessRemaining = Math.max(0, Math.min(100, Math.round(st.fullnessRemaining)));
+        }
         if (Number.isFinite(st.totalScore)) {
           record.totalScore = Math.max(0, Math.floor(st.totalScore));
         }
@@ -1083,6 +1092,9 @@ export function createMultiplayerServer({
         }
         if (typeof st.gameOver === 'boolean') {
           record.gameOver = st.gameOver;
+        }
+        if (st.gameOverReason === null || typeof st.gameOverReason === 'string') {
+          record.gameOverReason = st.gameOverReason ? sanitizeText(st.gameOverReason, '', 32) : null;
         }
         record.lastSeen = Date.now();
 

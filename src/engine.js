@@ -368,6 +368,7 @@ export function createInitialState() {
     walkSpeedMultiplier: 1.0,
     needsMealToRecoverSpeed: false,
     gameOver: false,
+    gameOverReason: null,
     gameOverSummary: null,
     lastExportedSummaryCard: '',
     day: 1,
@@ -633,6 +634,37 @@ export class MemoriesGameEngine {
     const totalScore = this.computePlayerScore();
     const explorerRank = this.computeExplorerRank(s.memories.length);
 
+    const walletZero = s.euros <= 0;
+    const energyZero = s.energy <= 0;
+    const fullnessZero = s.fullness <= 0;
+    const reason =
+      s.gameOverReason ||
+      (energyZero && fullnessZero
+        ? 'energy-and-fullness'
+        : energyZero
+          ? 'energy'
+          : fullnessZero
+            ? 'fullness'
+            : walletZero
+              ? 'wallet'
+              : null);
+    const title =
+      reason === 'energy-and-fullness'
+        ? 'GAME OVER - Energy & Fullness Reached 0'
+        : reason === 'energy'
+          ? 'GAME OVER - Energy Reached 0'
+          : reason === 'fullness'
+            ? 'GAME OVER - Fullness Reached 0'
+            : 'GAME OVER - Wallet Reached 0.00 EUR';
+    const reasonLabel =
+      reason === 'energy-and-fullness'
+        ? 'Energy 0 & Fullness 0'
+        : reason === 'energy'
+          ? 'Energy 0'
+          : reason === 'fullness'
+            ? 'Fullness 0'
+            : 'Wallet 0.00 EUR';
+
     const localEntry = {
       id: 'local',
       name: s.player.name || 'Traveler 1',
@@ -650,7 +682,11 @@ export class MemoriesGameEngine {
       phrasesLearned: s.learnedPhrases.length,
       postcardsCaptured: (s.postcards || []).length,
       eurosRemaining: s.euros,
-      gameOver: Boolean(s.gameOver)
+      energyRemaining: Math.round(s.energy),
+      fullnessRemaining: Math.round(s.fullness),
+      gameOver: Boolean(s.gameOver),
+      gameOverReason: reason,
+      reasonLabel
     };
 
     const peerEntries = (s.remotePlayers || []).map((rp) => {
@@ -664,6 +700,15 @@ export class MemoriesGameEngine {
       const rpScore = Number.isFinite(rp.totalScore)
         ? rp.totalScore
         : rpMemories * 100 + rpVenues * 40 + rpPhrases * 25 + rpMeals * 30 + rpSouvenirs * 35 + rpPostcards * 30;
+      const rpReason = rp.gameOverReason || null;
+      const rpReasonLabel =
+        rpReason === 'energy-and-fullness'
+          ? 'Energy 0 & Fullness 0'
+          : rpReason === 'energy'
+            ? 'Energy 0'
+            : rpReason === 'fullness'
+              ? 'Fullness 0'
+              : '0.00 EUR';
       return {
         id: rp.id,
         name: rp.name || 'Companion',
@@ -681,7 +726,11 @@ export class MemoriesGameEngine {
         phrasesLearned: rpPhrases,
         postcardsCaptured: rpPostcards,
         eurosRemaining: Number.isFinite(rp.eurosRemaining) ? rp.eurosRemaining : 120,
-        gameOver: Boolean(rp.gameOver)
+        energyRemaining: Number.isFinite(rp.energyRemaining) ? rp.energyRemaining : 100,
+        fullnessRemaining: Number.isFinite(rp.fullnessRemaining) ? rp.fullnessRemaining : 85,
+        gameOver: Boolean(rp.gameOver),
+        gameOverReason: rpReason,
+        reasonLabel: rpReasonLabel
       };
     });
 
@@ -709,14 +758,18 @@ export class MemoriesGameEngine {
     };
 
     return {
-      title: 'GAME OVER - Wallet Reached 0.00 EUR',
+      title,
       subtitle: `Your Lisboa exploration concluded on Day ${s.day} at ${formatClock(s.minutesOfDay)} in ${s.currentNeighborhoodName}.`,
+      gameOverReason: reason,
+      reasonLabel,
       explorerRank,
       totalScore,
       dayReached: s.day,
       finalClock: formatClock(s.minutesOfDay),
       finalNeighborhood: s.currentNeighborhoodName,
       eurosRemaining: s.euros,
+      energyRemaining: Math.round(s.energy),
+      fullnessRemaining: Math.round(s.fullness),
       eurosSpent: s.stats.eurosSpent,
       distanceWalkedPx: Math.round(s.stats.distanceWalkedPx),
       distanceWalkedMeters: Math.max(0, Math.round(s.stats.distanceWalkedPx / 12)),
@@ -770,7 +823,8 @@ export class MemoriesGameEngine {
     const lines = [
       '=== MEMORIES: LISBOA EXPLORATION SUMMARY CARD ===',
       `Traveler: ${this.state.player.name} (${outfit.name})`,
-      `Stroll Status: ${this.state.gameOver ? 'Game Over (Wallet 0.00 EUR)' : `Active Stroll (${sc.eurosRemaining.toFixed(2)} EUR remaining)`}`,
+      `Stroll Status: ${this.state.gameOver ? `Game Over (${sc.reasonLabel || 'Wallet 0.00 EUR'})` : `Active Stroll (${sc.eurosRemaining.toFixed(2)} EUR remaining)`}`,
+      `Vitals: Wallet ${sc.eurosRemaining.toFixed(2)} EUR | Energy ${sc.energyRemaining}/100 | Fullness ${sc.fullnessRemaining}/100`,
       `Timeline: Day ${sc.dayReached} - ${sc.finalClock} | Neighborhood: ${sc.finalNeighborhood}`,
       `Final Score: ${sc.totalScore} pts | Rank: ${sc.explorerRank}`,
       '',
@@ -789,7 +843,7 @@ export class MemoriesGameEngine {
 
     for (const p of sc.multiplayerComparison) {
       const tag = p.isLocal ? ' (YOU)' : '';
-      const statusTag = p.gameOver ? 'Wallet 0.00 EUR' : `${p.eurosRemaining.toFixed(2)} EUR`;
+      const statusTag = p.gameOver ? (p.reasonLabel || 'Wallet 0.00 EUR') : `${p.eurosRemaining.toFixed(2)} EUR`;
       lines.push(
         `#${p.standing} ${p.name}${tag} - ${p.totalScore} pts | Memories: ${p.memoriesCaptured}/${p.memoriesTotal} | Venues: ${p.venuesVisited}/${p.venuesTotal} | Meals: ${p.mealsEaten} | Keepsakes: ${p.souvenirsBought} | Rides: ${p.transitRides} | ${statusTag}`
       );
@@ -810,28 +864,75 @@ export class MemoriesGameEngine {
     return { ok: true, format: 'text', cardText, scorecard: sc };
   }
 
-  checkWalletGameOver() {
-    if (this.state.euros <= 0) {
-      this.state.euros = 0;
-      const wasGameOver = this.state.gameOver;
-      this.state.gameOver = true;
-      this.state.player.isMoving = false;
-      this.state.player.walkTarget = null;
-      this.state.player.walkQueue = [];
-      this.state.gameOverSummary = this.buildFinalScorecard();
-      if (!wasGameOver) {
-        this.state.statusMessage =
-          `GAME OVER: Your wallet reached 0.00 EUR! Final Tally: ${this.state.memories.length} / ${this.state.totalMemoriesPossible} Memories, ` +
-          `${this.state.visitedVenues.length} / ${VENUES.length} Venues, Score ${this.state.gameOverSummary.totalScore} pts.`;
-        recordLog(
-          this.state,
-          'gameover',
-          `Game Over at 0.00 EUR (${this.state.memories.length}/${this.state.totalMemoriesPossible} Memories, Score ${this.state.gameOverSummary.totalScore}).`
-        );
-      }
-      return true;
+  checkGameOver() {
+    const walletZero = this.state.euros <= 0;
+    const energyZero = this.state.energy <= 0;
+    const fullnessZero = this.state.fullness <= 0;
+
+    if (!walletZero && !energyZero && !fullnessZero) {
+      return false;
     }
-    return false;
+
+    if (walletZero) this.state.euros = 0;
+    if (energyZero) this.state.energy = 0;
+    if (fullnessZero) this.state.fullness = 0;
+
+    const wasGameOver = this.state.gameOver;
+    if (!this.state.gameOverReason) {
+      if (energyZero && fullnessZero) {
+        this.state.gameOverReason = 'energy-and-fullness';
+      } else if (energyZero) {
+        this.state.gameOverReason = 'energy';
+      } else if (fullnessZero) {
+        this.state.gameOverReason = 'fullness';
+      } else {
+        this.state.gameOverReason = 'wallet';
+      }
+    } else if (
+      energyZero &&
+      fullnessZero &&
+      (this.state.gameOverReason === 'energy' || this.state.gameOverReason === 'fullness')
+    ) {
+      this.state.gameOverReason = 'energy-and-fullness';
+    }
+
+    this.state.gameOver = true;
+    this.state.player.isMoving = false;
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.gameOverSummary = this.buildFinalScorecard();
+
+    if (!wasGameOver) {
+      const reasonMsg =
+        this.state.gameOverReason === 'energy-and-fullness'
+          ? 'Your energy and fullness reached 0!'
+          : this.state.gameOverReason === 'energy'
+            ? 'Your energy reached 0!'
+            : this.state.gameOverReason === 'fullness'
+              ? 'Your fullness reached 0!'
+              : 'Your wallet reached 0.00 EUR!';
+      const logReason =
+        this.state.gameOverReason === 'energy-and-fullness'
+          ? 'Energy 0 & Fullness 0'
+          : this.state.gameOverReason === 'energy'
+            ? '0 Energy'
+            : this.state.gameOverReason === 'fullness'
+              ? '0 Fullness'
+              : '0.00 EUR';
+      this.state.statusMessage =
+        `GAME OVER: ${reasonMsg} Final Tally: ${this.state.memories.length} / ${this.state.totalMemoriesPossible} Memories, ` +
+        `${this.state.visitedVenues.length} / ${VENUES.length} Venues, Score ${this.state.gameOverSummary.totalScore} pts.`;
+      recordLog(
+        this.state,
+        'gameover',
+        `Game Over at ${logReason} (${this.state.memories.length}/${this.state.totalMemoriesPossible} Memories, Score ${this.state.gameOverSummary.totalScore}).`
+      );
+    }
+    return true;
+  }
+
+  checkWalletGameOver() {
+    return this.checkGameOver();
   }
 
   emitTransitIntent(payload) {
@@ -1331,9 +1432,12 @@ export class MemoriesGameEngine {
         phrasesLearned: Number.isFinite(raw.phrasesLearned) ? raw.phrasesLearned : (prev?.phrasesLearned || 1),
         postcardsCaptured: Number.isFinite(raw.postcardsCaptured) ? raw.postcardsCaptured : (prev?.postcardsCaptured || 0),
         eurosRemaining: Number.isFinite(raw.eurosRemaining) ? raw.eurosRemaining : (prev?.eurosRemaining ?? 120),
+        energyRemaining: Number.isFinite(raw.energyRemaining) ? raw.energyRemaining : (prev?.energyRemaining ?? 100),
+        fullnessRemaining: Number.isFinite(raw.fullnessRemaining) ? raw.fullnessRemaining : (prev?.fullnessRemaining ?? 85),
         totalScore: Number.isFinite(raw.totalScore) ? raw.totalScore : (prev?.totalScore || 25),
         explorerRank: typeof raw.explorerRank === 'string' && raw.explorerRank ? raw.explorerRank : (prev?.explorerRank || 'Bairro Alto Cobblestone Stroller'),
-        gameOver: typeof raw.gameOver === 'boolean' ? raw.gameOver : Boolean(prev?.gameOver)
+        gameOver: typeof raw.gameOver === 'boolean' ? raw.gameOver : Boolean(prev?.gameOver),
+        gameOverReason: typeof raw.gameOverReason === 'string' ? raw.gameOverReason : (prev?.gameOverReason || null)
       };
     });
     if (this.state.gameOver) {
@@ -1398,9 +1502,12 @@ export class MemoriesGameEngine {
       phrasesLearned: s.learnedPhrases.length,
       postcardsCaptured: (s.postcards || []).length,
       eurosRemaining: s.euros,
+      energyRemaining: Math.round(s.energy),
+      fullnessRemaining: Math.round(s.fullness),
       totalScore: this.computePlayerScore(),
       explorerRank: this.computeExplorerRank(s.memories.length),
-      gameOver: Boolean(s.gameOver)
+      gameOver: Boolean(s.gameOver),
+      gameOverReason: s.gameOverReason || null
     };
   }
 
@@ -2088,6 +2195,9 @@ export class MemoriesGameEngine {
         this.state.energy = clamp(this.state.energy - (movedDist / 100) * 1.15, 0, 100);
         this.state.fullness = clamp(this.state.fullness - (movedDist / 100) * 0.85, 0, 100);
         this.computeWalkSpeedMultiplier();
+        if (this.checkGameOver()) {
+          return;
+        }
         if (!wasCritLow && this.state.needsMealToRecoverSpeed) {
           this.state.statusMessage =
             'Your energy is critically low! You are moving very slowly until you eat a meal at a bakery, cafe, or restaurant.';
@@ -2512,6 +2622,7 @@ export class MemoriesGameEngine {
       this.movePlayerByInput(input.x || 0, input.y || 0, dt);
     }
 
+    this.checkGameOver();
     return this.state;
   }
 
