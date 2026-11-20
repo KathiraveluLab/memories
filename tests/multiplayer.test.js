@@ -129,7 +129,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
     const streamB = await openSseStream(port, joinB.player.id);
 
     try {
-      const snapA = await streamA.waitFor((evt) => evt.players.length === 2);
+      const snapA = await streamA.waitFor((evt) => evt.players?.length === 2);
       assert.equal(snapA.players.length, 2);
 
       // 4. Both players move independently across Lisboa and enter different venues
@@ -152,7 +152,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       });
 
       const evtOnB = await streamB.waitFor((evt) => {
-        const alice = evt.players.find((p) => p.id === joinA.player.id);
+        const alice = evt.players?.find((p) => p.id === joinA.player.id);
         return alice && alice.mode === 'interior' && alice.currentVenueId === 'casa-da-rosa' && alice.emoteText === 'Ola!';
       });
       const aliceSeenByB = evtOnB.players.find((p) => p.id === joinA.player.id);
@@ -180,7 +180,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       });
 
       const evtOnA = await streamA.waitFor((evt) => {
-        const bruno = evt.players.find((p) => p.id === joinB.player.id);
+        const bruno = evt.players?.find((p) => p.id === joinB.player.id);
         return bruno && bruno.x === 1955 && bruno.outfitId === 'bohemian-poncho';
       });
       const brunoSeenByA = evtOnA.players.find((p) => p.id === joinB.player.id);
@@ -276,6 +276,38 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
         ferryOnB.transit.ferries.some((f) => f.routeId === 'cacilhas' && f.phase === 'sailing')
       );
 
+      // 4d. Server-Authoritative Ambient Villagers & Ferry-Mode Remote Players stay synchronized across clients!
+      assert.ok(Array.isArray(joinA.transit.npcs) && joinA.transit.npcs.length === 6);
+      const initialNpc1X = joinA.transit.npcs.find((n) => n.id === 'npc-1').x;
+      const movedNpcEvt = await streamA.waitFor(
+        (evt) => evt.transit?.npcs?.some((n) => n.id === 'npc-1' && n.x !== initialNpc1X)
+      );
+      assert.ok(movedNpcEvt.transit.npcs.length === 6);
+
+      // Sync Alice across the Tagus in Cacilhas -> Bruno receives Alice's exact ferry port & phase!
+      await fetch(`${baseUrl}/api/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          state: {
+            x: 155,
+            y: 186,
+            facing: 'up',
+            isMoving: false,
+            mode: 'ferry',
+            ferryPortId: 'cacilhas',
+            ferryPhase: 'terminal',
+            neighborhoodName: 'Cacilhas'
+          }
+        })
+      });
+      const aliceAtCacilhasOnB = await streamB.waitFor((evt) => {
+        const alice = evt.players?.find((p) => p.id === joinA.player.id);
+        return alice && alice.mode === 'ferry' && alice.ferryPortId === 'cacilhas' && alice.ferryPhase === 'terminal';
+      });
+      assert.equal(aliceAtCacilhasOnB.players.find((p) => p.id === joinA.player.id).ferryPortId, 'cacilhas');
+
       // 5. Bruno leaves cleanly -> Alice immediately receives 1-player roster
       await fetch(`${baseUrl}/api/leave`, {
         method: 'POST',
@@ -283,7 +315,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
         body: JSON.stringify({ playerId: joinB.player.id })
       });
 
-      const afterLeave = await streamA.waitFor((evt) => evt.players.length === 1);
+      const afterLeave = await streamA.waitFor((evt) => evt.players?.length === 1);
       assert.equal(afterLeave.players[0].id, joinA.player.id);
     } finally {
       streamA.close();

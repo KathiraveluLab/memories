@@ -531,6 +531,7 @@ function renderActiveContextPanel(state) {
     ferryPort: state.ferry?.portId || null,
     ferryPhase: state.ferry?.phase || null,
     ferryTo: state.ferry?.toPortId || null,
+    activeSouthBankSpotId: state.activeSouthBankSpotId || null,
     fadoTrackId: soundEngine.getCurrentFadoTrack()?.id || null,
     ridingId: riding?.id || null,
     stopId: riding?.currentStopId || null,
@@ -636,13 +637,21 @@ function renderActiveContextPanel(state) {
         ? FERRY_TERMINAL.shortName
         : (FERRY_DESTINATIONS.find((d) => d.id === f.toPortId)?.name || 'South Bank');
 
-    const southBankTownHtml =
+    const orderedSpots =
       !isLisbon && !isSailing && curDest && Array.isArray(curDest.townSpots)
-        ? curDest.townSpots
+        ? [...curDest.townSpots].sort((a, b) =>
+          a.id === state.activeSouthBankSpotId ? -1 : b.id === state.activeSouthBankSpotId ? 1 : 0
+        )
+        : [];
+    const southBankTownHtml =
+      orderedSpots.length > 0
+        ? orderedSpots
           .map((spot) => {
+            const isSelected = spot.id === state.activeSouthBankSpotId;
+            const hiStyle = isSelected ? ' style="border-color:#d97706;background:#fffbeb;"' : '';
             if (spot.kind === 'landmark') {
               return `
-                  <div class="item-card">
+                  <div class="item-card"${hiStyle}>
                     <div>
                       <h4>${escapeHtml(spot.name)} <span class="badge-muted">${escapeHtml(spot.badge)}</span></h4>
                       <div class="item-meta">${escapeHtml(spot.note)}</div>
@@ -654,16 +663,16 @@ function renderActiveContextPanel(state) {
                 `;
             }
             const itemsRows = (spot.items || [])
-              .map((item) => {
+              .map((item, idx) => {
                 const okFunds = state.euros >= item.costEur;
                 const fx =
                   item.kind === 'food'
                     ? `+${item.fullnessDelta} Fullness, +${item.energyDelta} Energy`
                     : `Satchel Keepsake, +${item.energyDelta} Energy`;
                 return `
-                    <div class="item-card">
+                    <div class="item-card"${hiStyle}>
                       <div>
-                        <h4>${escapeHtml(item.name)} <span class="badge-muted">${escapeHtml(spot.name)}</span></h4>
+                        <h4>${isSelected ? `[${idx + 1}] ` : ''}${escapeHtml(item.name)} <span class="badge-muted">${escapeHtml(spot.name)}</span></h4>
                         <div class="item-meta">${escapeHtml(item.description)}</div>
                         <div class="item-meta"><strong>${item.costEur.toFixed(2)} EUR</strong> | ${escapeHtml(fx)}</div>
                       </div>
@@ -1388,12 +1397,27 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyE' || event.code === 'Space') {
     if (!event.repeat) {
       const res = engine.triggerNearbyInteraction();
-      if (res && !res.ok && res.error) {
+      if (res && res.ok && res.feedback) {
+        soundEngine.playEffect('door');
+      } else if (res && !res.ok && res.error) {
         setStatusBanner(res.error, true);
       }
       refreshUi(true);
     }
     return;
+  }
+  if (event.code === 'Digit1' || event.code === 'Digit2') {
+    if (!event.repeat && engine.getState().mode === 'ferry' && engine.getState().ferry.phase === 'terminal') {
+      const idx = event.code === 'Digit1' ? 0 : 1;
+      const res = engine.purchaseActiveSouthBankItemByIndex(idx);
+      if (res && res.ok) {
+        soundEngine.playEffect('register');
+      } else if (res && !res.ok && res.error) {
+        setStatusBanner(res.error, true);
+      }
+      refreshUi(true);
+      return;
+    }
   }
   if (event.code === 'Escape') {
     if (engine.getState().mode === 'interior') {

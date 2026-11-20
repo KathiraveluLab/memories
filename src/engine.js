@@ -409,6 +409,8 @@ export function createInitialState() {
       waveOffset: 0
     },
     visitedFerryPorts: [],
+    activeSouthBankSpotId: null,
+    southBankFeedback: null,
     busScrollOffset: 0,
     tramScrollOffset: 0,
     transitAnnouncement: null,
@@ -553,6 +555,23 @@ export class MemoriesGameEngine {
         }
       }
     }
+
+    // 4. Authoritative Ambient Lisboa Background Villagers (strictly synced across all connected computers!)
+    if (Array.isArray(transit.npcs)) {
+      for (const sn of transit.npcs) {
+        const localNpc = this.state.npcs.find((n) => n.id === sn.id);
+        if (!localNpc) continue;
+        localNpc.targetX = sn.x;
+        localNpc.targetY = sn.y;
+        const jumpDist = Math.hypot((sn.x ?? localNpc.x) - localNpc.x, (sn.y ?? localNpc.y) - localNpc.y);
+        if (!wasSynced || jumpDist > 90) {
+          localNpc.x = sn.x;
+          localNpc.y = sn.y;
+        }
+        localNpc.dir = sn.dir === -1 ? -1 : 1;
+        localNpc.isMoving = Boolean(sn.isMoving);
+      }
+    }
   }
 
   clearGlobalTransit() {
@@ -672,7 +691,8 @@ export class MemoriesGameEngine {
         prev &&
         prev.mode === (raw.mode || 'overworld') &&
         prev.currentVenueId === (raw.currentVenueId || null) &&
-        prev.metroStationId === (raw.metroStationId || null);
+        prev.metroStationId === (raw.metroStationId || null) &&
+        prev.ferryPortId === (raw.ferryPortId || null);
       const targetX = Number.isFinite(raw.x) ? raw.x : 950;
       const targetY = Number.isFinite(raw.y) ? raw.y : 544;
       const outfitId = PLAYER_OUTFITS.some((o) => o.id === raw.outfitId)
@@ -694,6 +714,8 @@ export class MemoriesGameEngine {
         currentVenueId: raw.currentVenueId || null,
         metroStationId: raw.metroStationId || null,
         metroPhase: raw.metroPhase || null,
+        ferryPortId: raw.ferryPortId || null,
+        ferryPhase: raw.ferryPhase || null,
         ridingVehicleId: raw.ridingVehicleId || null,
         neighborhoodName: raw.neighborhoodName || 'Chiado',
         emoteText: typeof raw.emoteText === 'string' ? raw.emoteText : ''
@@ -1035,6 +1057,32 @@ export class MemoriesGameEngine {
   }
 
   updateNpcs(dt) {
+    if (this.globalTransitSynced) {
+      // Smoothly interpolate all 6 ambient Lisbon locals toward the central server's authoritative sidewalk positions
+      const alpha = Math.min(1, dt * 12);
+      for (const npc of this.state.npcs) {
+        if (Number.isFinite(npc.targetX) && Number.isFinite(npc.targetY)) {
+          const dx = npc.targetX - npc.x;
+          const dy = npc.targetY - npc.y;
+          const d = Math.hypot(dx, dy);
+          if (d > 90) {
+            npc.x = npc.targetX;
+            npc.y = npc.targetY;
+          } else if (d > 0.2) {
+            npc.x += dx * alpha;
+            npc.y += dy * alpha;
+          } else {
+            npc.x = npc.targetX;
+            npc.y = npc.targetY;
+          }
+          if (npc.isMoving || d > 0.5) {
+            npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+          }
+        }
+      }
+      return;
+    }
+
     const passClearance = 17.0; // Clean shoulder-to-shoulder passing clearance on 35-38px Lisbon sidewalks
     const preferredGap = 24.0; // Comfortable berth when full sidewalk width is open
     const lookahead = 54.0; // Start curving around blocking people well before colliding
@@ -1727,6 +1775,12 @@ export class MemoriesGameEngine {
     }
 
     if (this.state.mode === 'ferry') {
+      if (this.state.southBankFeedback && this.state.southBankFeedback.timer > 0) {
+        this.state.southBankFeedback.timer = Math.max(0, this.state.southBankFeedback.timer - dt);
+        if (this.state.southBankFeedback.timer === 0) {
+          this.state.southBankFeedback = null;
+        }
+      }
       this.updateFerrySimulation(dt);
       if (this.state.mode === 'ferry' && this.state.ferry.phase === 'terminal') {
         this.movePlayerByInput(input.x || 0, input.y || 0, dt);
@@ -1862,27 +1916,8 @@ export class MemoriesGameEngine {
           sublabel: 'Press [E] or walk up to return to Avenida Ribeira'
         };
       }
-      // On South-Bank waterfront towns (Cacilhas, Seixal, Montijo), interact with eateries, landmarks & shops!
-      if (curDest && Array.isArray(curDest.townSpots)) {
-        for (const spot of curDest.townSpots) {
-          if (distance(px, py, spot.x, spot.y) <= 74) {
-            return {
-              type: 'south-bank-spot',
-              spotId: spot.id,
-              spot,
-              label:
-                spot.kind === 'landmark'
-                  ? `Visit ${spot.name}`
-                  : `Browse ${spot.name} ${spot.badge}`,
-              sublabel:
-                spot.kind === 'landmark'
-                  ? 'Press [E] to rest (+25 Energy) and read local Tagus history'
-                  : `Host: ${spot.host} - Press [E] to chat or order from the ${curDest.shortName} panel`
-            };
-          }
-        }
-      }
-      if (py >= 236 && Math.abs(px - 380) <= FERRY_PIER_ZONES.gangwayHalfWidth) {
+      // Prioritize boarding gangway cleanly when standing near the yellow quay curb (never hijacked by center landmark!)
+      if (py >= 238 && Math.abs(px - 380) <= FERRY_PIER_ZONES.gangwayHalfWidth) {
         if (f.portId === FERRY_TERMINAL.id) {
           return {
             type: 'ferry-board',
@@ -1897,6 +1932,33 @@ export class MemoriesGameEngine {
           label: `Return Ferry from ${curDest ? curDest.shortName : 'South Bank'} -> Cais do Sodre`,
           sublabel: 'Press [E] to sail back across the Tagus to Lisbon'
         };
+      }
+      // On South-Bank waterfront towns (Cacilhas, Seixal, Montijo), pick the nearest eatery, landmark, or shop!
+      if (curDest && Array.isArray(curDest.townSpots)) {
+        let bestSpot = null;
+        let bestDist = 78;
+        for (const spot of curDest.townSpots) {
+          const d = distance(px, py, spot.x, Math.min(spot.y, 184));
+          if (d <= bestDist) {
+            bestDist = d;
+            bestSpot = spot;
+          }
+        }
+        if (bestSpot) {
+          return {
+            type: 'south-bank-spot',
+            spotId: bestSpot.id,
+            spot: bestSpot,
+            label:
+              bestSpot.kind === 'landmark'
+                ? `Explore ${bestSpot.name}`
+                : `Explore ${bestSpot.name} ${bestSpot.badge}`,
+            sublabel:
+              bestSpot.kind === 'landmark'
+                ? 'Press [E] to rest (+25 Energy) and view Tagus south-bank postcard'
+                : `Host: ${bestSpot.host} - Press [E] to open menu & chat (then [1] or [2] to order/buy)`
+          };
+        }
       }
       return null;
     }
@@ -2166,6 +2228,8 @@ export class MemoriesGameEngine {
     this.advanceMinutes(routeDef.travelMinutes);
 
     this.state.mode = 'ferry';
+    this.state.activeSouthBankSpotId = null;
+    this.state.southBankFeedback = null;
     this.state.player.walkTarget = null;
     this.state.player.walkQueue = [];
     this.state.player.isMoving = false;
@@ -2227,6 +2291,8 @@ export class MemoriesGameEngine {
     }
 
     this.state.mode = 'overworld';
+    this.state.activeSouthBankSpotId = null;
+    this.state.southBankFeedback = null;
     this.doorEntryCooldown = 0.55;
     this.state.ferry.phase = null;
     this.state.ferry.portId = null;
@@ -2255,16 +2321,64 @@ export class MemoriesGameEngine {
     if (!dest || !spot) {
       return { ok: false, error: 'South-bank location not found.' };
     }
+    this.state.activeSouthBankSpotId = spot.id;
+    this.announcementSeq += 1;
+
     if (spot.kind === 'landmark') {
+      const before = this.state.energy;
       this.state.energy = clamp(this.state.energy + 25, 0, 100);
+      const gained = Math.round(this.state.energy - before);
       this.state.stats.restsTaken += 1;
       this.advanceMinutes(15);
-      this.state.statusMessage = `Rested at ${spot.name} in ${dest.shortName} (+25 Energy). ${spot.note}`;
+      this.state.statusMessage = `Explored ${spot.name} in ${dest.shortName} (+25 Energy restored). ${spot.note}`;
+      this.state.southBankFeedback = {
+        id: this.announcementSeq,
+        spotId: spot.id,
+        title: `${spot.name} (${dest.shortName})`,
+        speaker: spot.host,
+        badge: spot.badge,
+        text: spot.note,
+        actionHint: gained > 0
+          ? `Sea-breeze rest complete (+${gained} Energy -> ${Math.round(this.state.energy)}/100)`
+          : `Refreshed at full Energy (${Math.round(this.state.energy)}/100) overlooking the Tagus`,
+        timer: 7.5
+      };
       recordLog(this.state, 'rest', `Visited ${spot.name} across the Tagus in ${dest.shortName} (+25 Energy).`);
     } else {
-      this.state.statusMessage = `${spot.host} at ${spot.name} (${dest.shortName}): "${spot.note}"`;
+      const menuLine = (spot.items || [])
+        .map((it, idx) => `[${idx + 1}] ${it.name} (${it.costEur.toFixed(2)} EUR)`)
+        .join('   |   ');
+      this.state.statusMessage = `${spot.host} at ${spot.name} (${dest.shortName}): "${spot.note}" Press [1] or [2] to order/buy, or use the right panel.`;
+      this.state.southBankFeedback = {
+        id: this.announcementSeq,
+        spotId: spot.id,
+        title: `${spot.name}  -  Host: ${spot.host}`,
+        speaker: spot.host,
+        badge: spot.badge,
+        text: spot.note,
+        actionHint: menuLine ? `Quick Order: ${menuLine}` : 'Browse items in the right panel',
+        timer: 8.5
+      };
+      recordLog(this.state, 'venue', `Explored ${spot.name} across the Tagus in ${dest.shortName}.`);
     }
-    return { ok: true, dest, spot, state: this.state };
+    return { ok: true, dest, spot, feedback: this.state.southBankFeedback, state: this.state };
+  }
+
+  purchaseActiveSouthBankItemByIndex(itemIndex) {
+    if (this.state.mode !== 'ferry' || this.state.ferry.phase !== 'terminal') {
+      return { ok: false, error: 'Explore a south-bank eatery or shop first.' };
+    }
+    const dest = getFerryDestinationById(this.state.ferry.portId);
+    const nearby = this.getNearbyInteraction();
+    const spotId =
+      this.state.activeSouthBankSpotId ||
+      (nearby?.type === 'south-bank-spot' ? nearby.spotId : null);
+    const spot = dest?.townSpots?.find((s) => s.id === spotId);
+    const item = spot?.items?.[itemIndex];
+    if (!spot || !item) {
+      return { ok: false, error: 'No menu item selected at this south-bank spot.' };
+    }
+    return this.purchaseSouthBankItem(spot.id, item.id);
   }
 
   purchaseSouthBankItem(spotId, itemId) {

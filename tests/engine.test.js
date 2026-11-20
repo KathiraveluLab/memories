@@ -487,28 +487,58 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
     assert.equal(state.ferry.phase, 'terminal');
     assert.equal(state.ferry.portId, dest.id);
 
-    // Explore the south-bank townscape: visit landmark (+25 Energy), order regional dish, and buy local keepsake
+    // Explore the south-bank townscape using [E] (triggerNearbyInteraction) at eatery, landmark, shop & return ferry gangway!
     const landmark = dest.townSpots.find((s) => s.kind === 'landmark');
     const eatery = dest.townSpots.find((s) => s.kind === 'eatery');
     const shop = dest.townSpots.find((s) => s.kind === 'shop');
 
-    state.energy = 60;
-    const restLandmarkRes = engine.interactWithSouthBankSpot(landmark.id);
-    assert.equal(restLandmarkRes.ok, true);
-    assert.equal(state.energy, 85);
-
+    // 1. Walk to eatery and press [E] -> opens feedback card, selects spot, and quick-orders dish via [1]
+    state.player.x = eatery.x;
+    state.player.y = 186;
+    const nearbyEatery = engine.getNearbyInteraction();
+    assert.equal(nearbyEatery.type, 'south-bank-spot');
+    assert.equal(nearbyEatery.spotId, eatery.id);
+    const eEateryRes = engine.triggerNearbyInteraction();
+    assert.equal(eEateryRes.ok, true);
+    assert.equal(state.activeSouthBankSpotId, eatery.id);
+    assert.ok(state.southBankFeedback && state.southBankFeedback.spotId === eatery.id);
     const dish = eatery.items[0];
-    const orderSbRes = engine.purchaseSouthBankItem(eatery.id, dish.id);
+    const orderSbRes = engine.purchaseActiveSouthBankItemByIndex(0);
     assert.equal(orderSbRes.ok, true);
     assert.ok(state.tastedFoods.some((f) => f.id === dish.id));
 
+    // 2. Walk to center landmark and press [E] -> restores +25 Energy & shows landmark postcard card
+    state.player.x = landmark.x;
+    state.player.y = 186;
+    state.energy = 60;
+    const nearbyLandmark = engine.getNearbyInteraction();
+    assert.equal(nearbyLandmark.type, 'south-bank-spot');
+    assert.equal(nearbyLandmark.spotId, landmark.id);
+    const restLandmarkRes = engine.triggerNearbyInteraction();
+    assert.equal(restLandmarkRes.ok, true);
+    assert.equal(state.energy, 85);
+    assert.ok(state.southBankFeedback && state.southBankFeedback.spotId === landmark.id);
+
+    // 3. Walk to right shop and press [E] -> selects shop & buys souvenir keepsake
+    state.player.x = shop.x;
+    state.player.y = 186;
+    const eShopRes = engine.triggerNearbyInteraction();
+    assert.equal(eShopRes.ok, true);
+    assert.equal(state.activeSouthBankSpotId, shop.id);
     const keepsake = shop.items.find((i) => i.kind === 'souvenir') || shop.items[0];
     const buySbRes = engine.purchaseSouthBankItem(shop.id, keepsake.id);
     assert.equal(buySbRes.ok, true);
     assert.ok(state.satchel.some((s) => s.id === keepsake.id));
 
-    const sailBack = engine.boardFerry('cais-do-sodre');
+    // 4. Walk to return ferry gangway (380, 255) and press [E] -> MUST board return ferry (never hijacked by center landmark!)
+    state.player.x = 380;
+    state.player.y = 255;
+    const nearbyReturn = engine.getNearbyInteraction();
+    assert.equal(nearbyReturn.type, 'ferry-board');
+    assert.equal(nearbyReturn.targetPortId, 'cais-do-sodre');
+    const sailBack = engine.triggerNearbyInteraction();
     assert.equal(sailBack.ok, true);
+    assert.equal(state.ferry.phase, 'sailing');
     for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
     assert.equal(state.ferry.portId, 'cais-do-sodre');
   }

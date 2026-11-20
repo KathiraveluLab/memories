@@ -10,8 +10,10 @@ import {
   TRANSIT_LINES,
   METRO_STATIONS,
   FERRY_TERMINAL,
-  FERRY_DESTINATIONS
+  FERRY_DESTINATIONS,
+  AMBIENT_NPCS
 } from './src/data.js';
+import { isPointOnSidewalk } from './src/engine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,6 +208,130 @@ export function createMultiplayerServer({
     dwellRemaining: 6.0
   }));
 
+  // Authoritative server-owned Ambient Lisboa Villagers patrolling strictly on sidewalks
+  const sharedNpcs = AMBIENT_NPCS.map((npc) => ({
+    ...npc,
+    homeX: npc.x,
+    homeY: npc.y,
+    dir: 1,
+    walkPhase: 0,
+    isMoving: true,
+    avoidSide: 0
+  }));
+
+  function getServerSidewalkSpanY(x, refY) {
+    const base = Math.round(refY);
+    let minY = base;
+    let maxY = base;
+    while (minY > base - 50 && isPointOnSidewalk(x, minY - 1)) minY -= 1;
+    while (maxY < base + 50 && isPointOnSidewalk(x, maxY + 1)) maxY += 1;
+    return { minY, maxY };
+  }
+
+  function stepServerNpcs(dt) {
+    const passClearance = 17.0;
+    const preferredGap = 24.0;
+    const lookahead = 54.0;
+    const clampVal = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+    for (const npc of sharedNpcs) {
+      const step = npc.speed * dt;
+      const pedestrians = [];
+      for (const p of players.values()) {
+        if (p.mode === 'overworld' && !p.ridingVehicleId) {
+          pedestrians.push({ x: p.x, y: p.y });
+        }
+      }
+      for (const other of sharedNpcs) {
+        if (other.id !== npc.id) pedestrians.push({ x: other.x, y: other.y });
+      }
+
+      const isClear = (cx, cy, minSep) => {
+        if (!isPointOnSidewalk(cx, cy)) return false;
+        for (const p of pedestrians) {
+          const nextD = Math.hypot(cx - p.x, cy - p.y);
+          if (nextD < minSep) {
+            const curD = Math.hypot(npc.x - p.x, npc.y - p.y);
+            if (curD < minSep && nextD > curD + 0.05) continue;
+            return false;
+          }
+        }
+        return true;
+      };
+
+      if (npc.x >= npc.max && npc.dir > 0) npc.dir = -1;
+      else if (npc.x <= npc.min && npc.dir < 0) npc.dir = 1;
+
+      let blocker = null;
+      let bestAlong = Infinity;
+      for (const p of pedestrians) {
+        const along = (p.x - npc.x) * npc.dir;
+        if (along > -20 && along < lookahead && Math.abs(p.y - npc.y) < preferredGap - 1) {
+          if (along < bestAlong) {
+            bestAlong = along;
+            blocker = p;
+          }
+        }
+      }
+
+      if (blocker) {
+        const curSpan = getServerSidewalkSpanY(npc.x, npc.y);
+        const passSpan = getServerSidewalkSpanY(clampVal(blocker.x, npc.min, npc.max), npc.y);
+        const sMin = Math.max(curSpan.minY, passSpan.minY);
+        const sMax = Math.min(curSpan.maxY, passSpan.maxY);
+        const useMin = sMax - sMin >= passClearance ? sMin : curSpan.minY;
+        const useMax = sMax - sMin >= passClearance ? sMax : curSpan.maxY;
+        const spaceUp = blocker.y - useMin;
+        const spaceDown = useMax - blocker.y;
+        if (!npc.avoidSide) npc.avoidSide = spaceDown >= spaceUp ? 1 : -1;
+        else if (npc.avoidSide === 1 && spaceDown < passClearance && spaceUp >= passClearance) npc.avoidSide = -1;
+        else if (npc.avoidSide === -1 && spaceUp < passClearance && spaceDown >= passClearance) npc.avoidSide = 1;
+
+        const desiredY = npc.avoidSide > 0
+          ? Math.min(useMax, blocker.y + preferredGap)
+          : Math.max(useMin, blocker.y - preferredGap);
+        const dyNeed = desiredY - npc.y;
+        const latMove = Math.sign(dyNeed) * Math.min(Math.abs(dyNeed), Math.max(step * 1.65, 2.2));
+        const nextY = clampVal(npc.y + latMove, useMin, useMax);
+        const nextX = clampVal(npc.x + step * npc.dir, npc.min, npc.max);
+        const halfX = clampVal(npc.x + step * 0.55 * npc.dir, npc.min, npc.max);
+
+        let moved = false;
+        for (const c of [{ x: nextX, y: nextY }, { x: halfX, y: nextY }, { x: npc.x, y: nextY }, { x: nextX, y: npc.y }]) {
+          if (isClear(c.x, c.y, passClearance)) {
+            npc.x = c.x;
+            npc.y = c.y;
+            npc.isMoving = true;
+            npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+            moved = true;
+            break;
+          }
+        }
+        if (!moved) npc.isMoving = false;
+        continue;
+      }
+
+      npc.avoidSide = 0;
+      const targetX = clampVal(npc.x + step * npc.dir, npc.min, npc.max);
+      let targetY = npc.y;
+      const homeDy = npc.homeY - npc.y;
+      if (Math.abs(homeDy) > 0.4) {
+        const driftY = npc.y + clampVal(homeDy, -step * 0.8, step * 0.8);
+        if (isClear(targetX, driftY, preferredGap)) targetY = driftY;
+      }
+      if (isClear(targetX, targetY, passClearance)) {
+        npc.x = targetX;
+        npc.y = targetY;
+        npc.isMoving = true;
+        npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+        if (npc.x >= npc.max) npc.dir = -1;
+        else if (npc.x <= npc.min) npc.dir = 1;
+      } else {
+        npc.isMoving = false;
+      }
+    }
+  }
+
   function shouldServerVehicleYield(vehicle, nextHeading) {
     const cos = Math.cos(nextHeading);
     const sin = Math.sin(nextHeading);
@@ -326,6 +452,9 @@ export function createMultiplayerServer({
         }
       }
     }
+
+    // 4. Shared Ambient Lisboa Sidewalk Villagers
+    stepServerNpcs(dt);
   }
 
   function getTransitSnapshot() {
@@ -364,6 +493,14 @@ export function createMultiplayerServer({
         progress: Math.round(f.progress * 1000) / 1000,
         sailDuration: f.sailDuration,
         dwellRemaining: Math.round(f.dwellRemaining * 100) / 100
+      })),
+      npcs: sharedNpcs.map((n) => ({
+        id: n.id,
+        x: Math.round(n.x * 10) / 10,
+        y: Math.round(n.y * 10) / 10,
+        dir: n.dir,
+        walkPhase: Math.round(n.walkPhase * 100) / 100,
+        isMoving: n.isMoving
       }))
     };
   }

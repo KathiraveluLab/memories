@@ -207,9 +207,11 @@ export class LisboaCanvasRenderer {
     } else if (state.mode === 'ferry') {
       if (state.viewMode === 'street3d') {
         this.scenes3d.renderFerry3D(ctx, state, nearbyInteraction, this.animTime);
+        if (state.southBankFeedback) this.drawSouthBankFeedbackCard(ctx, state.southBankFeedback);
         if (nearbyInteraction) this.drawInteractionBanner(ctx, nearbyInteraction);
       } else {
         this.renderFerry(ctx, state, nearbyInteraction);
+        if (state.southBankFeedback) this.drawSouthBankFeedbackCard(ctx, state.southBankFeedback);
       }
     } else if (state.ridingVehicleId === 'bus-737-758') {
       this.renderBusInteriorView(ctx, state, nearbyInteraction);
@@ -6147,6 +6149,36 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    ctx.restore();
+  }
+
+  drawSouthBankFeedbackCard(ctx, fb) {
+    if (!fb) return;
+    ctx.save();
+    const w = 720;
+    const h = 76;
+    const x = Math.round((this.viewWidth - w) / 2);
+    const y = 414;
+    drawRoundedRect(ctx, x, y, w, h, 9);
+    ctx.fillStyle = 'rgba(12, 31, 48, 0.94)';
+    ctx.fill();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fde047';
+    ctx.font = '700 12.5px Georgia, serif';
+    ctx.fillText(fb.title, this.viewWidth / 2, y + 21);
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = '500 10.5px "Segoe UI", sans-serif';
+    const clippedNote = fb.text.length > 106 ? `${fb.text.slice(0, 103)}...` : fb.text;
+    ctx.fillText(clippedNote, this.viewWidth / 2, y + 41);
+
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = '700 10.5px "Segoe UI", sans-serif';
+    ctx.fillText(fb.actionHint || '', this.viewWidth / 2, y + 61);
     ctx.restore();
   }
 
