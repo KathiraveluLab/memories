@@ -34,8 +34,8 @@ export const PERSON_SEPARATION_DIST = PLAYER_RADIUS * 2 + 2;
 export const VEHICLE_HALF_LEN = 38;
 export const VEHICLE_HALF_WIDTH = 17;
 export const VEHICLE_BRAKE_LOOKAHEAD = 76;
-export const BASE_WALK_SPEED = 96;
-export const INTERIOR_WALK_SPEED = 105;
+export const BASE_WALK_SPEED = 64;
+export const INTERIOR_WALK_SPEED = 76;
 export const INTERACT_DISTANCE = 76;
 
 const VENUE_MAP = new Map(VENUES.map((v) => [v.id, v]));
@@ -185,6 +185,16 @@ export function isPointInVehicleLane(px, py) {
   return false;
 }
 
+export function isPointOnSidewalk(px, py) {
+  if (isPointInVehicleLane(px, py)) return false;
+  if (!isOverworldPositionValid(px, py, PLAYER_RADIUS)) return false;
+  // Exclude center lanes of horizontal streets (allow stone sidewalks & curb aprons)
+  if (py > 246 && py < 326) return false;
+  if (py > 570 && py < 650) return false;
+  if (py > 892 && py < 972) return false;
+  return true;
+}
+
 export function isOverworldPositionValid(x, y, radius = PLAYER_RADIUS) {
   if (x < 40 + radius || x > WORLD_WIDTH - 40 - radius) return false;
   if (y < 42 + radius || y > WATERFRONT_Y - 12 - radius) return false;
@@ -286,9 +296,12 @@ function createInitialVehicles() {
 function createInitialNpcs() {
   return AMBIENT_NPCS.map((npc) => ({
     ...npc,
+    homeX: npc.x,
+    homeY: npc.y,
     dir: 1,
     walkPhase: 0,
-    isMoving: true
+    isMoving: true,
+    blockedTime: 0
   }));
 }
 
@@ -393,6 +406,8 @@ export function createInitialState() {
     },
     visitedFerryPorts: [],
     busScrollOffset: 0,
+    tramScrollOffset: 0,
+    transitAnnouncement: null,
     ridingVehicleId: null,
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
@@ -436,6 +451,7 @@ export class MemoriesGameEngine {
     this.state = createInitialState();
     this.timeAccumulator = 0;
     this.doorEntryCooldown = 0;
+    this.announcementSeq = 0;
   }
 
   reset() {
@@ -823,43 +839,121 @@ export class MemoriesGameEngine {
   }
 
   updateNpcs(dt) {
+    const politeSep = PLAYER_RADIUS * 1.48; // ~19.2px courteous passing clearance on Lisbon sidewalks
+    const isNpcCandidateClear = (npc, cx, cy, sepDist) => {
+      if (!isPointOnSidewalk(cx, cy)) return false;
+      if (this.isBlockedByVehicle(cx, cy, PLAYER_RADIUS + 4)) return false;
+      if (this.state.mode === 'overworld' && !this.state.ridingVehicleId) {
+        if (distance(cx, cy, this.state.player.x, this.state.player.y) < sepDist) return false;
+      }
+      for (const rp of this.state.remotePlayers || []) {
+        if (rp.mode === 'overworld' && !rp.ridingVehicleId) {
+          if (distance(cx, cy, rp.x, rp.y) < sepDist) return false;
+        }
+      }
+      for (const other of this.state.npcs) {
+        if (other.id === npc.id) continue;
+        if (distance(cx, cy, other.x, other.y) < sepDist) return false;
+      }
+      return true;
+    };
+
     for (const npc of this.state.npcs) {
-      const delta = npc.speed * dt * npc.dir;
-      let nextX = npc.x;
-      let nextY = npc.y;
+      const step = npc.speed * dt;
+      let targetX = npc.x;
+      let targetY = npc.y;
 
       if (npc.patrolAxis === 'x') {
-        nextX += delta;
-        if (nextX >= npc.max) {
-          nextX = npc.max;
+        targetX += step * npc.dir;
+        if (targetX >= npc.max) {
+          targetX = npc.max;
           npc.dir = -1;
-        } else if (nextX <= npc.min) {
-          nextX = npc.min;
+        } else if (targetX <= npc.min) {
+          targetX = npc.min;
           npc.dir = 1;
         }
+        // Gently drift back onto home sidewalk lane once past an obstacle
+        const homeDy = npc.homeY - npc.y;
+        if (Math.abs(homeDy) > 0.5) {
+          const driftY = npc.y + clamp(homeDy, -step * 0.85, step * 0.85);
+          if (isNpcCandidateClear(npc, targetX, driftY, PERSON_SEPARATION_DIST)) {
+            targetY = driftY;
+          }
+        }
       } else {
-        nextY += delta;
-        if (nextY >= npc.max) {
-          nextY = npc.max;
+        targetY += step * npc.dir;
+        if (targetY >= npc.max) {
+          targetY = npc.max;
           npc.dir = -1;
-        } else if (nextY <= npc.min) {
-          nextY = npc.min;
+        } else if (targetY <= npc.min) {
+          targetY = npc.min;
           npc.dir = 1;
+        }
+        const homeDx = npc.homeX - npc.x;
+        if (Math.abs(homeDx) > 0.5) {
+          const driftX = npc.x + clamp(homeDx, -step * 0.85, step * 0.85);
+          if (isNpcCandidateClear(npc, driftX, targetY, PERSON_SEPARATION_DIST)) {
+            targetX = driftX;
+          }
         }
       }
 
-      // Pedestrians never step into a passing vehicle or collide with the player / other locals
-      const vehicleBlocked = this.isBlockedByVehicle(nextX, nextY, PLAYER_RADIUS + 4);
-      const personBlocked = this.isBlockedByPerson(nextX, nextY, { ignoreNpcId: npc.id });
-      if (vehicleBlocked || personBlocked || !isOverworldPositionValid(nextX, nextY)) {
-        npc.isMoving = false;
+      if (isNpcCandidateClear(npc, targetX, targetY, PERSON_SEPARATION_DIST)) {
+        npc.x = targetX;
+        npc.y = targetY;
+        npc.isMoving = true;
+        npc.blockedTime = 0;
+        npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
         continue;
       }
 
-      npc.x = nextX;
-      npc.y = nextY;
-      npc.isMoving = true;
-      npc.walkPhase = (npc.walkPhase + dt * 5.2) % (Math.PI * 2);
+      // Blocked on sidewalk: proactively sidestep around the obstacle while staying strictly on the sidewalk!
+      const lateralStep = Math.max(2.2, step * 1.45);
+      const candidates =
+        npc.patrolAxis === 'x'
+          ? [
+              { x: targetX, y: npc.y + lateralStep },
+              { x: targetX, y: npc.y - lateralStep },
+              { x: npc.x, y: npc.y + lateralStep },
+              { x: npc.x, y: npc.y - lateralStep },
+              { x: targetX, y: npc.y }
+            ]
+          : [
+              { x: npc.x + lateralStep, y: targetY },
+              { x: npc.x - lateralStep, y: targetY },
+              { x: npc.x + lateralStep, y: npc.y },
+              { x: npc.x - lateralStep, y: npc.y },
+              { x: npc.x, y: targetY }
+            ];
+
+      // Pick the valid sidewalk sidestep farthest from the player so villagers curve neatly around people
+      let bestMove = null;
+      let bestClearance = -1;
+      for (const c of candidates) {
+        if (!isNpcCandidateClear(npc, c.x, c.y, politeSep)) continue;
+        const playerClear = distance(c.x, c.y, this.state.player.x, this.state.player.y);
+        if (playerClear > bestClearance) {
+          bestClearance = playerClear;
+          bestMove = c;
+        }
+      }
+
+      if (bestMove) {
+        npc.x = bestMove.x;
+        npc.y = bestMove.y;
+        npc.isMoving = true;
+        npc.blockedTime = 0;
+        npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+        continue;
+      }
+
+      // Completely boxed in against building + curb: turn around politely instead of staying stuck
+      npc.blockedTime = (npc.blockedTime || 0) + dt;
+      if (npc.blockedTime >= 0.25) {
+        npc.dir *= -1;
+        npc.blockedTime = 0;
+      }
+      npc.isMoving = false;
     }
   }
 
@@ -1131,6 +1225,8 @@ export class MemoriesGameEngine {
     } else if (action.type === 'boardDefaultFerry') {
       const target = this.state.ferry.portId === FERRY_TERMINAL.id ? 'cacilhas' : FERRY_TERMINAL.id;
       this.boardFerry(target);
+    } else if (action.type === 'southBankSpot' && action.spotId) {
+      this.interactWithSouthBankSpot(action.spotId);
     }
   }
 
@@ -1318,11 +1414,22 @@ export class MemoriesGameEngine {
       return this.state;
     }
 
+    if (this.state.transitAnnouncement && this.state.transitAnnouncement.timer > 0) {
+      this.state.transitAnnouncement.timer = Math.max(0, this.state.transitAnnouncement.timer - dt);
+      if (this.state.transitAnnouncement.timer === 0) {
+        this.state.transitAnnouncement = null;
+      }
+    }
+
     if (this.state.ridingVehicleId) {
       const vehicle = this.getRidingVehicle();
       if (vehicle) {
-        if (vehicle.mode === 'bus' && !vehicle.yielding && vehicle.dwellRemaining <= 0) {
-          this.state.busScrollOffset = (this.state.busScrollOffset + dt * 210) % 100000;
+        if (!vehicle.yielding && vehicle.dwellRemaining <= 0) {
+          if (vehicle.mode === 'bus') {
+            this.state.busScrollOffset = (this.state.busScrollOffset + dt * 165) % 100000;
+          } else if (vehicle.mode === 'tram') {
+            this.state.tramScrollOffset = (this.state.tramScrollOffset + dt * 130) % 100000;
+          }
         }
         this.state.player.x = vehicle.x;
         this.state.player.y = vehicle.y;
@@ -1434,6 +1541,26 @@ export class MemoriesGameEngine {
           label: 'Exit Cais do Sodre Terminal to Waterfront',
           sublabel: 'Press [E] or walk up to return to Avenida Ribeira'
         };
+      }
+      // On South-Bank waterfront towns (Cacilhas, Seixal, Montijo), interact with eateries, landmarks & shops!
+      if (curDest && Array.isArray(curDest.townSpots)) {
+        for (const spot of curDest.townSpots) {
+          if (distance(px, py, spot.x, spot.y) <= 74) {
+            return {
+              type: 'south-bank-spot',
+              spotId: spot.id,
+              spot,
+              label:
+                spot.kind === 'landmark'
+                  ? `Visit ${spot.name}`
+                  : `Browse ${spot.name} ${spot.badge}`,
+              sublabel:
+                spot.kind === 'landmark'
+                  ? 'Press [E] to rest (+25 Energy) and read local Tagus history'
+                  : `Host: ${spot.host} - Press [E] to chat or order from the ${curDest.shortName} panel`
+            };
+          }
+        }
       }
       if (py >= 236 && Math.abs(px - 380) <= FERRY_PIER_ZONES.gangwayHalfWidth) {
         if (f.portId === FERRY_TERMINAL.id) {
@@ -1622,6 +1749,9 @@ export class MemoriesGameEngine {
     if (nearby.type === 'ferry-board' && nearby.targetPortId) {
       return this.boardFerry(nearby.targetPortId);
     }
+    if (nearby.type === 'south-bank-spot' && nearby.spotId) {
+      return this.interactWithSouthBankSpot(nearby.spotId);
+    }
     if (nearby.type === 'venue') {
       return this.enterVenue(nearby.id);
     }
@@ -1787,6 +1917,80 @@ export class MemoriesGameEngine {
 
     this.state.statusMessage = 'Stepped back onto the sunlit Tagus promenade outside Cais do Sodre Ferry Terminal.';
     return { ok: true, state: this.state };
+  }
+
+  interactWithSouthBankSpot(spotId) {
+    if (this.state.mode !== 'ferry' || this.state.ferry.phase !== 'terminal') {
+      return { ok: false, error: 'Cross the Tagus by ferry first to explore this south-bank town.' };
+    }
+    const dest = getFerryDestinationById(this.state.ferry.portId);
+    const spot = dest?.townSpots?.find((s) => s.id === spotId);
+    if (!dest || !spot) {
+      return { ok: false, error: 'South-bank location not found.' };
+    }
+    if (spot.kind === 'landmark') {
+      this.state.energy = clamp(this.state.energy + 25, 0, 100);
+      this.state.stats.restsTaken += 1;
+      this.advanceMinutes(15);
+      this.state.statusMessage = `Rested at ${spot.name} in ${dest.shortName} (+25 Energy). ${spot.note}`;
+      recordLog(this.state, 'rest', `Visited ${spot.name} across the Tagus in ${dest.shortName} (+25 Energy).`);
+    } else {
+      this.state.statusMessage = `${spot.host} at ${spot.name} (${dest.shortName}): "${spot.note}"`;
+    }
+    return { ok: true, dest, spot, state: this.state };
+  }
+
+  purchaseSouthBankItem(spotId, itemId) {
+    if (this.state.mode !== 'ferry' || this.state.ferry.phase !== 'terminal') {
+      return { ok: false, error: 'Visit the south-bank promenade before ordering or shopping.' };
+    }
+    const dest = getFerryDestinationById(this.state.ferry.portId);
+    const spot = dest?.townSpots?.find((s) => s.id === spotId);
+    const item = spot?.items?.find((i) => i.id === itemId);
+    if (!dest || !spot || !item) {
+      return { ok: false, error: 'Item not available at this south-bank location.' };
+    }
+    if (this.state.euros < item.costEur) {
+      this.state.statusMessage = `Not enough EUR (${this.state.euros.toFixed(2)} EUR) for ${item.name} (${item.costEur.toFixed(2)} EUR).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    this.state.euros = roundMoney(this.state.euros - item.costEur);
+    this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + item.costEur);
+    this.state.fullness = clamp(this.state.fullness + (item.fullnessDelta || 0), 0, 100);
+    this.state.energy = clamp(this.state.energy + (item.energyDelta || 0), 0, 100);
+
+    if (item.kind === 'food') {
+      this.state.stats.mealsEaten += 1;
+      if (!this.state.tastedFoods.some((f) => f.id === item.id)) {
+        this.state.tastedFoods.push({
+          id: item.id,
+          name: item.name,
+          venueName: `${spot.name} (${dest.shortName})`,
+          day: this.state.day
+        });
+      }
+      this.advanceMinutes(18);
+      unlockMemory(this.state, MILESTONE_MEMORIES.taste);
+      this.state.statusMessage = `Enjoyed ${item.name} at ${spot.name} in ${dest.shortName} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
+      recordLog(this.state, 'dining', `Tasted ${item.name} at ${spot.name} in ${dest.shortName} (-${item.costEur.toFixed(2)} EUR).`);
+    } else {
+      this.state.stats.souvenirsBought += 1;
+      this.state.satchel.push({
+        id: item.id,
+        name: item.name,
+        venueName: spot.name,
+        neighborhood: dest.name,
+        costEur: item.costEur,
+        day: this.state.day
+      });
+      this.advanceMinutes(10);
+      unlockMemory(this.state, MILESTONE_MEMORIES.keepsake);
+      this.state.statusMessage = `Added ${item.name} from ${spot.name} (${dest.shortName}) to your satchel (-${item.costEur.toFixed(2)} EUR).`;
+      recordLog(this.state, 'shop', `Bought ${item.name} at ${spot.name} in ${dest.shortName} (-${item.costEur.toFixed(2)} EUR).`);
+    }
+
+    return { ok: true, dest, spot, item, state: this.state };
   }
 
   openMetroStation(stationId) {
@@ -2219,8 +2423,24 @@ export class MemoriesGameEngine {
     }
 
     this.state.alightAtNextStop = true;
-    this.state.statusMessage = `Bell rung aboard ${line.name}. You will step out onto the sidewalk at ${vehicle.nextStopName}.`;
-    return { ok: true, alighted: false, queuedStop: vehicle.nextStopName, state: this.state };
+    const cleanNextStop = String(vehicle.nextStopName || 'Next Stop').split(' (')[0];
+    this.announcementSeq += 1;
+    this.state.transitAnnouncement = {
+      id: this.announcementSeq,
+      stopName: cleanNextStop,
+      text: `Proxima Paragem: ${cleanNextStop}`,
+      vehicleMode: line.mode,
+      ringBell: true,
+      timer: 5.0
+    };
+    this.state.statusMessage = `Bell rung aboard ${line.name} - Proxima Paragem: ${cleanNextStop}.`;
+    return {
+      ok: true,
+      alighted: false,
+      queuedStop: vehicle.nextStopName,
+      announcement: this.state.transitAnnouncement,
+      state: this.state
+    };
   }
 
   restAtBench(spotId) {
@@ -2265,6 +2485,10 @@ export class MemoriesGameEngine {
         this.state.metro.phase = 'platform';
       }
       this.exitMetroStation({ immediate: true });
+    }
+    if (this.state.mode === 'ferry') {
+      this.state.ferry.phase = 'terminal';
+      this.exitFerryTerminal({ immediate: true });
     }
     this.state.activeMetroStationId = null;
 

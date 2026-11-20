@@ -166,6 +166,8 @@ export class LisboaCanvasRenderer {
       this.renderFerry(ctx, state, nearbyInteraction);
     } else if (state.ridingVehicleId === 'bus-737-758') {
       this.renderBusInteriorView(ctx, state, nearbyInteraction);
+    } else if (state.ridingVehicleId === 'tram-28e') {
+      this.renderTramInteriorView(ctx, state, nearbyInteraction);
     } else {
       this.updateCamera(state);
       this.renderOverworld(ctx, state, nearbyInteraction);
@@ -5033,16 +5035,21 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = state.alightAtNextStop ? '#f87171' : '#fbbf24';
     ctx.font = '700 13px "Consolas", monospace';
     ctx.textAlign = 'center';
+    const cleanNextStop = String(vehicle?.nextStopName || 'Next Stop').split(' (')[0].toUpperCase();
     const ledText = vehicle?.currentStopId
       ? `CARRIS 737  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
       : state.alightAtNextStop
-        ? `STOP REQUESTED  |  NEXT: ${vehicle.nextStopName.split(' (')[0].toUpperCase()}`
-        : `CARRIS 737  |  ${state.currentNeighborhoodName.toUpperCase()} -> ${vehicle.nextStopName.split(' (')[0].toUpperCase()}`;
+        ? `STOP BELL  |  PROXIMA PARAGEM: ${cleanNextStop}`
+        : `CARRIS 737  |  PROXIMA PARAGEM: ${cleanNextStop}`;
     ctx.fillText(ledText, this.viewWidth / 2, 31);
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = state.transitAnnouncement ? '#fde68a' : '#94a3b8';
     ctx.font = '600 10px "Segoe UI", sans-serif';
     ctx.fillText(
-      onWaterfront ? 'SCENIC TAGUS RIVERFRONT VIEW  -  AVENIDA RIBEIRA' : 'HISTORIC LISBOA HILLSIDE CITYSCAPE VIEW',
+      state.transitAnnouncement
+        ? `ANNOUNCEMENT: "${state.transitAnnouncement.text}"`
+        : onWaterfront
+          ? 'SCENIC TAGUS RIVERFRONT VIEW  -  AVENIDA RIBEIRA'
+          : 'HISTORIC LISBOA HILLSIDE CITYSCAPE VIEW',
       this.viewWidth / 2,
       47
     );
@@ -5088,6 +5095,327 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.fillStyle = '#f8fafc';
+      ctx.font = '600 9.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(st.stopName.split(' (')[0], sx, stripY + 18);
+    });
+
+    ctx.restore();
+
+    if (nearbyInteraction) {
+      this.drawInteractionBanner(ctx, nearbyInteraction);
+    }
+  }
+
+  renderTramInteriorView(ctx, state, nearbyInteraction) {
+    const vehicle = state.vehicles.find((v) => v.id === 'tram-28e') || state.vehicles[0];
+    const phase = getDayPhase(state.minutesOfDay);
+    const isEvening = phase.id === 'evening';
+    const isGolden = phase.id === 'golden';
+    const isStopped = Boolean(vehicle?.currentStopId || vehicle?.yielding);
+    const scroll = state.tramScrollOffset || 0;
+    const swayHum = isStopped ? 0 : Math.sin(this.animTime * 15) * 1.4;
+    const nearCathedral = (vehicle?.x || 1000) >= 1340 && (vehicle?.x || 1000) <= 1860;
+
+    // 1. Dynamic Lisbon Sky outside historic wooden tram windows
+    const skyGrad = ctx.createLinearGradient(0, 62, 0, 390);
+    if (isEvening) {
+      skyGrad.addColorStop(0, '#101d3b');
+      skyGrad.addColorStop(1, '#283d66');
+    } else if (isGolden) {
+      skyGrad.addColorStop(0, '#5a739c');
+      skyGrad.addColorStop(0.55, '#eb9852');
+      skyGrad.addColorStop(1, '#fde68a');
+    } else {
+      skyGrad.addColorStop(0, '#2e7cc2');
+      skyGrad.addColorStop(0.65, '#8ac7e8');
+      skyGrad.addColorStop(1, '#e0f2fe');
+    }
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 62, this.viewWidth, 340);
+
+    // Distant Alfama/Bairro Alto terracotta hill silhouette
+    const hillShift = (scroll * 0.16) % 460;
+    ctx.fillStyle = isEvening ? '#1a2844' : isGolden ? '#8c5540' : '#738da6';
+    ctx.beginPath();
+    ctx.moveTo(0, 290);
+    for (let x = -460; x <= this.viewWidth + 460; x += 230) {
+      const bx = x - hillShift;
+      ctx.lineTo(bx + 60, 208);
+      ctx.lineTo(bx + 150, 198);
+      ctx.lineTo(bx + 230, 232);
+    }
+    ctx.lineTo(this.viewWidth, 330);
+    ctx.lineTo(0, 330);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2. Narrow Historic Lisbon Tram 28E Hillside Alley Facades scrolling closely past!
+    const blockW = 144;
+    const totalSpan = blockW * 7;
+    const bldgShift = (scroll * 0.85) % totalSpan;
+    const alleyFacades = [
+      { wall: '#f2f6fb', roof: '#b54c32', trim: '#1b4d89', azulejo: true, h: 192, laundry: true },
+      { wall: '#f2d9b1', roof: '#a8442a', trim: '#7a3324', azulejo: false, h: 178, laundry: false },
+      { wall: '#ebd3da', roof: '#b85035', trim: '#6f3224', azulejo: false, h: 186, laundry: true },
+      { wall: '#ddd5c5', roof: '#8c6d52', trim: '#5c4f41', cathedral: true, h: 214, laundry: false },
+      { wall: '#e6f1ed', roof: '#1f7062', trim: '#15544a', azulejo: true, h: 182, laundry: false },
+      { wall: '#f7f3eb', roof: '#bf5530', trim: '#1b558a', azulejo: false, h: 174, laundry: true },
+      { wall: '#efe6d5', roof: '#8d5324', trim: '#1f4d3a', azulejo: false, h: 188, laundry: false }
+    ];
+
+    for (let rep = -1; rep <= 1; rep += 1) {
+      alleyFacades.forEach((f, idx) => {
+        const x = rep * totalSpan + idx * blockW - bldgShift;
+        if (x + blockW < -20 || x > this.viewWidth + 20) return;
+        const baseY = 368;
+        const topY = baseY - f.h;
+
+        if (f.cathedral && nearCathedral) {
+          // Iconic Romanesque Se de Lisboa twin crenellated bell towers & rose window gliding past Tram 28E!
+          ctx.fillStyle = '#ddd5c5';
+          ctx.fillRect(x + 8, topY + 24, blockW - 16, f.h - 24);
+          ctx.fillRect(x + 8, topY, 36, 48);
+          ctx.fillRect(x + blockW - 44, topY, 36, 48);
+          // Crenellations
+          ctx.fillStyle = '#9c907f';
+          for (const tx of [x + 8, x + blockW - 44]) {
+            ctx.fillRect(tx, topY - 8, 10, 8);
+            ctx.fillRect(tx + 26, topY - 8, 10, 8);
+          }
+          // Glowing stained-glass rose window
+          ctx.fillStyle = '#2563eb';
+          ctx.beginPath();
+          ctx.arc(x + blockW / 2, topY + 84, 18, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(x + blockW / 2, topY + 84, 8, 0, Math.PI * 2);
+          ctx.fill();
+          // Romanesque arched portal
+          ctx.fillStyle = '#4a3a2a';
+          ctx.beginPath();
+          ctx.arc(x + blockW / 2, baseY - 26, 20, Math.PI, 0);
+          ctx.lineTo(x + blockW / 2 + 20, baseY);
+          ctx.lineTo(x + blockW / 2 - 20, baseY);
+          ctx.closePath();
+          ctx.fill();
+          return;
+        }
+
+        ctx.fillStyle = f.wall;
+        ctx.fillRect(x + 2, topY + 24, blockW - 4, f.h - 24);
+        if (f.azulejo) {
+          ctx.fillStyle = 'rgba(27, 77, 137, 0.17)';
+          for (let ty = topY + 32; ty < baseY - 24; ty += 15) {
+            for (let tx = x + 10; tx < x + blockW - 14; tx += 15) {
+              ctx.fillRect(tx, ty, 6, 6);
+            }
+          }
+        }
+        ctx.fillStyle = f.roof;
+        ctx.beginPath();
+        ctx.moveTo(x - 2, topY + 26);
+        ctx.lineTo(x + 12, topY);
+        ctx.lineTo(x + blockW - 12, topY);
+        ctx.lineTo(x + blockW + 2, topY + 26);
+        ctx.closePath();
+        ctx.fill();
+
+        // Shuttered Lisbon windows & geranium balconies
+        for (let row = 0; row < 2; row += 1) {
+          const wy = topY + 42 + row * 48;
+          for (let col = 0; col < 2; col += 1) {
+            const wx = x + 26 + col * 62;
+            ctx.fillStyle = f.trim;
+            ctx.fillRect(wx - 4, wy, 28, 34);
+            ctx.fillStyle = isEvening ? '#fde68a' : '#2c4159';
+            ctx.fillRect(wx, wy + 2, 20, 30);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1.4;
+            ctx.strokeRect(wx - 4, wy + 24, 28, 12);
+            // Red geranium pot on balcony
+            ctx.fillStyle = '#dc2626';
+            ctx.beginPath();
+            ctx.arc(wx + 10, wy + 28, 4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Fluttering Alfama / Bairro Alto laundry banner
+        if (f.laundry) {
+          ctx.strokeStyle = 'rgba(45, 55, 72, 0.55)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(x + 12, topY + 96);
+          ctx.quadraticCurveTo(x + blockW / 2, topY + 108, x + blockW - 12, topY + 96);
+          ctx.stroke();
+          const colors = ['#f8fafc', '#2563eb', '#eab308', '#dc2626'];
+          colors.forEach((col, ci) => {
+            ctx.fillStyle = col;
+            ctx.fillRect(x + 28 + ci * 24, topY + 101, 10, 13);
+          });
+        }
+
+        // Arched wooden doorway / neighborhood shop awning
+        ctx.fillStyle = f.trim;
+        ctx.fillRect(x + 24, baseY - 28, blockW - 48, 8);
+        ctx.fillStyle = isEvening ? '#fcd34d' : '#3d2817';
+        ctx.fillRect(x + 36, baseY - 20, blockW - 72, 20);
+      });
+    }
+
+    // Cobblestone lane & steel tram rail glint
+    ctx.fillStyle = '#cfc6b5';
+    ctx.fillRect(0, 366, this.viewWidth, 34);
+
+    // Classic yellow-and-white Eletrico 28E shelter when stopped
+    if (vehicle?.currentStopId) {
+      ctx.fillStyle = 'rgba(180, 120, 12, 0.94)';
+      drawRoundedRect(ctx, 595, 256, 175, 118, 6);
+      ctx.fill();
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(595, 256, 175, 18);
+      ctx.fillStyle = '#422006';
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`ELETRICO 28E - ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`, 682, 269);
+      ctx.fillStyle = 'rgba(255, 251, 235, 0.45)';
+      ctx.fillRect(606, 282, 153, 84);
+      ctx.textAlign = 'left';
+    }
+
+    // 3. FOREGROUND: Historic Varnished Mahogany & Brass Remodelado Eletrico 28E Cabin!
+    ctx.save();
+    ctx.translate(0, swayHum);
+
+    // Warm varnished mahogany ceiling & brass cove molding
+    ctx.fillStyle = '#5c2d16';
+    ctx.fillRect(0, 0, this.viewWidth, 72);
+    ctx.fillStyle = '#ca8a04';
+    ctx.fillRect(0, 64, this.viewWidth, 6);
+
+    // Varnished wood side frames & brass-trimmed arched window pillars (4 historic tram bays)
+    ctx.fillStyle = '#6b3519';
+    ctx.fillRect(0, 62, 26, 340);
+    ctx.fillRect(this.viewWidth - 26, 62, 26, 340);
+    for (const px of [234, 450, 666]) {
+      ctx.fillStyle = '#6b3519';
+      ctx.fillRect(px, 68, 22, 326);
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(px + 9, 68, 4, 326);
+    }
+
+    // Classic leather ceiling pull-cord & brass tram bell rings
+    ctx.strokeStyle = state.alightAtNextStop ? '#fef08a' : '#d97706';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(26, 86);
+    ctx.quadraticCurveTo(this.viewWidth / 2, state.alightAtNextStop ? 98 : 90, this.viewWidth - 26, 86);
+    ctx.stroke();
+
+    const sway = isStopped ? 0 : Math.sin(this.animTime * 4.5) * 0.16;
+    for (const sx of [130, 342, 558, 776]) {
+      ctx.save();
+      ctx.translate(sx, 89);
+      ctx.rotate(sway);
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, 25);
+      ctx.stroke();
+      ctx.strokeStyle = '#d4a017';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(0, 33, 8.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Vertical brass stanchion pole with vintage red STOP bell button
+    ctx.fillStyle = '#d4a017';
+    ctx.fillRect(456, 70, 10, 330);
+    drawRoundedRect(ctx, 450, 236, 22, 34, 4);
+    ctx.fillStyle = '#422006';
+    ctx.fill();
+    ctx.fillStyle = state.alightAtNextStop ? '#ef4444' : '#b91c1c';
+    drawRoundedRect(ctx, 454, 242, 14, 18, 3);
+    ctx.fill();
+    ctx.fillStyle = '#fef3c7';
+    ctx.font = '700 6px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('BELL', 461, 254);
+
+    // Overhead Vintage Cream-and-Brass Eletrico 28E Route Sign & Proxima Paragem LED
+    drawRoundedRect(ctx, 195, 11, 530, 46, 8);
+    ctx.fillStyle = '#1e140c';
+    ctx.fill();
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = state.alightAtNextStop ? '#f87171' : '#fde047';
+    ctx.font = '700 13px "Consolas", monospace';
+    ctx.textAlign = 'center';
+    const cleanNextStop = String(vehicle?.nextStopName || 'Next Stop').split(' (')[0].toUpperCase();
+    const ledText = vehicle?.currentStopId
+      ? `ELETRICO 28E  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
+      : state.alightAtNextStop
+        ? `BELL RUNG  |  PROXIMA PARAGEM: ${cleanNextStop}`
+        : `ELETRICO 28E  |  PROXIMA PARAGEM: ${cleanNextStop}`;
+    ctx.fillText(ledText, this.viewWidth / 2, 30);
+    ctx.fillStyle = state.transitAnnouncement ? '#fde68a' : '#d6c4a8';
+    ctx.font = '600 10px Georgia, serif';
+    ctx.fillText(
+      state.transitAnnouncement
+        ? `ANNOUNCEMENT: "${state.transitAnnouncement.text}"`
+        : 'REMODELADO WOODEN STREETCAR  -  BAIRRO ALTO / CHIADO / ALFAMA',
+      this.viewWidth / 2,
+      47
+    );
+
+    // Lower wooden wainscoting & varnished slatted wooden tram bench seats
+    ctx.fillStyle = '#4a2410';
+    ctx.fillRect(0, 386, this.viewWidth, 174);
+    ctx.fillStyle = '#ca8a04';
+    ctx.fillRect(0, 386, this.viewWidth, 6);
+
+    for (const sx of [52, 266, 488, 702]) {
+      ctx.fillStyle = '#8b4e24';
+      drawRoundedRect(ctx, sx, 398, 162, 46, 8);
+      ctx.fill();
+      ctx.strokeStyle = '#3b1d0a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Polished wooden bench slats
+      ctx.fillStyle = '#b9773c';
+      ctx.fillRect(sx + 10, 408, 142, 5);
+      ctx.fillRect(sx + 10, 420, 142, 5);
+      ctx.fillRect(sx + 10, 432, 142, 5);
+    }
+
+    // Bottom Eletrico 28E 5-Stop Route Strip cleanly above interaction prompt banner
+    const tramLine = TRANSIT_LINES.find((l) => l.id === 'tram-28e');
+    const tramStops = tramLine ? tramLine.waypoints.filter((w) => w.stopId) : [];
+    const stripY = 466;
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(110, stripY);
+    ctx.lineTo(810, stripY);
+    ctx.stroke();
+    tramStops.forEach((st, idx) => {
+      const sx = 110 + (idx / Math.max(1, tramStops.length - 1)) * 700;
+      const isCur = vehicle?.currentStopId === st.stopId;
+      const isNext = vehicle?.nextStopName === st.stopName;
+      ctx.fillStyle = isCur ? '#ef4444' : isNext ? '#fde047' : '#fef3c7';
+      ctx.beginPath();
+      ctx.arc(sx, stripY, isCur || isNext ? 7 : 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#422006';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#fef3c7';
       ctx.font = '600 9.5px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(st.stopName.split(' (')[0], sx, stripY + 18);
@@ -5177,7 +5505,7 @@ export class LisboaCanvasRenderer {
       57
     );
 
-    // Top Waterfront Gate (at Cais do Sodre) OR South-Bank Viewpoint Plaque
+    // Top Waterfront Gate (at Cais do Sodre) OR Explorable South-Bank Townscape Facades!
     if (isLisbon) {
       drawRoundedRect(ctx, 304, 114, 152, 38, 6);
       ctx.fillStyle = nearbyInteraction?.type === 'ferry-exit' ? '#d97706' : '#1e3a5f';
@@ -5188,26 +5516,218 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#ffffff';
       ctx.font = '700 10.5px "Segoe UI", sans-serif';
       ctx.fillText('EXIT TO WATERFRONT', 380, 137);
-    } else {
-      // Distant Lisbon terracotta hillside skyline visible across the river from South Bank!
-      ctx.fillStyle = isEvening ? '#1f2e4a' : '#b85c42';
-      ctx.fillRect(36, 98, 120, 44);
-      ctx.fillRect(604, 98, 120, 44);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = '700 9px "Segoe UI", sans-serif';
-      ctx.fillText('LISBOA ACROSS THE TAGUS', 380, 126);
+    } else if (destInfo && Array.isArray(destInfo.townSpots)) {
+      // Draw 3 authentic South-Bank waterfront facades/landmarks along the upper promenade (y: 72..154)!
+      const isCacilhas = destInfo.id === 'cacilhas';
+      const isSeixal = destInfo.id === 'seixal';
+
+      // 1. Left Waterfront Eatery (x: 56..254, center 155)
+      ctx.fillStyle = isCacilhas ? '#f6e7d4' : isSeixal ? '#f7f4ec' : '#f1dec4';
+      drawRoundedRect(ctx, 56, 78, 198, 76, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#472d1b';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      // Roof frieze + crisp white sign text
+      const eateryAccent = isCacilhas ? '#b84a32' : isSeixal ? '#0f766e' : '#9a3412';
+      ctx.fillStyle = eateryAccent;
+      ctx.fillRect(54, 74, 202, 17);
+      // Striped waterfront restaurant awning directly beneath frieze
+      for (let idx = 0; idx < 16; idx += 1) {
+        ctx.fillStyle = idx % 2 === 0 ? eateryAccent : '#fef3c7';
+        ctx.fillRect(58 + idx * 12, 91, 12, 9);
+      }
+      // Warm dining windows & wooden entrance door
+      ctx.fillStyle = isEvening ? '#fde68a' : '#fff7ed';
+      ctx.fillRect(72, 108, 42, 24);
+      ctx.fillRect(196, 108, 42, 24);
+      ctx.strokeStyle = '#472d1b';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(72, 108, 42, 24);
+      ctx.strokeRect(196, 108, 42, 24);
+      // Little restaurant red tablecloths & plates visible in windows
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(78, 122, 30, 8);
+      ctx.fillRect(202, 122, 30, 8);
+      ctx.fillStyle = '#5c3a21';
+      ctx.fillRect(140, 122, 30, 32);
+      ctx.fillStyle = '#fde68a';
+      ctx.fillRect(164, 136, 3, 4);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 8.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(destInfo.townSpots[0].name.toUpperCase(), 155, 86);
+
+      // 2. Center Signature South-Bank Landmark (x: 280..480, center 380)
+      if (isCacilhas) {
+        // Ponte 25 de Abril + Cristo Rei silhouette + 1886 red Farol de Cacilhas lighthouse
+        ctx.strokeStyle = '#c81e32';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(286, 114);
+        ctx.lineTo(356, 114);
+        ctx.stroke();
+        ctx.fillStyle = '#c81e32';
+        ctx.fillRect(306, 86, 5, 50);
+        ctx.fillRect(340, 86, 5, 50);
+        // Cristo Rei monument
+        ctx.fillStyle = '#e5ded0';
+        ctx.fillRect(428, 86, 10, 48);
+        ctx.fillRect(420, 82, 26, 4);
+        // Red Farol de Cacilhas Lighthouse
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(372, 90, 16, 46);
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(380, 86, 7, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (isSeixal) {
+        // Whitewashed Moinho de Mare (Tide Mill) & colorful Tagus Fragata sails
+        ctx.fillStyle = '#f8fafc';
+        drawRoundedRect(ctx, 326, 88, 108, 48, 4);
+        ctx.fill();
+        ctx.strokeStyle = '#0f766e';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.fillStyle = '#b84a32';
+        ctx.fillRect(322, 80, 116, 11);
+        // Waterwheel arches cleanly above nameplate
+        ctx.fillStyle = '#0284c7';
+        for (const wx of [344, 380, 416]) {
+          ctx.beginPath();
+          ctx.arc(wx, 132, 9, Math.PI, 0);
+          ctx.fill();
+        }
+        // Fragata sail beside dock
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(288, 134);
+        ctx.lineTo(318, 134);
+        ctx.lineTo(300, 86);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        // Montijo Historic Windmill (Moinho de Vento) with rotating sails & estuary flamingos
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(366, 92, 28, 44);
+        ctx.fillStyle = '#1d4ed8';
+        ctx.beginPath();
+        ctx.arc(380, 92, 14, Math.PI, 0);
+        ctx.fill();
+        ctx.save();
+        ctx.translate(380, 98);
+        ctx.rotate(this.animTime * 0.8);
+        ctx.strokeStyle = '#7c2d12';
+        ctx.lineWidth = 2.6;
+        for (let b = 0; b < 4; b += 1) {
+          ctx.rotate(Math.PI / 2);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(0, -24);
+          ctx.stroke();
+        }
+        ctx.restore();
+        // Pink estuary flamingos clearly visible above nameplate
+        for (const [fx, fy] of [[308, 118], [326, 122], [444, 116]]) {
+          ctx.strokeStyle = '#be185d';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(fx, fy + 3);
+          ctx.lineTo(fx, fy + 13);
+          ctx.stroke();
+          ctx.fillStyle = '#f472b6';
+          ctx.beginPath();
+          ctx.arc(fx, fy, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      drawRoundedRect(ctx, 290, 135, 180, 17, 4);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.fill();
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = '700 8px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(destInfo.townSpots[1].name.toUpperCase(), 380, 146.5);
+
+      // 3. Right Regional Artisan Shop / Kiosk (x: 506..704, center 605)
+      ctx.fillStyle = isCacilhas ? '#d8e6dc' : isSeixal ? '#e7d5bc' : '#eaf2fb';
+      drawRoundedRect(ctx, 506, 78, 198, 76, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#1e3a5f';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      const shopAccent = isCacilhas ? '#1f6e58' : isSeixal ? '#7c4f2b' : '#1b4d89';
+      ctx.fillStyle = shopAccent;
+      ctx.fillRect(504, 74, 202, 17);
+      // Framed boutique display windows with regional wares inside
+      ctx.fillStyle = isEvening ? '#fde68a' : '#fff7ed';
+      ctx.fillRect(520, 100, 48, 28);
+      ctx.fillRect(642, 100, 48, 28);
+      ctx.strokeStyle = '#1e3a5f';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(520, 100, 48, 28);
+      ctx.strokeRect(642, 100, 48, 28);
+      // Display shelf + colorful artisan goods inside shop windows
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(524, 118, 40, 3);
+      ctx.fillRect(646, 118, 40, 3);
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(528, 108, 10, 10);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(544, 109, 12, 9);
+      ctx.fillStyle = '#e11d48';
+      ctx.fillRect(650, 108, 12, 10);
+      ctx.fillStyle = '#0f766e';
+      ctx.fillRect(668, 109, 12, 9);
+      ctx.fillStyle = '#5c3a21';
+      ctx.fillRect(590, 122, 30, 32);
+      ctx.fillStyle = '#fde68a';
+      ctx.fillRect(614, 136, 3, 4);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 8.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(destInfo.townSpots[2].name.toUpperCase(), 605, 86);
     }
 
-    // 2. Walkable Timber & Limestone Transtejo Pier Deck (y: 154..288)
-    ctx.fillStyle = '#cbb89d';
+    // 2. Walkable Timber Pier (Cais do Sodre) OR Cobblestone South-Bank Promenade (y: 154..288)
+    ctx.fillStyle = isLisbon ? '#cbb89d' : '#e6dfd1';
     ctx.fillRect(8, 154, INTERIOR_WIDTH - 16, 134);
-    ctx.strokeStyle = 'rgba(92, 68, 46, 0.25)';
+    ctx.strokeStyle = isLisbon ? 'rgba(92, 68, 46, 0.25)' : 'rgba(118, 106, 88, 0.22)';
     ctx.lineWidth = 1.2;
     for (let px = 28; px < INTERIOR_WIDTH - 12; px += 22) {
       ctx.beginPath();
       ctx.moveTo(px, 154);
       ctx.lineTo(px, 288);
       ctx.stroke();
+    }
+    if (!isLisbon) {
+      for (let py = 176; py < 280; py += 22) {
+        ctx.beginPath();
+        ctx.moveTo(8, py);
+        ctx.lineTo(INTERIOR_WIDTH - 8, py);
+        ctx.stroke();
+      }
+      // Draw 3 interactive town spot markers along the south-bank promenade
+      if (destInfo && Array.isArray(destInfo.townSpots)) {
+        for (const spot of destInfo.townSpots) {
+          this.drawInteriorMarker(
+            ctx,
+            spot.x,
+            spot.y,
+            `${spot.badge.replace(/[\[\]]/g, '')} [E]`,
+            nearbyInteraction?.type === 'south-bank-spot' && nearbyInteraction.spotId === spot.id
+          );
+        }
+      }
+      // Friendly local resident strolling gently along the south-bank promenade
+      const localX = 270 + Math.sin(this.animTime * 0.55) * 65;
+      this.drawCharacterSprite(ctx, localX, 232, {
+        facing: Math.cos(this.animTime * 0.55) >= 0 ? 'right' : 'left',
+        walkPhase: this.animTime * 3.8,
+        isMoving: true,
+        outfitId: destInfo?.id === 'cacilhas' ? 'maritime-striped' : destInfo?.id === 'seixal' ? 'tile-artisan' : 'alfama-dress',
+        isPlayer: false
+      });
     }
 
     // Yellow nautical safety curb & iron mooring bollards along the water edge
@@ -5224,15 +5744,6 @@ export class LisboaCanvasRenderer {
       ctx.fill();
     }
 
-    // Boarding Gangway Marker
-    this.drawInteriorMarker(
-      ctx,
-      380,
-      250,
-      isLisbon ? 'BOARD FERRY [E]' : 'RETURN FERRY [E]',
-      nearbyInteraction?.type === 'ferry-board'
-    );
-
     // 3. Tagus River Water & Docked Transtejo Catamaran Ferry (y: 288..452)
     const waterGrad = ctx.createLinearGradient(0, 288, 0, 452);
     waterGrad.addColorStop(0, isEvening ? '#0f2744' : '#15608a');
@@ -5240,7 +5751,11 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = waterGrad;
     ctx.fillRect(8, 288, INTERIOR_WIDTH - 16, 164);
 
-    // Animated Tagus waves
+    // Animated Tagus waves (strictly clipped inside pier water frame)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(8, 288, INTERIOR_WIDTH - 16, 164);
+    ctx.clip();
     const waveShift = (f.waveOffset || 0) % 60;
     ctx.strokeStyle = 'rgba(186, 230, 253, 0.35)';
     ctx.lineWidth = 1.6;
@@ -5252,13 +5767,23 @@ export class LisboaCanvasRenderer {
         ctx.stroke();
       }
     }
+    ctx.restore();
 
-    // Boarding gangway bridge from pier onto catamaran
+    // Boarding gangway bridge from yellow curb onto catamaran (never hides RETURN FERRY label)
     ctx.fillStyle = '#64748b';
-    ctx.fillRect(352, 278, 56, 44);
+    ctx.fillRect(352, 288, 56, 36);
     ctx.strokeStyle = '#f8fafc';
     ctx.lineWidth = 2;
-    ctx.strokeRect(352, 278, 56, 44);
+    ctx.strokeRect(352, 288, 56, 36);
+
+    // Boarding Gangway Marker cleanly positioned above yellow safety curb
+    this.drawInteriorMarker(
+      ctx,
+      380,
+      244,
+      isLisbon ? 'BOARD FERRY [E]' : 'RETURN FERRY [E]',
+      nearbyInteraction?.type === 'ferry-board'
+    );
 
     // Docked Transtejo Catamaran gently bobbing on the Tagus
     const bob = Math.sin(this.animTime * 2.3) * 3;

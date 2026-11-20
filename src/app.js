@@ -119,6 +119,7 @@ let prevAudioMode = 'overworld';
 let prevAudioVenueId = null;
 let prevAudioRidingId = null;
 let prevAudioFerryPhase = null;
+let lastAnnouncementId = 0;
 
 const pressedKeys = new Set();
 let activeTab = 'guide';
@@ -242,6 +243,15 @@ function handleCanvasClick(event) {
     ) {
       engine.setWalkTarget(380, FERRY_PIER_ZONES.exitY, { type: 'exitFerry' });
       return;
+    }
+    if (state.ferry.portId !== FERRY_TERMINAL.id) {
+      const dest = FERRY_DESTINATIONS.find((d) => d.id === state.ferry.portId);
+      for (const spot of dest?.townSpots || []) {
+        if (Math.hypot(worldPt.x - spot.x, worldPt.y - spot.y) <= 68 || (worldPt.y <= 165 && Math.abs(worldPt.x - spot.x) <= 95)) {
+          engine.setWalkTarget(spot.x, spot.y, { type: 'southBankSpot', spotId: spot.id });
+          return;
+        }
+      }
     }
     if (worldPt.y >= 242 && Math.abs(worldPt.x - 380) <= FERRY_PIER_ZONES.gangwayHalfWidth) {
       engine.setWalkTarget(380, 256, { type: 'boardDefaultFerry' });
@@ -496,6 +506,49 @@ function renderActiveContextPanel(state) {
         ? FERRY_TERMINAL.shortName
         : (FERRY_DESTINATIONS.find((d) => d.id === f.toPortId)?.name || 'South Bank');
 
+    const southBankTownHtml =
+      !isLisbon && !isSailing && curDest && Array.isArray(curDest.townSpots)
+        ? curDest.townSpots
+            .map((spot) => {
+              if (spot.kind === 'landmark') {
+                return `
+                  <div class="item-card">
+                    <div>
+                      <h4>${escapeHtml(spot.name)} <span class="badge-muted">${escapeHtml(spot.badge)}</span></h4>
+                      <div class="item-meta">${escapeHtml(spot.note)}</div>
+                    </div>
+                    <button type="button" class="btn btn-sm" data-sb-visit="${escapeHtml(spot.id)}">
+                      Rest (+25)
+                    </button>
+                  </div>
+                `;
+              }
+              const itemsRows = (spot.items || [])
+                .map((item) => {
+                  const okFunds = state.euros >= item.costEur;
+                  const fx =
+                    item.kind === 'food'
+                      ? `+${item.fullnessDelta} Fullness, +${item.energyDelta} Energy`
+                      : `Satchel Keepsake, +${item.energyDelta} Energy`;
+                  return `
+                    <div class="item-card">
+                      <div>
+                        <h4>${escapeHtml(item.name)} <span class="badge-muted">${escapeHtml(spot.name)}</span></h4>
+                        <div class="item-meta">${escapeHtml(item.description)}</div>
+                        <div class="item-meta"><strong>${item.costEur.toFixed(2)} EUR</strong> | ${escapeHtml(fx)}</div>
+                      </div>
+                      <button type="button" class="btn btn-primary btn-sm" data-sb-buy="${escapeHtml(spot.id)}|${escapeHtml(item.id)}" ${okFunds ? '' : 'disabled'}>
+                        ${item.kind === 'food' ? 'Order' : 'Buy'}
+                      </button>
+                    </div>
+                  `;
+                })
+                .join('');
+              return itemsRows;
+            })
+            .join('')
+        : '';
+
     const routesHtml = isLisbon
       ? FERRY_DESTINATIONS.map((dest) => {
           const affordable = state.euros >= dest.fareEur && !isSailing;
@@ -514,6 +567,7 @@ function renderActiveContextPanel(state) {
           `;
         }).join('')
       : `
+          ${southBankTownHtml}
           <div class="item-card">
             <div>
               <h4>Return Ferry to ${escapeHtml(FERRY_TERMINAL.shortName)} (Lisboa)</h4>
@@ -853,10 +907,10 @@ function refreshUi(force = false) {
     dom.sceneTitle.textContent =
       riding.mode === 'bus'
         ? `Inside ${riding.name} - Lisboa Cityscape (${state.currentNeighborhoodName})`
-        : `Riding ${riding.name} through ${state.currentNeighborhoodName}`;
+        : `Inside ${riding.name} - Lisboa Hillside View (${state.currentNeighborhoodName})`;
     dom.sceneSubtitle.textContent = riding.currentStopId
       ? `Stopped at ${riding.currentStopName}. Press [E] to step out onto the sidewalk.`
-      : `Next stop: ${riding.nextStopName}. Enjoy the window view or press [E] to ring STOP.`;
+      : `Next stop: ${riding.nextStopName}. Press [E] to ring bell & hear "Proxima Paragem".`;
   } else {
     dom.sceneTitle.textContent = `${state.currentNeighborhoodName} - Ground-Level Lisboa`;
     dom.sceneSubtitle.textContent =
@@ -1261,6 +1315,22 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 });
 
 dom.activeContextPanel.addEventListener('click', (event) => {
+  const sbVisitBtn = event.target.closest('[data-sb-visit]');
+  if (sbVisitBtn) {
+    const res = engine.interactWithSouthBankSpot(sbVisitBtn.dataset.sbVisit);
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
+  const sbBuyBtn = event.target.closest('[data-sb-buy]');
+  if (sbBuyBtn) {
+    const [spotId, itemId] = sbBuyBtn.dataset.sbBuy.split('|');
+    const res = engine.purchaseSouthBankItem(spotId, itemId);
+    if (res.ok) soundEngine.playEffect('register');
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
   const ferryBtn = event.target.closest('[data-board-ferry]');
   if (ferryBtn) {
     const res = engine.boardFerry(ferryBtn.dataset.boardFerry);
@@ -1537,6 +1607,13 @@ function frame(now) {
   }
   if (state.ridingVehicleId === 'tram-28e' && prevAudioRidingId !== 'tram-28e') {
     soundEngine.playEffect('tram-bell');
+  }
+  if (state.transitAnnouncement && state.transitAnnouncement.id !== lastAnnouncementId) {
+    lastAnnouncementId = state.transitAnnouncement.id;
+    soundEngine.announceNextStop(state.transitAnnouncement.stopName, {
+      mode: state.transitAnnouncement.vehicleMode,
+      ringBell: state.transitAnnouncement.ringBell
+    });
   }
   prevAudioMode = state.mode;
   prevAudioVenueId = state.currentVenueId;

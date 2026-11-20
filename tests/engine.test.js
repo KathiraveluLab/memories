@@ -37,6 +37,7 @@ import {
   isInteriorPositionValid,
   isFerryPierPositionValid,
   isPointInVehicleLane,
+  isPointOnSidewalk,
   pointIntersectsVehicle,
   formatClock,
   getDayPhase
@@ -68,13 +69,22 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
   assert.equal(TRANSIT_LINES.length, 2);
   assert.equal(getAllMemoryCatalog().length, 26);
 
-  // Realistic speeds: walking must be slower than both Tram 28E and Carris Bus 737/758
+  // Realistic speeds: walking must be noticeably slower than both Tram 28E and Carris Bus 737/758
   const tramLine = TRANSIT_LINES.find((l) => l.mode === 'tram');
   const busLine = TRANSIT_LINES.find((l) => l.mode === 'bus');
+  assert.ok(BASE_WALK_SPEED <= 70, `Expected realistic slow walk speed <= 70 px/s, got ${BASE_WALK_SPEED}`);
   assert.ok(
-    BASE_WALK_SPEED < tramLine.speedPxPerSec && tramLine.speedPxPerSec < busLine.speedPxPerSec,
-    `Expected walk (${BASE_WALK_SPEED}) < tram (${tramLine.speedPxPerSec}) < bus (${busLine.speedPxPerSec})`
+    BASE_WALK_SPEED * 1.5 < tramLine.speedPxPerSec && tramLine.speedPxPerSec < busLine.speedPxPerSec,
+    `Expected walk (${BASE_WALK_SPEED}) * 1.5 < tram (${tramLine.speedPxPerSec}) < bus (${busLine.speedPxPerSec})`
   );
+
+  // Each of the 3 ferry destinations has an explorable waterfront townscape with 3 interactive spots
+  for (const dest of FERRY_DESTINATIONS) {
+    assert.ok(Array.isArray(dest.townSpots) && dest.townSpots.length === 3, `Expected 3 townSpots in ${dest.id}`);
+    assert.ok(dest.townSpots.some((s) => s.kind === 'eatery' && s.items.length >= 2));
+    assert.ok(dest.townSpots.some((s) => s.kind === 'landmark'));
+    assert.ok(dest.townSpots.some((s) => s.kind === 'shop' && s.items.length >= 2));
+  }
 
   // Cais do Sodre Ferry Terminal sits cleanly at the Tagus riverfront with valid sidewalk approach
   assert.equal(isOverworldPositionValid(FERRY_TERMINAL.spawnOutside.x, FERRY_TERMINAL.spawnOutside.y), true);
@@ -192,13 +202,20 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
     }
   }
 
-  // All ambient Lisbon locals patrol strictly off vehicle lanes
+  // All ambient Lisbon locals patrol strictly on sidewalks (never in the middle of streets)
   for (const npc of AMBIENT_NPCS) {
     assert.equal(isPointInVehicleLane(npc.x, npc.y), false, `NPC ${npc.id} spawns in vehicle lane`);
-    const p1 = npc.patrolAxis === 'x' ? [npc.min, npc.y] : [npc.x, npc.min];
-    const p2 = npc.patrolAxis === 'x' ? [npc.max, npc.y] : [npc.x, npc.max];
-    assert.equal(isPointInVehicleLane(p1[0], p1[1]), false, `NPC ${npc.id} patrol min enters vehicle lane`);
-    assert.equal(isPointInVehicleLane(p2[0], p2[1]), false, `NPC ${npc.id} patrol max enters vehicle lane`);
+    assert.equal(isPointOnSidewalk(npc.x, npc.y), true, `NPC ${npc.id} must spawn on a sidewalk`);
+    assert.ok(npc.speed <= 24, `Expected calm strolling NPC speed <= 24 px/s for ${npc.id}, got ${npc.speed}`);
+    const mid = (npc.min + npc.max) / 2;
+    const pts =
+      npc.patrolAxis === 'x'
+        ? [[npc.min, npc.y], [mid, npc.y], [npc.max, npc.y]]
+        : [[npc.x, npc.min], [npc.x, mid], [npc.x, npc.max]];
+    for (const [px, py] of pts) {
+      assert.equal(isPointInVehicleLane(px, py), false, `NPC ${npc.id} patrol enters vehicle lane at (${px},${py})`);
+      assert.equal(isPointOnSidewalk(px, py), true, `NPC ${npc.id} patrol leaves sidewalk at (${px},${py})`);
+    }
   }
 });
 
@@ -217,7 +234,7 @@ test('AC-01: initial state, continuous sidewalk walking, collision safety, and n
   assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 
   // Walk west along the north sidewalk of Tram Avenue from Chiado into Bairro Alto
-  for (let i = 0; i < 30; i += 1) {
+  for (let i = 0; i < 40; i += 1) {
     engine.tick(0.1, { x: -1, y: 0 });
   }
   assert.equal(state.currentNeighborhoodId, 'bairro-alto');
@@ -226,8 +243,8 @@ test('AC-01: initial state, continuous sidewalk walking, collision safety, and n
   assert.ok(state.fullness < INITIAL_FULLNESS);
   assert.ok(state.stats.distanceWalkedPx > 200);
 
-  // Walk east along the sidewalk all the way into Alfama (at realistic pedestrian strolling speed)
-  for (let i = 0; i < 120; i += 1) {
+  // Walk east along the sidewalk all the way into Alfama (at realistic slow pedestrian speed)
+  for (let i = 0; i < 165; i += 1) {
     engine.tick(0.1, { x: 1, y: 0 });
   }
   assert.equal(state.currentNeighborhoodId, 'alfama');
@@ -235,7 +252,7 @@ test('AC-01: initial state, continuous sidewalk walking, collision safety, and n
   assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
 });
 
-test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarking onto sidewalks, and transit memories', () => {
+test('AC-02: boarding Tram 28E and Carris Bus, bell & Proxima Paragem announcements, disembarking onto sidewalks, and transit memories', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
@@ -247,10 +264,24 @@ test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarkin
   assert.ok(state.memories.some((m) => m.id === 'mem-ride-tram-28e'));
 
   const startX = state.player.x;
-  for (let i = 0; i < 40; i += 1) {
+  const scrollBefore = state.tramScrollOffset;
+  for (let i = 0; i < 20; i += 1) {
     engine.tick(0.1, { x: 0, y: 0 });
   }
   assert.notEqual(state.player.x, startX);
+  assert.ok(state.tramScrollOffset > scrollBefore, 'In-tram cityscape scroll offset should advance while moving');
+
+  // Press [E] while riding Tram 28E between stops -> rings bell and announces "Proxima Paragem: <Next Stop>"
+  const tramVehicle = state.vehicles.find((v) => v.id === 'tram-28e');
+  assert.equal(tramVehicle.currentStopId, null);
+  const tramBellRes = engine.triggerNearbyInteraction();
+  assert.equal(tramBellRes.ok, true);
+  assert.equal(tramBellRes.alighted, false);
+  assert.equal(state.alightAtNextStop, true);
+  assert.ok(state.transitAnnouncement);
+  assert.equal(state.transitAnnouncement.vehicleMode, 'tram');
+  assert.equal(state.transitAnnouncement.ringBell, true);
+  assert.ok(state.transitAnnouncement.text.startsWith('Proxima Paragem: '));
 
   const disembarkRes = engine.disembarkTransit({ immediateToNextStop: true });
   assert.equal(disembarkRes.ok, true);
@@ -264,6 +295,17 @@ test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarkin
   assert.equal(state.ridingVehicleId, 'bus-737-758');
   assert.equal(state.stats.busRides, 1);
   assert.ok(state.memories.some((m) => m.id === 'mem-ride-carris-bus'));
+
+  // Let bus pull out from stop, then press [E] to ring Carris bus STOP bell & announce Proxima Paragem
+  for (let i = 0; i < 18; i += 1) {
+    engine.tick(0.1, { x: 0, y: 0 });
+  }
+  const busBellRes = engine.triggerNearbyInteraction();
+  assert.equal(busBellRes.ok, true);
+  assert.equal(state.alightAtNextStop, true);
+  assert.equal(state.transitAnnouncement.vehicleMode, 'bus');
+  assert.equal(state.transitAnnouncement.ringBell, true);
+  assert.ok(state.transitAnnouncement.text.startsWith('Proxima Paragem: '));
 
   const busExit = engine.disembarkTransit({ immediateToNextStop: true });
   assert.equal(busExit.ok, true);
@@ -432,17 +474,38 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   engine.boardTransitAtStop('stop-bus-garrett', { waitIfApproaching: true });
   engine.disembarkTransit({ immediateToNextStop: true });
 
-  // Board Transtejo ferries from Cais do Sodre to Cacilhas, Seixal, and Montijo and sail back
+  // Board Transtejo ferries from Cais do Sodre to Cacilhas, Seixal, and Montijo, explore each south-bank town, and sail back
+  state.euros = 120;
   engine.openFerryTerminal();
   assert.equal(state.mode, 'ferry');
   assert.equal(state.ferry.portId, 'cais-do-sodre');
-  for (const destId of ['cacilhas', 'seixal', 'montijo']) {
-    const sailOut = engine.boardFerry(destId);
+  for (const dest of FERRY_DESTINATIONS) {
+    const sailOut = engine.boardFerry(dest.id);
     assert.equal(sailOut.ok, true);
     assert.equal(state.ferry.phase, 'sailing');
     for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
     assert.equal(state.ferry.phase, 'terminal');
-    assert.equal(state.ferry.portId, destId);
+    assert.equal(state.ferry.portId, dest.id);
+
+    // Explore the south-bank townscape: visit landmark (+25 Energy), order regional dish, and buy local keepsake
+    const landmark = dest.townSpots.find((s) => s.kind === 'landmark');
+    const eatery = dest.townSpots.find((s) => s.kind === 'eatery');
+    const shop = dest.townSpots.find((s) => s.kind === 'shop');
+
+    state.energy = 60;
+    const restLandmarkRes = engine.interactWithSouthBankSpot(landmark.id);
+    assert.equal(restLandmarkRes.ok, true);
+    assert.equal(state.energy, 85);
+
+    const dish = eatery.items[0];
+    const orderSbRes = engine.purchaseSouthBankItem(eatery.id, dish.id);
+    assert.equal(orderSbRes.ok, true);
+    assert.ok(state.tastedFoods.some((f) => f.id === dish.id));
+
+    const keepsake = shop.items.find((i) => i.kind === 'souvenir') || shop.items[0];
+    const buySbRes = engine.purchaseSouthBankItem(shop.id, keepsake.id);
+    assert.equal(buySbRes.ok, true);
+    assert.ok(state.satchel.some((s) => s.id === keepsake.id));
 
     const sailBack = engine.boardFerry('cais-do-sodre');
     assert.equal(sailBack.ok, true);
@@ -616,6 +679,31 @@ test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, ve
   ]);
   engine.tick(0.1, { x: 0, y: 0 });
   assert.equal(tram.yielding, true, 'Tram should yield for remote multiplayer traveler on rails');
+
+  // Case 5: Blocked villager proactively walks around pedestrian on sidewalk (never gets stuck or steps into street)
+  engine.setRemotePlayers([]);
+  const strollNpc = state.npcs[0];
+  strollNpc.x = 500;
+  strollNpc.y = strollNpc.homeY;
+  strollNpc.dir = 1;
+  strollNpc.blockedTime = 0;
+  state.player.x = 526; // Standing directly in front of the villager on the sidewalk
+  state.player.y = strollNpc.homeY;
+
+  let stayedStrictlyOnSidewalk = true;
+  let maxDeviationFromStartX = 0;
+  for (let i = 0; i < 80; i += 1) {
+    engine.tick(0.1, { x: 0, y: 0 });
+    if (!isPointOnSidewalk(strollNpc.x, strollNpc.y)) {
+      stayedStrictlyOnSidewalk = false;
+    }
+    maxDeviationFromStartX = Math.max(maxDeviationFromStartX, Math.abs(strollNpc.x - 500));
+  }
+  assert.equal(stayedStrictlyOnSidewalk, true, 'Dodging villager must remain strictly on the sidewalk');
+  assert.ok(
+    maxDeviationFromStartX > 45,
+    `Expected blocked villager to walk around or reverse freely rather than getting stuck (moved ${maxDeviationFromStartX}px)`
+  );
 });
 
 test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 15 venue interiors cleanly', () => {
@@ -678,13 +766,17 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   engine.getState().vehicles[0].yielding = false;
 
+  // Render panoramic inside-the-tram (Remodelado 28E) view with active Proxima Paragem announcement
   engine.boardTransitAtStop('stop-tram-camoes', { waitIfApproaching: true });
+  for (let i = 0; i < 16; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  engine.triggerNearbyInteraction();
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   engine.disembarkTransit({ immediateToNextStop: true });
 
-  // Render panoramic inside-the-bus Lisboa cityscape view (hillside avenue + waterfront)
+  // Render panoramic inside-the-bus Lisboa cityscape view (hillside avenue + waterfront + announcement)
   engine.boardTransitAtStop('stop-bus-garrett', { waitIfApproaching: true });
-  engine.tick(0.1, { x: 0, y: 0 });
+  for (let i = 0; i < 16; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  engine.triggerNearbyInteraction();
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   engine.getState().vehicles.find((v) => v.mode === 'bus').y = 932;
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
@@ -966,10 +1058,13 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   sound.playEffect('door');
   sound.playEffect('register');
   sound.playEffect('tram-bell');
+  sound.playEffect('stop-bell');
   sound.playEffect('metro-chime');
   sound.playEffect('ferry-horn');
+  sound.announceNextStop('Rua Garrett', { mode: 'bus', ringBell: true });
+  sound.announceNextStop('Largo do Chiado', { mode: 'tram', ringBell: true });
 
-  // Verify Ferry soundscape profile (pier + Tagus crossing) and real Public Domain Fado MP3 playlist rotation
+  // Verify Ferry soundscape profile (pier, Tagus crossing, and south-bank town) and real Public Domain Fado MP3 playlist rotation
   engine.openFerryTerminal();
   const ferryPierProfile = computeSoundscapeProfile(state);
   assert.ok(ferryPierProfile.riverWater >= 0.8);
@@ -980,6 +1075,10 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   assert.equal(ferrySailProfile.ferryEngine, 1);
   sound.update(state);
   assert.ok(sound.ferryBus.gain.value > 0.4);
+  for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  const southBankTownProfile = computeSoundscapeProfile(state);
+  assert.ok(southBankTownProfile.riverWater >= 0.6);
+  assert.ok(southBankTownProfile.folkGuitar >= 0.4);
   engine.exitFerryTerminal({ immediate: true });
 
   // Test MP3 playlist auto-rotation with mock HTMLAudioElement

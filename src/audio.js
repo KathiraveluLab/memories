@@ -124,15 +124,17 @@ export function computeSoundscapeProfile(state) {
   if (state.mode === 'ferry') {
     const isSailing = state.ferry?.phase === 'sailing';
     const portId = state.ferry?.portId;
+    const isSouthBank = Boolean(portId && portId !== FERRY_TERMINAL.id);
     const portLabel =
       portId === FERRY_TERMINAL.id
         ? 'Cais do Sodre Pier'
-        : `${FERRY_DESTINATIONS.find((d) => d.id === portId)?.shortName || 'South Bank'} Pier`;
+        : `${FERRY_DESTINATIONS.find((d) => d.id === portId)?.shortName || 'South Bank'} Waterfront`;
     return {
       ...EMPTY_PROFILE,
-      riverWater: isSailing ? 1 : 0.86,
-      ferryEngine: isSailing ? 1 : 0.42,
-      badgeTone: 'water',
+      riverWater: isSailing ? 1 : isSouthBank ? 0.65 : 0.86,
+      ferryEngine: isSailing ? 1 : isSouthBank ? 0.16 : 0.42,
+      folkGuitar: !isSailing && isSouthBank ? 0.48 : 0,
+      badgeTone: isSailing || !isSouthBank ? 'water' : 'warm',
       activeLabel: isSailing ? 'Tagus Ferry Crossing' : portLabel
     };
   }
@@ -1277,6 +1279,34 @@ export class LisboaSoundEngine {
       return;
     }
 
+    if (kind === 'stop-bell') {
+      // Classic Carris Lisbon bus STOP request bell chime (bright metallic ding-dong)
+      for (const [delay, freq] of [[0, 1174.66], [0.14, 880.0]]) {
+        const t = now + delay;
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        const harmonic = ctx.createOscillator();
+        harmonic.type = 'triangle';
+        harmonic.frequency.setValueAtTime(freq * 2, t);
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.linearRampToValueAtTime(0.18, t + 0.008);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+        const hGain = ctx.createGain();
+        hGain.gain.value = 0.25;
+        osc.connect(env);
+        harmonic.connect(hGain);
+        hGain.connect(env);
+        env.connect(this.sfxBus);
+        osc.start(t);
+        harmonic.start(t);
+        osc.stop(t + 0.46);
+        harmonic.stop(t + 0.46);
+      }
+      return;
+    }
+
     if (kind === 'tram-bell') {
       for (const delay of [0, 0.18]) {
         const osc = ctx.createOscillator();
@@ -1328,6 +1358,42 @@ export class LisboaSoundEngine {
         osc.stop(t + 0.35);
       }
     }
+  }
+
+  announceNextStop(stopName, { mode = 'bus', ringBell = true } = {}) {
+    const cleanStop = String(stopName || '').split(' (')[0].trim();
+    if (!cleanStop) return false;
+    if (this.disposed || this.muted || !this.unlocked) return false;
+
+    if (ringBell) {
+      this.playEffect(mode === 'tram' ? 'tram-bell' : 'stop-bell');
+    }
+
+    // Spoken European Portuguese onboard Carris stop announcement via native Web Speech API
+    const phrase = `Proxima paragem: ${cleanStop}`;
+    if (
+      typeof window !== 'undefined' &&
+      window.speechSynthesis &&
+      typeof SpeechSynthesisUtterance === 'function'
+    ) {
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(phrase);
+        utter.lang = 'pt-PT';
+        utter.rate = 0.94;
+        utter.pitch = 1.0;
+        utter.volume = 0.85;
+        const voices = window.speechSynthesis.getVoices?.() || [];
+        const ptVoice =
+          voices.find((v) => /^pt-PT/i.test(v.lang)) ||
+          voices.find((v) => /^pt/i.test(v.lang));
+        if (ptVoice) utter.voice = ptVoice;
+        window.speechSynthesis.speak(utter);
+      } catch {
+        // Gracefully fall back to chime-only if browser speech synthesis is restricted
+      }
+    }
+    return true;
   }
 
   dispose() {
