@@ -13,7 +13,8 @@ import {
   VENUES,
   REST_SPOTS,
   TRANSIT_LINES,
-  getAllTransitStops
+  getAllTransitStops,
+  getOutfitById
 } from './data.js';
 import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES } from './engine.js';
 
@@ -235,12 +236,13 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // 13. Ambient Lisbon Locals (walking safely on sidewalks and plazas)
+    // 13. Ambient Lisbon Locals (walking safely on sidewalks and plazas in varied Lisbon attire)
     for (const npc of state.npcs) {
       this.drawCharacterSprite(ctx, npc.x, npc.y, {
         facing: npc.patrolAxis === 'x' ? (npc.dir > 0 ? 'right' : 'left') : (npc.dir > 0 ? 'down' : 'up'),
         walkPhase: npc.walkPhase,
         isMoving: npc.isMoving !== false,
+        outfitId: npc.outfitId,
         tunicColor: npc.shirt,
         scarfColor: '#e6dcc8',
         hairColor: npc.hair,
@@ -249,22 +251,47 @@ export class LisboaCanvasRenderer {
     }
 
     // 14. Live Transit Vehicles (Remodelado Tram 28E & Carris Bus)
+    const remoteList = Array.isArray(state.remotePlayers) ? state.remotePlayers : [];
     for (const vehicle of state.vehicles) {
       const playerAboard = state.ridingVehicleId === vehicle.id;
-      this.drawTransitVehicle(ctx, vehicle, playerAboard, isEvening);
+      const remoteAboard = remoteList.filter((rp) => rp.ridingVehicleId === vehicle.id);
+      this.drawTransitVehicle(ctx, vehicle, playerAboard, isEvening, remoteAboard);
     }
 
-    // 15. Player Character (when walking on foot)
+    // 15. Local & Connected Multiplayer Travelers on foot (Y-sorted for clean depth layering)
+    const overworldTravelers = [];
     if (!state.ridingVehicleId) {
-      this.drawCharacterSprite(ctx, state.player.x, state.player.y, {
+      overworldTravelers.push({
+        x: state.player.x,
+        y: state.player.y,
         facing: state.player.facing,
         walkPhase: state.player.walkPhase,
         isMoving: state.player.isMoving,
-        tunicColor: '#1b4d89',
-        scarfColor: '#d4583b',
-        hairColor: '#2d211b',
+        outfitId: state.player.outfitId,
+        label: remoteList.length > 0 ? state.player.name : '',
+        emoteText: state.player.emoteText || '',
         isPlayer: true
       });
+    }
+    for (const rp of remoteList) {
+      if (rp.mode === 'overworld' && !rp.ridingVehicleId) {
+        overworldTravelers.push({
+          x: rp.x,
+          y: rp.y,
+          facing: rp.facing,
+          walkPhase: rp.walkPhase,
+          isMoving: rp.isMoving,
+          outfitId: rp.outfitId,
+          label: rp.name,
+          emoteText: rp.emoteText || '',
+          isPlayer: false,
+          isRemotePlayer: true
+        });
+      }
+    }
+    overworldTravelers.sort((a, b) => a.y - b.y);
+    for (const traveler of overworldTravelers) {
+      this.drawCharacterSprite(ctx, traveler.x, traveler.y, traveler);
     }
 
     ctx.restore();
@@ -2173,7 +2200,7 @@ export class LisboaCanvasRenderer {
     ctx.textAlign = 'left';
   }
 
-  drawTransitVehicle(ctx, vehicle, playerAboard, isEvening) {
+  drawTransitVehicle(ctx, vehicle, playerAboard, isEvening, remoteAboard = []) {
     ctx.save();
     ctx.translate(vehicle.x, vehicle.y);
     ctx.rotate(vehicle.heading);
@@ -2296,6 +2323,22 @@ export class LisboaCanvasRenderer {
       ctx.fill();
     }
 
+    // Show connected multiplayer travelers riding aboard this tram or bus
+    if (Array.isArray(remoteAboard) && remoteAboard.length > 0) {
+      remoteAboard.slice(0, 3).forEach((rp, idx) => {
+        const outfit = getOutfitById(rp.outfitId);
+        const rx = -22 + idx * 14;
+        ctx.fillStyle = outfit.ringColor;
+        ctx.beginPath();
+        ctx.arc(rx, 0, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = outfit.skinColor;
+        ctx.beginPath();
+        ctx.arc(rx, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
     ctx.restore();
 
     if (vehicle.yielding) {
@@ -2324,37 +2367,212 @@ export class LisboaCanvasRenderer {
   }
 
   drawCharacterSprite(ctx, x, y, opts) {
+    const outfit = opts.outfitId ? getOutfitById(opts.outfitId) : null;
+    const styleType = outfit ? outfit.styleType : 'trench';
+    const primary = outfit ? outfit.primaryColor : (opts.tunicColor || '#1b4d89');
+    const secondary = outfit ? outfit.secondaryColor : (opts.scarfColor || '#d4583b');
+    const accent = outfit ? outfit.accentColor : '#eab308';
+    const pantsColor = outfit ? outfit.pantsColor : '#3b2b22';
+    const hairColor = outfit ? outfit.hairColor : (opts.hairColor || '#2d211b');
+    const skinColor = outfit ? outfit.skinColor : '#f2cfb2';
+    const ringColor = outfit ? outfit.ringColor : '#d4583b';
+    const hatType = outfit ? outfit.hatType : 'none';
+    const isTraveler = Boolean(opts.isPlayer || opts.isRemotePlayer);
+
     const bob = opts.isMoving ? Math.sin(opts.walkPhase) * 2.5 : 0;
     const legSwing = opts.isMoving ? Math.sin(opts.walkPhase) * 4 : 0;
 
+    ctx.save();
+
+    // Ground shadow
     ctx.fillStyle = 'rgba(15, 23, 42, 0.24)';
     ctx.beginPath();
     ctx.ellipse(x, y + 11, 11, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#3b2b22';
+    // Highlight ground ring for active players (distinct color per clothing style)
+    if (isTraveler) {
+      ctx.strokeStyle = opts.isPlayer ? ringColor : ringColor;
+      ctx.lineWidth = opts.isPlayer ? 2.0 : 1.7;
+      if (opts.isRemotePlayer) ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.ellipse(x, y + 11, 13.5, 6.8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Shoes / boots / legs
+    ctx.fillStyle = pantsColor;
     ctx.beginPath();
-    ctx.arc(x - 4, y + 8 + legSwing * 0.45, 3.5, 0, Math.PI * 2);
-    ctx.arc(x + 4, y + 8 - legSwing * 0.45, 3.5, 0, Math.PI * 2);
+    ctx.arc(x - 4, y + 8 + legSwing * 0.45, 3.4, 0, Math.PI * 2);
+    ctx.arc(x + 4, y + 8 - legSwing * 0.45, 3.4, 0, Math.PI * 2);
     ctx.fill();
 
-    if (opts.isPlayer && opts.facing === 'up') {
-      ctx.fillStyle = '#a3572a';
+    // Backpack visible when facing away
+    if (isTraveler && opts.facing === 'up') {
+      ctx.fillStyle = '#8b4c28';
       drawRoundedRect(ctx, x - 7, y - 5 + bob, 14, 11, 3);
+      ctx.fill();
+      ctx.strokeStyle = '#3d2514';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Clothing silhouettes: 6 distinct cloth styles
+    if (styleType === 'sundress') {
+      // Flared pleated Mediterranean sundress with contrasting waist sash
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.moveTo(x - 6, y - 7 + bob);
+      ctx.lineTo(x + 6, y - 7 + bob);
+      ctx.lineTo(x + 11, y + 8 + bob);
+      ctx.lineTo(x - 11, y + 8 + bob);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#3f1d1d';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // White waist sash & bow
+      ctx.fillStyle = secondary;
+      ctx.fillRect(x - 7.5, y - 1 + bob, 15, 3);
+      // Hem lace border
+      ctx.fillStyle = secondary;
+      ctx.fillRect(x - 10, y + 5.5 + bob, 20, 2);
+      // Pleat lines
+      ctx.strokeStyle = 'rgba(80, 20, 20, 0.35)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y + 2 + bob);
+      ctx.lineTo(x - 5, y + 7 + bob);
+      ctx.moveTo(x + 3, y + 2 + bob);
+      ctx.lineTo(x + 5, y + 7 + bob);
+      ctx.stroke();
+    } else if (styleType === 'poncho') {
+      // Wide triangular-draped bohemian woven poncho cape with gold diamond stripe & fringe tassels
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y - 7 + bob);
+      ctx.lineTo(x + 7, y - 7 + bob);
+      ctx.lineTo(x + 12, y + 5 + bob);
+      ctx.lineTo(x, y + 8.5 + bob);
+      ctx.lineTo(x - 12, y + 5 + bob);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#0f3d33';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // Woven golden geometric band
+      ctx.fillStyle = secondary;
+      ctx.fillRect(x - 9, y - 1 + bob, 18, 3);
+      ctx.fillStyle = accent;
+      ctx.fillRect(x - 2, y - 1 + bob, 4, 3);
+      // Bottom cream fringe tassels
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1.1;
+      for (let fx = x - 9; fx <= x + 9; fx += 3) {
+        ctx.beginPath();
+        ctx.moveTo(fx, y + 5.5 + bob);
+        ctx.lineTo(fx, y + 8.5 + bob);
+        ctx.stroke();
+      }
+    } else if (styleType === 'sailor') {
+      // Classic Breton horizontal-striped maritime knit sweater + neckerchief
+      ctx.fillStyle = primary;
+      drawRoundedRect(ctx, x - 8, y - 7 + bob, 16, 15, 4.5);
+      ctx.fill();
+      ctx.fillStyle = secondary;
+      ctx.fillRect(x - 7.5, y - 4 + bob, 15, 2.2);
+      ctx.fillRect(x - 7.5, y + 0.2 + bob, 15, 2.2);
+      ctx.fillRect(x - 7.5, y + 4.4 + bob, 15, 2.2);
+      ctx.strokeStyle = '#182436';
+      ctx.lineWidth = 1.2;
+      drawRoundedRect(ctx, x - 8, y - 7 + bob, 16, 15, 4.5);
+      ctx.stroke();
+      // Knotted golden-ochre maritime neckerchief
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(x - 6, y - 7 + bob);
+      ctx.lineTo(x + 6, y - 7 + bob);
+      ctx.lineTo(x, y - 2 + bob);
+      ctx.closePath();
+      ctx.fill();
+    } else if (styleType === 'overalls') {
+      // Collared ochre shirt under indigo denim dungaree overalls with straps & brass buttons
+      ctx.fillStyle = secondary;
+      drawRoundedRect(ctx, x - 8, y - 7 + bob, 16, 15, 4.5);
+      ctx.fill();
+      // Denim overalls bib & lower shorts/trousers
+      ctx.fillStyle = primary;
+      ctx.fillRect(x - 6.5, y - 1 + bob, 13, 9);
+      ctx.fillRect(x - 5.5, y - 7 + bob, 3, 7);
+      ctx.fillRect(x + 2.5, y - 7 + bob, 3, 7);
+      // Center pocket & brass buckles
+      ctx.strokeStyle = '#182436';
+      ctx.lineWidth = 1.2;
+      drawRoundedRect(ctx, x - 8, y - 7 + bob, 16, 15, 4.5);
+      ctx.stroke();
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(x - 5, y - 2 + bob, 2, 2);
+      ctx.fillRect(x + 3, y - 2 + bob, 2, 2);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x - 3.5, y + 1.5 + bob, 7, 4);
+    } else if (styleType === 'blazer') {
+      // Tailored cream linen summer jacket with open V-lapels over a plum waistcoat
+      ctx.fillStyle = primary;
+      drawRoundedRect(ctx, x - 8.5, y - 7 + bob, 17, 15, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // Open V waistcoat & crisp white shirt collar
+      ctx.fillStyle = secondary;
+      ctx.beginPath();
+      ctx.moveTo(x - 4.5, y - 7 + bob);
+      ctx.lineTo(x + 4.5, y - 7 + bob);
+      ctx.lineTo(x + 3, y + 7 + bob);
+      ctx.lineTo(x - 3, y + 7 + bob);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y - 7 + bob);
+      ctx.lineTo(x + 3, y - 7 + bob);
+      ctx.lineTo(x, y - 2 + bob);
+      ctx.closePath();
+      ctx.fill();
+      // Gold lapel pocket square
+      ctx.fillStyle = accent;
+      ctx.fillRect(x + 4, y - 2 + bob, 3, 2);
+    } else {
+      // Classic Lisbon double-breasted trench coat with brass buttons & draped hanging scarf
+      ctx.fillStyle = primary;
+      drawRoundedRect(ctx, x - 8, y - 7 + bob, 16, 15, 4.5);
+      ctx.fill();
+      ctx.strokeStyle = '#182436';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // Brass trench buttons
+      ctx.fillStyle = accent;
+      ctx.fillRect(x - 3, y + bob, 1.8, 1.8);
+      ctx.fillRect(x + 1.5, y + bob, 1.8, 1.8);
+      ctx.fillRect(x - 3, y + 4 + bob, 1.8, 1.8);
+      ctx.fillRect(x + 1.5, y + 4 + bob, 1.8, 1.8);
+      // Draped scarf + vertical scarf tail
+      ctx.fillStyle = secondary;
+      ctx.fillRect(x - 7, y - 6.5 + bob, 14, 3.8);
+      ctx.fillRect(x + 2, y - 3 + bob, 3.5, 8);
+    }
+
+    // Long flowing hair behind head for sundress & poncho styles
+    if (styleType === 'sundress' || styleType === 'poncho') {
+      ctx.fillStyle = hairColor;
+      drawRoundedRect(ctx, x - 8.5, y - 16 + bob, 17, 11, 5);
       ctx.fill();
     }
 
-    ctx.fillStyle = opts.tunicColor;
-    drawRoundedRect(ctx, x - 8, y - 7 + bob, 16, 15, 5);
-    ctx.fill();
-    ctx.strokeStyle = '#182436';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    ctx.fillStyle = opts.scarfColor;
-    ctx.fillRect(x - 7, y - 6 + bob, 14, 4);
-
-    ctx.fillStyle = '#f2cfb2';
+    // Head
+    ctx.fillStyle = skinColor;
     ctx.beginPath();
     ctx.arc(x, y - 13 + bob, 7.5, 0, Math.PI * 2);
     ctx.fill();
@@ -2362,11 +2580,66 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = opts.hairColor;
+    // Hair cap
+    ctx.fillStyle = hairColor;
     ctx.beginPath();
     ctx.arc(x, y - 15.5 + bob, 7.2, Math.PI, Math.PI * 2);
     ctx.fill();
 
+    // Distinct Headwear per clothing style
+    if (hatType === 'sunhat') {
+      // Wide-brimmed straw sun hat with navy ribbon
+      ctx.fillStyle = '#ecd298';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 19 + bob, 12.5, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#92672a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#e6c278';
+      ctx.beginPath();
+      ctx.arc(x, y - 19.5 + bob, 6.2, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = accent;
+      ctx.fillRect(x - 6, y - 20.5 + bob, 12, 2.2);
+    } else if (hatType === 'beret') {
+      // Angled wool beret with tiny top stem
+      ctx.fillStyle = secondary;
+      ctx.beginPath();
+      ctx.ellipse(x + 1.5, y - 20.5 + bob, 8.8, 4.2, -0.18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillRect(x + 1, y - 25.5 + bob, 1.8, 2.5);
+    } else if (hatType === 'headband') {
+      // Woven colorful bohemian headband
+      ctx.fillStyle = secondary;
+      ctx.fillRect(x - 7, y - 18.5 + bob, 14, 2.6);
+      ctx.fillStyle = primary;
+      ctx.fillRect(x - 2, y - 18.5 + bob, 4, 2.6);
+    } else if (hatType === 'flatcap') {
+      // Tweed newsboy flat cap with forward brim
+      ctx.fillStyle = '#5c4938';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 19.5 + bob, 8.2, 4, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#3d2f23';
+      ctx.fillRect(x - 7.5, y - 19.5 + bob, 16, 2.5);
+    } else if (hatType === 'fedora') {
+      // Classic tailored Lisbon fedora with gold hatband
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 19 + bob, 11, 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      drawRoundedRect(ctx, x - 6.2, y - 26 + bob, 12.4, 7.5, 2.5);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.fillRect(x - 6, y - 20.8 + bob, 12, 2);
+    }
+
+    // Eyes
     ctx.fillStyle = '#1e293b';
     if (opts.facing === 'down') {
       ctx.fillRect(x - 3, y - 13 + bob, 2, 2);
@@ -2377,13 +2650,40 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(x + 2.5, y - 13 + bob, 2, 2);
     }
 
-    if (opts.isPlayer) {
-      ctx.strokeStyle = 'rgba(212, 88, 59, 0.72)';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.ellipse(x, y + 11, 13, 6.5, 0, 0, Math.PI * 2);
+    // Crisp player nameplate above head when in multiplayer
+    const hatTopY = hatType !== 'none' ? y - 28 + bob : y - 23 + bob;
+    if (opts.label) {
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      const labelW = Math.ceil(ctx.measureText(opts.label).width) + 12;
+      const pillY = hatTopY - 16;
+      drawRoundedRect(ctx, x - labelW / 2, pillY, labelW, 15, 4);
+      ctx.fillStyle = opts.isPlayer ? 'rgba(20, 50, 88, 0.92)' : 'rgba(255, 255, 255, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = 1.4;
       ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = opts.isPlayer ? '#ffffff' : '#143258';
+      ctx.fillText(opts.label, x, pillY + 10.5);
     }
+
+    // Floating quick greeting / speech bubble
+    if (opts.emoteText) {
+      ctx.font = '600 9.5px "Segoe UI", sans-serif';
+      const bubbleW = Math.ceil(ctx.measureText(opts.emoteText).width) + 16;
+      const bubbleY = (opts.label ? hatTopY - 36 : hatTopY - 22);
+      drawRoundedRect(ctx, x - bubbleW / 2, bubbleY, bubbleW, 18, 6);
+      ctx.fillStyle = '#fffbeb';
+      ctx.fill();
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#78350f';
+      ctx.fillText(opts.emoteText, x, bubbleY + 12);
+    }
+
+    ctx.restore();
   }
 
   drawTimeOfDayOverlay(ctx, phase) {
@@ -2461,12 +2761,42 @@ export class LisboaCanvasRenderer {
       ctx.fill();
     }
 
-    ctx.fillStyle = '#ef4444';
+    // Connected remote multiplayer travelers on mini-map
+    if (Array.isArray(state.remotePlayers)) {
+      for (const rp of state.remotePlayers) {
+        const outfit = getOutfitById(rp.outfitId);
+        let rx = rp.x;
+        let ry = rp.y;
+        if (rp.mode === 'interior' && rp.currentVenueId) {
+          const v = VENUES.find((item) => item.id === rp.currentVenueId);
+          if (v) {
+            rx = v.doorX;
+            ry = v.doorY;
+          }
+        } else if (rp.mode === 'metro' && rp.metroStationId) {
+          const st = METRO_STATIONS.find((item) => item.id === rp.metroStationId);
+          if (st) {
+            rx = st.doorX;
+            ry = st.doorY;
+          }
+        }
+        ctx.fillStyle = outfit.ringColor;
+        ctx.beginPath();
+        ctx.arc(mx + rx * sx, my + ry * sy, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.1;
+        ctx.stroke();
+      }
+    }
+
+    const myOutfit = getOutfitById(state.player.outfitId);
+    ctx.fillStyle = myOutfit.ringColor;
     ctx.beginPath();
-    ctx.arc(mx + state.player.x * sx, my + state.player.y * sy, 4, 0, Math.PI * 2);
+    ctx.arc(mx + state.player.x * sx, my + state.player.y * sy, 4.2, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.3;
     ctx.stroke();
 
     ctx.fillStyle = '#e2e8f0';
@@ -3421,15 +3751,38 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    this.drawCharacterSprite(ctx, state.player.x, state.player.y, {
-      facing: state.player.facing,
-      walkPhase: state.player.walkPhase,
-      isMoving: state.player.isMoving,
-      tunicColor: '#1b4d89',
-      scarfColor: '#d4583b',
-      hairColor: '#2d211b',
-      isPlayer: true
-    });
+    const interiorRemotes = (state.remotePlayers || []).filter(
+      (rp) => rp.mode === 'interior' && rp.currentVenueId === state.currentVenueId
+    );
+    const interiorActors = [
+      {
+        x: state.player.x,
+        y: state.player.y,
+        facing: state.player.facing,
+        walkPhase: state.player.walkPhase,
+        isMoving: state.player.isMoving,
+        outfitId: state.player.outfitId,
+        label: (state.remotePlayers || []).length > 0 ? state.player.name : '',
+        emoteText: state.player.emoteText || '',
+        isPlayer: true
+      },
+      ...interiorRemotes.map((rp) => ({
+        x: rp.x,
+        y: rp.y,
+        facing: rp.facing,
+        walkPhase: rp.walkPhase,
+        isMoving: rp.isMoving,
+        outfitId: rp.outfitId,
+        label: rp.name,
+        emoteText: rp.emoteText || '',
+        isPlayer: false,
+        isRemotePlayer: true
+      }))
+    ];
+    interiorActors.sort((a, b) => a.y - b.y);
+    for (const actor of interiorActors) {
+      this.drawCharacterSprite(ctx, actor.x, actor.y, actor);
+    }
 
     ctx.restore();
 
@@ -3959,17 +4312,40 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // 7. Player character (on escalator or platform; inside train when riding)
+    // 7. Player character & any connected travelers sharing the same underground Metro platform
+    const metroActors = [];
     if (m.phase !== 'riding') {
-      this.drawCharacterSprite(ctx, state.player.x, state.player.y, {
+      metroActors.push({
+        x: state.player.x,
+        y: state.player.y,
         facing: state.player.facing,
         walkPhase: state.player.walkPhase,
         isMoving: state.player.isMoving,
-        tunicColor: '#1b4d89',
-        scarfColor: '#d4583b',
-        hairColor: '#2d211b',
+        outfitId: state.player.outfitId,
+        label: (state.remotePlayers || []).length > 0 ? state.player.name : '',
+        emoteText: state.player.emoteText || '',
         isPlayer: true
       });
+    }
+    for (const rp of state.remotePlayers || []) {
+      if (rp.mode === 'metro' && rp.metroStationId === m.stationId && rp.metroPhase !== 'riding') {
+        metroActors.push({
+          x: rp.x,
+          y: rp.y,
+          facing: rp.facing,
+          walkPhase: rp.walkPhase,
+          isMoving: rp.isMoving,
+          outfitId: rp.outfitId,
+          label: rp.name,
+          emoteText: rp.emoteText || '',
+          isPlayer: false,
+          isRemotePlayer: true
+        });
+      }
+    }
+    metroActors.sort((a, b) => a.y - b.y);
+    for (const actor of metroActors) {
+      this.drawCharacterSprite(ctx, actor.x, actor.y, actor);
     }
   }
 

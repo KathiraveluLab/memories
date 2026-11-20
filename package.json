@@ -5,6 +5,7 @@
   "description": "Ground-level RPG canvas exploration game set in Bairro Alto, Chiado, and Alfama in Lisboa, featuring tram and bus transit, enterable shops and restaurants, and a collectible Memory Album.",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/engine.test.js"
+    "start": "node server.js",
+    "test": "node --test tests/engine.test.js tests/multiplayer.test.js"
   }
 }

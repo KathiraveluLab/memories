@@ -13,6 +13,8 @@ import {
   REST_SPOTS,
   TRANSIT_LINES,
   AMBIENT_NPCS,
+  PLAYER_OUTFITS,
+  MULTIPLAYER_SPAWN_POINTS,
   getAllTransitStops,
   getAllMemoryCatalog
 } from '../src/data.js';
@@ -140,6 +142,24 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
       isOverworldPositionValid(spot.x, spot.y + 22),
       `Rest bench approach collides with obstacle for ${spot.id}`
     );
+  }
+
+  // All multiplayer spawn points sit safely on the sidewalk off vehicle lanes and do not overlap
+  assert.ok(PLAYER_OUTFITS.length >= 6, 'Expected at least 6 distinct traveler cloth styles');
+  const outfitIds = new Set(PLAYER_OUTFITS.map((o) => o.id));
+  const styleTypes = new Set(PLAYER_OUTFITS.map((o) => o.styleType));
+  assert.equal(outfitIds.size, PLAYER_OUTFITS.length, 'Outfit IDs must be unique');
+  assert.equal(styleTypes.size, PLAYER_OUTFITS.length, 'Each outfit must have a distinct cloth silhouette styleType');
+  assert.ok(MULTIPLAYER_SPAWN_POINTS.length >= 6);
+  for (let i = 0; i < MULTIPLAYER_SPAWN_POINTS.length; i += 1) {
+    const pt = MULTIPLAYER_SPAWN_POINTS[i];
+    assert.equal(isOverworldPositionValid(pt.x, pt.y), true, `Spawn ${i} invalid`);
+    assert.equal(isPointInVehicleLane(pt.x, pt.y), false, `Spawn ${i} inside vehicle lane`);
+    for (let j = i + 1; j < MULTIPLAYER_SPAWN_POINTS.length; j += 1) {
+      const other = MULTIPLAYER_SPAWN_POINTS[j];
+      const d = Math.hypot(pt.x - other.x, pt.y - other.y);
+      assert.ok(d >= PERSON_SEPARATION_DIST, `Spawn points ${i} and ${j} too close: ${d}`);
+    }
   }
 
   // All ambient Lisbon locals patrol strictly off vehicle lanes
@@ -486,6 +506,67 @@ test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, ve
   }
   const sep = Math.hypot(state.player.x - npc.x, state.player.y - npc.y);
   assert.ok(sep >= PERSON_SEPARATION_DIST - 0.5, `Expected person separation >= ${PERSON_SEPARATION_DIST}, got ${sep}`);
+
+  // Case 4: Multiplayer peer separation (cannot clip through connected peer, yet can step away) & tram yields for peer
+  engine.setRemotePlayers([
+    {
+      id: 'peer-2',
+      slot: 2,
+      name: 'Traveler 2',
+      outfitId: 'alfama-dress',
+      x: 984,
+      y: 544,
+      facing: 'left',
+      walkPhase: 0,
+      isMoving: false,
+      mode: 'overworld',
+      currentVenueId: null,
+      metroStationId: null,
+      metroPhase: null,
+      ridingVehicleId: null,
+      neighborhoodName: 'Chiado',
+      emoteText: 'Ola!'
+    }
+  ]);
+  state.player.x = 950;
+  state.player.y = 544;
+  for (let i = 0; i < 20; i += 1) {
+    engine.tick(0.05, { x: 1, y: 0 });
+  }
+  const peerSep = Math.hypot(state.player.x - 984, state.player.y - 544);
+  assert.ok(peerSep >= PERSON_SEPARATION_DIST - 0.5, `Expected peer separation >= ${PERSON_SEPARATION_DIST}, got ${peerSep}`);
+
+  // Tram yields when remote peer walks on rails ahead of tram
+  tram.x = 1000;
+  tram.y = 610;
+  tram.heading = 0;
+  tram.direction = 1;
+  tram.waypointIndex = 1;
+  tram.dwellRemaining = 0;
+  state.player.x = 500;
+  state.player.y = 544;
+  engine.setRemotePlayers([
+    {
+      id: 'peer-2',
+      slot: 2,
+      name: 'Traveler 2',
+      outfitId: 'alfama-dress',
+      x: 1068,
+      y: 610,
+      facing: 'down',
+      walkPhase: 0,
+      isMoving: false,
+      mode: 'overworld',
+      currentVenueId: null,
+      metroStationId: null,
+      metroPhase: null,
+      ridingVehicleId: null,
+      neighborhoodName: 'Chiado',
+      emoteText: ''
+    }
+  ]);
+  engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(tram.yielding, true, 'Tram should yield for remote multiplayer traveler on rails');
 });
 
 test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 15 venue interiors cleanly', () => {
@@ -564,8 +645,57 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   for (let i = 0; i < 12; i += 1) engine.tick(0.1, { x: 0, y: 0 });
 
+  // Render all 6 distinct traveler cloth styles + remote multiplayer peers across overworld, transit, Metro, and shared interior
+  engine.setRemotePlayers(
+    PLAYER_OUTFITS.slice(1).map((outfit, idx) => ({
+      id: `peer-${idx + 2}`,
+      slot: idx + 2,
+      name: `Traveler ${idx + 2}`,
+      outfitId: outfit.id,
+      x: 984 + idx * 34,
+      y: 544,
+      facing: 'down',
+      walkPhase: 0.4,
+      isMoving: true,
+      mode: 'overworld',
+      currentVenueId: null,
+      metroStationId: null,
+      metroPhase: null,
+      ridingVehicleId: idx === 4 ? 'tram-28e' : null,
+      neighborhoodName: 'Chiado',
+      emoteText: idx === 0 ? 'Ola!' : ''
+    }))
+  );
+  for (const outfit of PLAYER_OUTFITS) {
+    engine.setPlayerProfile({ outfitId: outfit.id });
+    renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  }
+  engine.setPlayerProfile({ outfitId: PLAYER_OUTFITS[0].id });
+
   for (const venue of VENUES) {
     engine.enterVenue(venue.id);
+    if (venue.id === 'casa-da-rosa') {
+      engine.setRemotePlayers([
+        {
+          id: 'peer-bakery',
+          slot: 2,
+          name: 'Traveler 2',
+          outfitId: 'alfama-dress',
+          x: 440,
+          y: 260,
+          facing: 'up',
+          walkPhase: 0,
+          isMoving: false,
+          mode: 'interior',
+          currentVenueId: 'casa-da-rosa',
+          metroStationId: null,
+          metroPhase: null,
+          ridingVehicleId: null,
+          neighborhoodName: 'Bairro Alto',
+          emoteText: 'Bom dia!'
+        }
+      ]);
+    }
     renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
     engine.exitVenue();
   }
@@ -577,13 +707,16 @@ test('compliance check: no emojis, no license mentions, and no prohibited intern
   const filesToCheck = [
     'package.json',
     'README.md',
+    'server.js',
     'index.html',
     'styles.css',
     path.join('src', 'data.js'),
     path.join('src', 'engine.js'),
+    path.join('src', 'multiplayer.js'),
     path.join('src', 'renderer.js'),
     path.join('src', 'app.js'),
-    path.join('tests', 'engine.test.js')
+    path.join('tests', 'engine.test.js'),
+    path.join('tests', 'multiplayer.test.js')
   ];
 
   const emojiRegex = /\p{Extended_Pictographic}/u;

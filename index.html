@@ -72,6 +72,7 @@
                 to enter shops, board Tram 28E or Carris Bus, or rest.</p>
             </div>
             <div class="scene-badges">
+              <span class="badge badge-lan" id="live-lan-status">[SOLO]</span>
               <span class="badge badge-tram" id="live-tram-status">[TRAM 28E] En route</span>
               <span class="badge badge-bus" id="live-bus-status">[BUS 737] En route</span>
             </div>
@@ -94,6 +95,7 @@
             <div class="controls-hint">
               <span><strong>Move / Enter Door:</strong> WASD / Arrows / Click</span>
               <span><strong>Interact:</strong> E / Space</span>
+              <span><strong>Wave:</strong> G</span>
               <span><strong>Exit:</strong> Esc</span>
             </div>
           </div>
@@ -114,6 +116,41 @@
           Welcome to Lisboa! Walk around Bairro Alto, Chiado, and Alfama, board Tram 28E or Carris Bus, and step inside
           local shops and restaurants.
         </div>
+
+        <section class="panel lan-panel" id="lan-panel" aria-label="LAN Multiplayer and Traveler Clothing Style">
+          <div class="panel-header compact">
+            <h3>LAN Multiplayer &amp; Cloth Style</h3>
+            <span class="badge-muted" id="lan-connection-badge">Solo Mode</span>
+          </div>
+
+          <div class="lan-join-row hidden" id="lan-join-row">
+            <span class="lan-join-label">Join from another computer on this Wi-Fi / LAN:</span>
+            <div class="lan-url-bar">
+              <code class="lan-url-code" id="lan-join-url">http://localhost:3000</code>
+              <button type="button" class="btn btn-sm" id="btn-copy-lan">Copy Link</button>
+            </div>
+          </div>
+
+          <p class="helper-text compact-note" id="lan-solo-hint">
+            Solo offline mode. To invite another computer on your network, run <code>npm start</code> and share the
+            LAN address.
+          </p>
+
+          <div class="mp-controls">
+            <label class="mp-field">
+              <span>Your Name</span>
+              <input type="text" id="mp-name-input" class="mp-input" maxlength="22" value="Traveler 1"
+                aria-label="Traveler display name">
+            </label>
+            <label class="mp-field">
+              <span>Cloth Style</span>
+              <select id="mp-outfit-select" class="mp-select" aria-label="Traveler clothing style"></select>
+            </label>
+            <button type="button" class="btn btn-sm btn-primary mp-wave-btn" id="btn-wave">Wave [G]</button>
+          </div>
+
+          <div id="lan-players-list" class="mp-players-list"></div>
+        </section>
 
         <section class="panel context-panel hidden" id="active-context-panel">
           <!-- Populated dynamically when inside a shop/restaurant or riding transit -->

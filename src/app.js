@@ -4,6 +4,8 @@ import {
   METRO_STATIONS,
   VENUES,
   REST_SPOTS,
+  PLAYER_OUTFITS,
+  getOutfitById,
   getAllTransitStops,
   getAllMemoryCatalog
 } from './data.js';
@@ -17,6 +19,7 @@ import {
   isPointInVehicleLane
 } from './engine.js';
 import { LisboaCanvasRenderer } from './renderer.js';
+import { LanMultiplayerClient } from './multiplayer.js';
 
 const ALL_STOPS = getAllTransitStops();
 const ALL_MEMORIES = getAllMemoryCatalog();
@@ -112,7 +115,11 @@ const pressedKeys = new Set();
 let activeTab = 'guide';
 let lastUiSignature = '';
 let lastContextSignature = '';
+let lastLanSignature = '';
 let lastStatusText = '';
+let mpStatusInfo = { status: 'connecting', lanUrls: [], playerCount: 1 };
+const QUICK_GREETINGS = ['Ola!', 'Bom dia!', 'Vamos ao cafe!', 'Espera por mim!'];
+let greetingIndex = 0;
 
 const dom = {
   euros: document.getElementById('hud-euros'),
@@ -125,8 +132,18 @@ const dom = {
   memories: document.getElementById('hud-memories'),
   sceneTitle: document.getElementById('scene-title'),
   sceneSubtitle: document.getElementById('scene-subtitle'),
+  liveLanStatus: document.getElementById('live-lan-status'),
   liveTramStatus: document.getElementById('live-tram-status'),
   liveBusStatus: document.getElementById('live-bus-status'),
+  lanConnectionBadge: document.getElementById('lan-connection-badge'),
+  lanJoinRow: document.getElementById('lan-join-row'),
+  lanJoinUrl: document.getElementById('lan-join-url'),
+  lanSoloHint: document.getElementById('lan-solo-hint'),
+  btnCopyLan: document.getElementById('btn-copy-lan'),
+  mpNameInput: document.getElementById('mp-name-input'),
+  mpOutfitSelect: document.getElementById('mp-outfit-select'),
+  btnWave: document.getElementById('btn-wave'),
+  lanPlayersList: document.getElementById('lan-players-list'),
   btnContextAction: document.getElementById('btn-context-action'),
   btnSecondaryAction: document.getElementById('btn-secondary-action'),
   btnOvernight: document.getElementById('btn-overnight'),
@@ -727,12 +744,191 @@ function refreshUi(force = false) {
 
   renderActiveContextPanel(state);
   renderLists(state);
+  renderMultiplayerPanel(state);
 }
+
+function describeTravelerLocation(traveler) {
+  if (traveler.mode === 'interior' && traveler.currentVenueId) {
+    const venue = VENUES.find((v) => v.id === traveler.currentVenueId);
+    return venue ? `Inside ${venue.name}` : 'Inside a venue';
+  }
+  if (traveler.mode === 'metro' && traveler.metroStationId) {
+    const station = METRO_STATIONS.find((s) => s.id === traveler.metroStationId);
+    return station ? `${station.name} (${traveler.metroPhase || 'platform'})` : 'Underground Metro';
+  }
+  if (traveler.ridingVehicleId) {
+    return traveler.ridingVehicleId === 'tram-28e' ? 'Aboard Tram 28E' : 'Aboard Carris Bus';
+  }
+  return traveler.neighborhoodName || 'Chiado';
+}
+
+function renderMultiplayerPanel(state) {
+  if (!dom.lanPlayersList) return;
+  const remotes = state.remotePlayers || [];
+  const totalOnline = mpStatusInfo.status === 'connected' ? remotes.length + 1 : 1;
+
+  const sig = JSON.stringify({
+    status: mpStatusInfo.status,
+    urls: mpStatusInfo.lanUrls,
+    me: {
+      n: state.player.name,
+      o: state.player.outfitId,
+      loc: describeTravelerLocation({
+        mode: state.mode,
+        currentVenueId: state.currentVenueId,
+        metroStationId: state.metro.stationId,
+        metroPhase: state.metro.phase,
+        ridingVehicleId: state.ridingVehicleId,
+        neighborhoodName: state.currentNeighborhoodName
+      })
+    },
+    remotes: remotes.map((r) => ({
+      id: r.id,
+      n: r.name,
+      o: r.outfitId,
+      loc: describeTravelerLocation(r)
+    }))
+  });
+  if (sig === lastLanSignature) return;
+  lastLanSignature = sig;
+
+  const isLan = mpStatusInfo.status === 'connected';
+  const isReconnecting = mpStatusInfo.status === 'reconnecting';
+  if (dom.liveLanStatus) {
+    dom.liveLanStatus.classList.toggle('live', isLan);
+    dom.liveLanStatus.textContent = isLan
+      ? `[LAN] ${totalOnline} ${totalOnline === 1 ? 'Traveler' : 'Travelers'}`
+      : isReconnecting
+        ? '[LAN] Reconnecting...'
+        : '[SOLO]';
+  }
+  if (dom.lanConnectionBadge) {
+    dom.lanConnectionBadge.textContent = isLan
+      ? `LAN Live - ${totalOnline} Online`
+      : isReconnecting
+        ? 'Reconnecting...'
+        : 'Solo Mode';
+  }
+
+  const shareUrl =
+    (mpStatusInfo.lanUrls && mpStatusInfo.lanUrls[0]) ||
+    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+  if (dom.lanJoinRow) {
+    dom.lanJoinRow.classList.toggle('hidden', !isLan && !isReconnecting);
+  }
+  if (dom.lanSoloHint) {
+    dom.lanSoloHint.classList.toggle('hidden', isLan || isReconnecting);
+  }
+  if (dom.lanJoinUrl) {
+    dom.lanJoinUrl.textContent = shareUrl;
+  }
+
+  const myOutfit = getOutfitById(state.player.outfitId);
+  const myLoc = describeTravelerLocation({
+    mode: state.mode,
+    currentVenueId: state.currentVenueId,
+    metroStationId: state.metro.stationId,
+    metroPhase: state.metro.phase,
+    ridingVehicleId: state.ridingVehicleId,
+    neighborhoodName: state.currentNeighborhoodName
+  });
+
+  const rows = [
+    `
+      <div class="mp-player-chip self">
+        <div class="mp-player-info">
+          <span class="mp-swatch" style="background:${escapeHtml(myOutfit.ringColor)}"></span>
+          <div>
+            <span class="mp-player-name">${escapeHtml(state.player.name)} (You)</span>
+            <span class="mp-player-meta">${escapeHtml(myOutfit.name)} | ${escapeHtml(myLoc)}</span>
+          </div>
+        </div>
+      </div>
+    `
+  ];
+
+  for (const rp of remotes) {
+    const outfit = getOutfitById(rp.outfitId);
+    const loc = describeTravelerLocation(rp);
+    rows.push(`
+      <div class="mp-player-chip">
+        <div class="mp-player-info">
+          <span class="mp-swatch" style="background:${escapeHtml(outfit.ringColor)}"></span>
+          <div>
+            <span class="mp-player-name">${escapeHtml(rp.name)}</span>
+            <span class="mp-player-meta">${escapeHtml(outfit.name)} | ${escapeHtml(loc)}</span>
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm" data-walk-peer="${escapeHtml(rp.id)}" ${state.ridingVehicleId ? 'disabled' : ''}>
+          Walk To
+        </button>
+      </div>
+    `);
+  }
+
+  dom.lanPlayersList.innerHTML = rows.join('');
+}
+
+// Populate cloth style dropdown
+if (dom.mpOutfitSelect) {
+  dom.mpOutfitSelect.innerHTML = PLAYER_OUTFITS.map(
+    (outfit) => `<option value="${escapeHtml(outfit.id)}">${escapeHtml(outfit.name)}</option>`
+  ).join('');
+  dom.mpOutfitSelect.value = engine.getState().player.outfitId;
+}
+
+const mpClient = new LanMultiplayerClient({
+  onStatusChange: (info) => {
+    mpStatusInfo = info;
+    lastLanSignature = '';
+    renderMultiplayerPanel(engine.getState());
+  },
+  onJoined: (assignedPlayer, lanUrls) => {
+    engine.setPlayerProfile({
+      name: assignedPlayer.name,
+      outfitId: assignedPlayer.outfitId
+    });
+    engine.setPlayerPosition(assignedPlayer.x, assignedPlayer.y);
+    if (dom.mpNameInput) dom.mpNameInput.value = assignedPlayer.name;
+    if (dom.mpOutfitSelect) dom.mpOutfitSelect.value = assignedPlayer.outfitId;
+    const outfit = getOutfitById(assignedPlayer.outfitId);
+    const lanHint = lanUrls && lanUrls[0] ? ` Share ${lanUrls[0]} on your network to invite another computer.` : '';
+    setStatusBanner(`Joined LAN Lisboa as ${assignedPlayer.name} wearing ${outfit.name}.${lanHint}`);
+    lastLanSignature = '';
+    refreshUi(true);
+  },
+  onRemotePlayers: (remotes) => {
+    const prevIds = new Set((engine.getState().remotePlayers || []).map((r) => r.id));
+    engine.setRemotePlayers(remotes);
+    for (const r of remotes) {
+      if (!prevIds.has(r.id)) {
+        const outfit = getOutfitById(r.outfitId);
+        setStatusBanner(`${r.name} joined Lisboa wearing ${outfit.name}!`);
+      }
+    }
+    lastLanSignature = '';
+    renderMultiplayerPanel(engine.getState());
+  }
+});
 
 // Event listeners
 window.addEventListener('keydown', (event) => {
+  const tag = event.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+    return;
+  }
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
     event.preventDefault();
+  }
+  if (event.code === 'KeyG') {
+    if (!event.repeat) {
+      const text = QUICK_GREETINGS[greetingIndex % QUICK_GREETINGS.length];
+      greetingIndex += 1;
+      engine.triggerEmote(text);
+      mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+      setStatusBanner(`You waved: "${text}"`);
+    }
+    return;
   }
   if (event.code === 'KeyE' || event.code === 'Space') {
     if (!event.repeat) {
@@ -917,6 +1113,112 @@ dom.guideList.addEventListener('click', (event) => {
   }
 });
 
+if (dom.mpNameInput) {
+  dom.mpNameInput.addEventListener('input', () => {
+    engine.setPlayerProfile({ name: dom.mpNameInput.value });
+    mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+    lastLanSignature = '';
+    renderMultiplayerPanel(engine.getState());
+  });
+}
+
+if (dom.mpOutfitSelect) {
+  dom.mpOutfitSelect.addEventListener('change', () => {
+    engine.setPlayerProfile({ outfitId: dom.mpOutfitSelect.value });
+    const outfit = getOutfitById(dom.mpOutfitSelect.value);
+    mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+    setStatusBanner(`Changed cloth style to ${outfit.name}.`);
+    lastLanSignature = '';
+    renderMultiplayerPanel(engine.getState());
+  });
+}
+
+if (dom.btnWave) {
+  dom.btnWave.addEventListener('click', () => {
+    const text = QUICK_GREETINGS[greetingIndex % QUICK_GREETINGS.length];
+    greetingIndex += 1;
+    engine.triggerEmote(text);
+    mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+    setStatusBanner(`You waved: "${text}"`);
+  });
+}
+
+if (dom.btnCopyLan) {
+  dom.btnCopyLan.addEventListener('click', async () => {
+    const text = dom.lanJoinUrl?.textContent || window.location.origin;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setStatusBanner(`Copied LAN join link: ${text}`);
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
+    setStatusBanner(`Share this link on the same network: ${text}`);
+  });
+}
+
+if (dom.lanPlayersList) {
+  dom.lanPlayersList.addEventListener('click', (event) => {
+    const peerBtn = event.target.closest('[data-walk-peer]');
+    if (!peerBtn) return;
+    const state = engine.getState();
+    const peer = (state.remotePlayers || []).find((r) => r.id === peerBtn.dataset.walkPeer);
+    if (!peer) return;
+
+    if (state.mode === 'interior' && (peer.mode !== 'interior' || peer.currentVenueId !== state.currentVenueId)) {
+      engine.exitVenue();
+    } else if (state.mode === 'metro' && state.metro.phase !== 'riding') {
+      engine.exitMetroStation({ immediate: true });
+    }
+
+    if (peer.mode === 'interior' && peer.currentVenueId) {
+      if (engine.getState().mode === 'interior' && engine.getState().currentVenueId === peer.currentVenueId) {
+        engine.setWalkTarget(peer.x, peer.y, null);
+        return;
+      }
+      const venue = VENUES.find((v) => v.id === peer.currentVenueId);
+      if (venue) {
+        const path = buildOverworldPath(
+          engine.getState().player.x,
+          engine.getState().player.y,
+          venue.spawnOutside.x,
+          venue.spawnOutside.y,
+          { type: 'enterVenue', id: venue.id }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking to meet ${peer.name} inside ${venue.name}...`);
+      }
+      return;
+    }
+
+    if (peer.mode === 'metro' && peer.metroStationId) {
+      const st = METRO_STATIONS.find((s) => s.id === peer.metroStationId);
+      if (st) {
+        const path = buildOverworldPath(
+          engine.getState().player.x,
+          engine.getState().player.y,
+          st.spawnOutside.x,
+          st.spawnOutside.y,
+          { type: 'openMetro', id: st.id }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking to meet ${peer.name} at ${st.name}...`);
+      }
+      return;
+    }
+
+    let targetY = peer.y;
+    if (isPointInVehicleLane(peer.x, targetY)) {
+      targetY = nearestValue(targetY, HORIZONTAL_SIDEWALKS);
+    }
+    const path = buildOverworldPath(engine.getState().player.x, engine.getState().player.y, peer.x, targetY, null);
+    engine.setWalkPath(path);
+    setStatusBanner(`Walking along the sidewalk to meet ${peer.name}...`);
+  });
+}
+
 let lastFrameTime = performance.now();
 let uiTimer = 0;
 
@@ -926,6 +1228,7 @@ function frame(now) {
 
   engine.tick(dt, getKeyboardVector());
   const state = engine.getState();
+  mpClient.syncState(engine.getNetworkSnapshot());
   const nearby = engine.getNearbyInteraction();
   renderer.render(state, nearby, dt);
 
@@ -939,4 +1242,5 @@ function frame(now) {
 }
 
 refreshUi(true);
+mpClient.connect();
 window.requestAnimationFrame(frame);

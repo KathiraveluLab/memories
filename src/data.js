@@ -1390,14 +1390,115 @@ export const MILESTONE_MEMORIES = {
   }
 };
 
+// Distinct Lisboa traveler clothing styles so every multiplayer participant looks clearly different
+export const PLAYER_OUTFITS = [
+  {
+    id: 'lisbon-trench',
+    name: 'Chiado Trench & Scarf',
+    styleType: 'trench',
+    primaryColor: '#1b4d89',
+    secondaryColor: '#d4583b',
+    accentColor: '#eab308',
+    pantsColor: '#1e293b',
+    hairColor: '#2d211b',
+    skinColor: '#f2cfb2',
+    ringColor: '#d4583b',
+    hatType: 'none',
+    description: 'Cobalt double-breasted trench coat with a warm terracotta scarf and satchel strap.'
+  },
+  {
+    id: 'alfama-dress',
+    name: 'Alfama Sundress & Sun Hat',
+    styleType: 'sundress',
+    primaryColor: '#c9433b',
+    secondaryColor: '#fff7ed',
+    accentColor: '#1b4d89',
+    pantsColor: '#f5ebe0',
+    hairColor: '#5a3622',
+    skinColor: '#e8bc98',
+    ringColor: '#c9433b',
+    hatType: 'sunhat',
+    description: 'Flared coral-crimson Mediterranean sundress with white sash and straw sun hat.'
+  },
+  {
+    id: 'maritime-striped',
+    name: 'Tagus Sailor Knit & Beret',
+    styleType: 'sailor',
+    primaryColor: '#f8fafc',
+    secondaryColor: '#1e3a5f',
+    accentColor: '#d97706',
+    pantsColor: '#a89070',
+    hairColor: '#3b2b20',
+    skinColor: '#f0cbb0',
+    ringColor: '#0284c7',
+    hatType: 'beret',
+    description: 'Navy-and-cream Breton striped sweater, ochre neckerchief, and dark wool beret.'
+  },
+  {
+    id: 'bohemian-poncho',
+    name: 'Bairro Alto Woven Poncho',
+    styleType: 'poncho',
+    primaryColor: '#157a64',
+    secondaryColor: '#f59e0b',
+    accentColor: '#fef3c7',
+    pantsColor: '#475569',
+    hairColor: '#6e3422',
+    skinColor: '#dfa980',
+    ringColor: '#157a64',
+    hatType: 'headband',
+    description: 'Emerald fringed woven poncho with golden diamond trim and braided headband.'
+  },
+  {
+    id: 'tile-artisan',
+    name: 'Azulejo Overalls & Flat Cap',
+    styleType: 'overalls',
+    primaryColor: '#315b8c',
+    secondaryColor: '#eab308',
+    accentColor: '#f8fafc',
+    pantsColor: '#26466d',
+    hairColor: '#231c18',
+    skinColor: '#c98e68',
+    ringColor: '#ca8a04',
+    hatType: 'flatcap',
+    description: 'Indigo denim dungaree overalls over an ochre collared shirt with a tweed flat cap.'
+  },
+  {
+    id: 'fado-blazer',
+    name: 'Linen Blazer & Fedora',
+    styleType: 'blazer',
+    primaryColor: '#ede4d3',
+    secondaryColor: '#6d3257',
+    accentColor: '#d97706',
+    pantsColor: '#334155',
+    hairColor: '#453429',
+    skinColor: '#ebd0b6',
+    ringColor: '#7e3a64',
+    hatType: 'fedora',
+    description: 'Tailored cream summer linen blazer over a plum waistcoat with a classic fedora.'
+  }
+];
+
+export const MULTIPLAYER_SPAWN_POINTS = [
+  { x: 946, y: 544 },
+  { x: 1008, y: 544 },
+  { x: 884, y: 544 },
+  { x: 1070, y: 544 },
+  { x: 822, y: 544 },
+  { x: 1132, y: 544 }
+];
+
+export function getOutfitById(id) {
+  return PLAYER_OUTFITS.find((o) => o.id === id) || PLAYER_OUTFITS[0];
+}
+
 // All ambient Lisbon locals patrol strictly on sidewalks, plazas, and pedestrian steps (never inside vehicle lanes)
 export const AMBIENT_NPCS = [
-  { id: 'npc-1', name: 'Local Artist', x: 526, y: 420, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#3b6ea5', hair: '#3b2b20' },
-  { id: 'npc-2', name: 'Chiado Musician', x: 1120, y: 660, patrolAxis: 'x', min: 1060, max: 1340, speed: 20, shirt: '#9f4438', hair: '#2a221e' },
-  { id: 'npc-3', name: 'Rua Garrett Reader', x: 1120, y: 218, patrolAxis: 'x', min: 1040, max: 1320, speed: 22, shirt: '#2b6e59', hair: '#5a3d28' },
-  { id: 'npc-4', name: 'Alfama Neighbor', x: 1730, y: 440, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#c68a1e', hair: '#2c2521' },
-  { id: 'npc-5', name: 'Tagus Stroller', x: 1420, y: 996, patrolAxis: 'x', min: 1050, max: 1860, speed: 28, shirt: '#6a4c7a', hair: '#40312a' },
-  { id: 'npc-6', name: 'Bairro Alto Stroller', x: 380, y: 660, patrolAxis: 'x', min: 240, max: 560, speed: 22, shirt: '#2c5f8a', hair: '#3b2e26' }
+  { id: 'npc-1', name: 'Local Artist', x: 526, y: 420, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#3b6ea5', hair: '#3b2b20', outfitId: 'tile-artisan' },
+  { id: 'npc-2', name: 'Chiado Musician', x: 1120, y: 660, patrolAxis: 'x', min: 1060, max: 1340, speed: 20, shirt: '#9f4438', hair: '#2a221e', outfitId: 'fado-blazer' },
+  { id: 'npc-3', name: 'Rua Garrett Reader', x: 1120, y: 218, patrolAxis: 'x', min: 1040, max: 1320, speed: 22, shirt: '#2b6e59', hair: '#5a3d28', outfitId: 'alfama-dress' },
+  { id: 'npc-4', name: 'Alfama Neighbor', x: 1730, y: 440, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#c68a1e', hair: '#2c2521', outfitId: 'bohemian-poncho' },
+  { id: 'npc-5', name: 'Tagus Stroller', x: 1420, y: 996, patrolAxis: 'x', min: 1050, max: 1860, speed: 28, shirt: '#6a4c7a', hair: '#40312a', outfitId: 'maritime-striped' },
+  { id: 'npc-6', name: 'Bairro Alto Stroller', x: 380, y: 660, patrolAxis: 'x', min: 240, max: 560, speed: 22, shirt: '#2c5f8a', hair: '#3b2e26', outfitId: 'lisbon-trench' }
 ];
 
 export function getAllTransitStops() {

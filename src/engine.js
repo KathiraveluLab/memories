@@ -13,6 +13,7 @@ import {
   TRANSIT_LINES,
   MILESTONE_MEMORIES,
   AMBIENT_NPCS,
+  PLAYER_OUTFITS,
   getAllTransitStops,
   getAllMemoryCatalog,
   getNeighborhoodForX
@@ -327,6 +328,10 @@ export function createInitialState() {
     minutesOfDay: DAY_START_MINUTES,
     eveningNoticeShown: false,
     player: {
+      name: 'Traveler 1',
+      outfitId: PLAYER_OUTFITS[0].id,
+      emoteText: '',
+      emoteTimer: 0,
       x: startX,
       y: startY,
       facing: 'down',
@@ -337,6 +342,7 @@ export function createInitialState() {
       walkTarget: null,
       walkQueue: []
     },
+    remotePlayers: [],
     currentNeighborhoodId: startHood.id,
     currentNeighborhoodName: startHood.name,
     visitedNeighborhoods: [startHood.id],
@@ -399,10 +405,135 @@ export class MemoriesGameEngine {
   }
 
   reset() {
+    const prevName = this.state?.player?.name || 'Traveler 1';
+    const prevOutfit = this.state?.player?.outfitId || PLAYER_OUTFITS[0].id;
+    const prevRemotes = this.state?.remotePlayers || [];
     this.state = createInitialState();
+    this.state.player.name = prevName;
+    this.state.player.outfitId = prevOutfit;
+    this.state.remotePlayers = prevRemotes;
     this.timeAccumulator = 0;
     this.doorEntryCooldown = 0;
     return this.state;
+  }
+
+  setPlayerProfile({ name, outfitId } = {}) {
+    if (typeof name === 'string' && name.trim()) {
+      this.state.player.name = name.trim().slice(0, 22);
+    }
+    if (typeof outfitId === 'string' && PLAYER_OUTFITS.some((o) => o.id === outfitId)) {
+      this.state.player.outfitId = outfitId;
+    }
+    return {
+      name: this.state.player.name,
+      outfitId: this.state.player.outfitId
+    };
+  }
+
+  setPlayerPosition(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    this.state.player.x = x;
+    this.state.player.y = y;
+    if (this.state.mode === 'overworld') {
+      this.state.player.overworldX = x;
+      this.state.player.overworldY = y;
+      this.updateNeighborhoodTracking();
+    }
+  }
+
+  triggerEmote(text, durationSeconds = 3.2) {
+    const cleaned = String(text || '').trim().slice(0, 36);
+    if (!cleaned) return;
+    this.state.player.emoteText = cleaned;
+    this.state.player.emoteTimer = Math.max(1.0, durationSeconds);
+  }
+
+  setRemotePlayers(playersList = [], { snap = false } = {}) {
+    const existingById = new Map(this.state.remotePlayers.map((rp) => [rp.id, rp]));
+    this.state.remotePlayers = playersList.map((raw) => {
+      const prev = existingById.get(raw.id);
+      const sameScene =
+        !snap &&
+        prev &&
+        prev.mode === (raw.mode || 'overworld') &&
+        prev.currentVenueId === (raw.currentVenueId || null) &&
+        prev.metroStationId === (raw.metroStationId || null);
+      const targetX = Number.isFinite(raw.x) ? raw.x : 950;
+      const targetY = Number.isFinite(raw.y) ? raw.y : 544;
+      const outfitId = PLAYER_OUTFITS.some((o) => o.id === raw.outfitId)
+        ? raw.outfitId
+        : PLAYER_OUTFITS[1].id;
+      return {
+        id: raw.id,
+        slot: raw.slot || 2,
+        name: raw.name || `Traveler ${raw.slot || 2}`,
+        outfitId,
+        x: sameScene ? prev.x : targetX,
+        y: sameScene ? prev.y : targetY,
+        targetX,
+        targetY,
+        facing: ['up', 'down', 'left', 'right'].includes(raw.facing) ? raw.facing : 'down',
+        walkPhase: sameScene ? prev.walkPhase : (Number.isFinite(raw.walkPhase) ? raw.walkPhase : 0),
+        isMoving: Boolean(raw.isMoving),
+        mode: raw.mode || 'overworld',
+        currentVenueId: raw.currentVenueId || null,
+        metroStationId: raw.metroStationId || null,
+        metroPhase: raw.metroPhase || null,
+        ridingVehicleId: raw.ridingVehicleId || null,
+        neighborhoodName: raw.neighborhoodName || 'Chiado',
+        emoteText: typeof raw.emoteText === 'string' ? raw.emoteText : ''
+      };
+    });
+    return this.state.remotePlayers;
+  }
+
+  updateRemotePlayers(dt) {
+    if (this.state.player.emoteTimer > 0) {
+      this.state.player.emoteTimer = Math.max(0, this.state.player.emoteTimer - dt);
+      if (this.state.player.emoteTimer === 0) {
+        this.state.player.emoteText = '';
+      }
+    }
+
+    const alpha = Math.min(1, dt * 14);
+    for (const rp of this.state.remotePlayers) {
+      const dx = rp.targetX - rp.x;
+      const dy = rp.targetY - rp.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 160) {
+        rp.x = rp.targetX;
+        rp.y = rp.targetY;
+      } else if (dist > 0.5) {
+        rp.x += dx * alpha;
+        rp.y += dy * alpha;
+      } else {
+        rp.x = rp.targetX;
+        rp.y = rp.targetY;
+      }
+      if (rp.isMoving || dist > 2.2) {
+        rp.walkPhase = (rp.walkPhase + dt * 9.2) % (Math.PI * 2);
+      }
+    }
+  }
+
+  getNetworkSnapshot() {
+    const s = this.state;
+    return {
+      x: Math.round(s.player.x * 10) / 10,
+      y: Math.round(s.player.y * 10) / 10,
+      facing: s.player.facing,
+      walkPhase: Math.round(s.player.walkPhase * 100) / 100,
+      isMoving: s.player.isMoving,
+      mode: s.mode,
+      currentVenueId: s.currentVenueId,
+      metroStationId: s.mode === 'metro' ? s.metro.stationId : null,
+      metroPhase: s.mode === 'metro' ? s.metro.phase : null,
+      ridingVehicleId: s.ridingVehicleId,
+      neighborhoodName: s.currentNeighborhoodName,
+      outfitId: s.player.outfitId,
+      name: s.player.name,
+      emoteText: s.player.emoteText
+    };
   }
 
   getState() {
@@ -477,27 +608,66 @@ export class MemoriesGameEngine {
     return null;
   }
 
-  isBlockedByPerson(x, y, { ignorePlayer = false, ignoreNpcId = null } = {}) {
+  isRemotePlayerInSameScene(rp) {
+    if (this.state.mode === 'overworld') {
+      return rp.mode === 'overworld' && !rp.ridingVehicleId;
+    }
+    if (this.state.mode === 'interior') {
+      return rp.mode === 'interior' && rp.currentVenueId === this.state.currentVenueId;
+    }
+    if (this.state.mode === 'metro') {
+      return (
+        rp.mode === 'metro' &&
+        rp.metroStationId === this.state.metro.stationId &&
+        rp.metroPhase !== 'riding'
+      );
+    }
+    return false;
+  }
+
+  isBlockedByPerson(x, y, { ignorePlayer = false, ignoreNpcId = null, fromX = null, fromY = null } = {}) {
     if (!ignorePlayer && this.state.mode === 'overworld' && !this.state.ridingVehicleId) {
       if (distance(x, y, this.state.player.x, this.state.player.y) < PERSON_SEPARATION_DIST) {
-        return { kind: 'player', name: 'Traveler' };
+        return { kind: 'player', name: this.state.player.name || 'Traveler' };
       }
     }
-    for (const npc of this.state.npcs) {
-      if (npc.id === ignoreNpcId) continue;
-      if (distance(x, y, npc.x, npc.y) < PERSON_SEPARATION_DIST) {
-        return { kind: 'npc', name: npc.name, npc };
+    if (this.state.mode === 'overworld') {
+      for (const npc of this.state.npcs) {
+        if (npc.id === ignoreNpcId) continue;
+        if (distance(x, y, npc.x, npc.y) < PERSON_SEPARATION_DIST) {
+          return { kind: 'npc', name: npc.name, npc };
+        }
+      }
+    }
+    for (const rp of this.state.remotePlayers) {
+      if (!this.isRemotePlayerInSameScene(rp)) continue;
+      const nextDist = distance(x, y, rp.x, rp.y);
+      if (nextDist < PERSON_SEPARATION_DIST) {
+        // Anti-deadlock: if two players start close, always allow stepping farther apart
+        if (Number.isFinite(fromX) && Number.isFinite(fromY)) {
+          const curDist = distance(fromX, fromY, rp.x, rp.y);
+          if (nextDist > curDist + 0.05) continue;
+        }
+        return { kind: 'remote-player', name: rp.name, player: rp };
       }
     }
     return null;
   }
 
   canPlayerStepTo(x, y) {
+    const px = this.state.player.x;
+    const py = this.state.player.y;
     if (this.state.mode === 'interior') {
-      return { ok: isInteriorPositionValid(x, y), blocker: null };
+      if (!isInteriorPositionValid(x, y)) return { ok: false, blocker: null };
+      const blockingPeer = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
+      if (blockingPeer) return { ok: false, blocker: blockingPeer };
+      return { ok: true, blocker: null };
     }
     if (this.state.mode === 'metro') {
-      return { ok: isMetroPlatformPositionValid(x, y), blocker: null };
+      if (!isMetroPlatformPositionValid(x, y)) return { ok: false, blocker: null };
+      const blockingPeer = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
+      if (blockingPeer) return { ok: false, blocker: blockingPeer };
+      return { ok: true, blocker: null };
     }
     if (!isOverworldPositionValid(x, y)) {
       return { ok: false, blocker: { kind: 'structure' } };
@@ -506,7 +676,7 @@ export class MemoriesGameEngine {
     if (blockingVehicle) {
       return { ok: false, blocker: { kind: 'vehicle', vehicle: blockingVehicle } };
     }
-    const blockingPerson = this.isBlockedByPerson(x, y, { ignorePlayer: true });
+    const blockingPerson = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
     if (blockingPerson) {
       return { ok: false, blocker: blockingPerson };
     }
@@ -520,6 +690,20 @@ export class MemoriesGameEngine {
       if (
         isPedestrianAheadOfVehicle(probeVehicle, this.state.player.x, this.state.player.y, PLAYER_RADIUS) ||
         pointIntersectsVehicle(this.state.player.x, this.state.player.y, PLAYER_RADIUS, probeVehicle)
+      ) {
+        return true;
+      }
+    }
+    // Never run over or collide with connected multiplayer travelers on foot (check both rendered and target coordinates)
+    for (const rp of this.state.remotePlayers) {
+      if (rp.mode !== 'overworld' || rp.ridingVehicleId) continue;
+      if (
+        isPedestrianAheadOfVehicle(probeVehicle, rp.x, rp.y, PLAYER_RADIUS) ||
+        pointIntersectsVehicle(rp.x, rp.y, PLAYER_RADIUS, probeVehicle) ||
+        (Number.isFinite(rp.targetX) &&
+          Number.isFinite(rp.targetY) &&
+          (isPedestrianAheadOfVehicle(probeVehicle, rp.targetX, rp.targetY, PLAYER_RADIUS) ||
+            pointIntersectsVehicle(rp.targetX, rp.targetY, PLAYER_RADIUS, probeVehicle)))
       ) {
         return true;
       }
@@ -772,7 +956,7 @@ export class MemoriesGameEngine {
         // Keep click-to-walk target waiting patiently if blocked temporarily by a passing vehicle
         return;
       }
-      if (lastBlocker?.kind === 'npc') {
+      if (lastBlocker?.kind === 'npc' || lastBlocker?.kind === 'remote-player') {
         this.state.statusMessage = `Paused politely on the sidewalk as ${lastBlocker.name} passes.`;
         return;
       }
@@ -999,6 +1183,7 @@ export class MemoriesGameEngine {
 
     this.updateVehicles(dt);
     this.updateNpcs(dt);
+    this.updateRemotePlayers(dt);
 
     // Gentle real-time Lisbon clock progression (1 game minute per ~2.4s)
     this.timeAccumulator += dt;

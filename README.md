@@ -19,6 +19,10 @@
   - **Chiado (5)**: *Livraria Bertrand (1732)*, *Galeria Pombalina*, *Cafe A Brasileira*, *Arcadas do Chiado*, *Atelier de Cortica & Luvas*.
   - **Alfama (4)**: *Se de Lisboa (1147 Cathedral)*, *Oficina de Azulejos*, *Taberna da Sardinha*, *Mercearia & Conservas de Alfama*.
   - Walk directly into any building doorway or Metro entrance using the Arrow / `WASD` keys facing the door (or press `E` / click) to step inside its custom interior room, chat with the host, order traditional dishes or browse keepsakes, and walk back out onto the sidewalk.
+- **LAN Multiplayer & Distinct Cloth Styles**:
+  - Run `npm start` on one computer and share the displayed network address (such as `http://192.168.x.x:3000`) with another computer on the same Wi-Fi or LAN.
+  - Both players explore Lisboa completely independently across Bairro Alto, Chiado, and Alfama, see each other live on cobblestone sidewalks, inside shared shops, bakeries, restaurants, and underground Metro platforms, appear on the mini-map, and can wave with `[G]`.
+  - Every joining player automatically receives a distinct clothing style from 6 unique Lisboa traveler outfits (*Chiado Trench & Scarf*, *Alfama Sundress & Sun Hat*, *Tagus Sailor Knit & Beret*, *Bairro Alto Woven Poncho*, *Azulejo Overalls & Flat Cap*, and *Linen Blazer & Fedora*), customizable anytime.
 - **Gentle Memories Collection Loop**:
   - Manage **Wallet (EUR)**, **Energy**, and **Fullness** as Lisbon shifts from Morning through Afternoon, Golden Hour, and Lantern Evening.
   - Rest free at three scenic **Miradouro Benches** or take a gentle overnight stay at a neighborhood pensao without harsh game-over lockouts.
@@ -26,23 +30,27 @@
 
 ## Project Structure
 
-- `index.html`: Main RPG viewport shell, HUD metrics, and Lisboa Explorer notebook panels.
+- `server.js`: Zero-dependency Node.js HTTP and Server-Sent Events (SSE) LAN multiplayer server binding to `0.0.0.0`, printing reachable LAN IPv4 addresses, auto-assigning distinct outfits and sidewalk spawns, and broadcasting live player state.
+- `index.html`: Main RPG viewport shell, HUD metrics, LAN Multiplayer & Cloth Style panel, and Lisboa Explorer notebook panels.
 - `styles.css`: Responsive Lisbon-themed styling.
-- `src/data.js`: Overworld street, crosswalk, and neighborhood layout, 9 enterable venues with menus and keepsakes, 3 authentic Metro de Lisboa stations, 3 miradouro rest benches, Carris Tram 28E and Bus 737/758 routes, sidewalk pedestrians, phrases, and Memory Album catalog.
-- `src/engine.js`: Pure ES module simulation engine (`MemoriesGameEngine`) managing sidewalk movement, pedestrian and vehicle collision safety, yielding transit vehicles, Metro rides, interior transitions, resource loops, and memory unlocking.
-- `src/renderer.js`: HTML5 2D Canvas RPG renderer for cobblestone streets, bespoke Portuguese architecture, azulejo tilework, Metro station entrances, animated character and vehicles, mini-map, time-of-day lighting, and interior rooms.
-- `src/app.js`: Browser controller handling keyboard and sidewalk-first click-to-walk input, animation frame updates, and interactive DOM panels.
-- `tests/engine.test.js`: Automated unit, integration, collision-safety, renderer, and compliance test suite using `node --test`.
+- `src/data.js`: Overworld street, crosswalk, and neighborhood layout, 15 enterable venues with menus, staff, cashiers, and keepsakes, 6 distinct traveler cloth styles, 3 authentic Metro de Lisboa stations, 3 miradouro rest benches, Carris Tram 28E and Bus 737/758 routes, sidewalk pedestrians, phrases, and Memory Album catalog.
+- `src/engine.js`: Pure ES module simulation engine (`MemoriesGameEngine`) managing sidewalk movement, multiplayer peer interpolation and separation, pedestrian and vehicle collision safety, yielding transit vehicles, Metro rides, interior transitions, resource loops, and memory unlocking.
+- `src/multiplayer.js`: Browser LAN multiplayer client with automatic solo fallback on static hosts (such as GitHub Pages).
+- `src/renderer.js`: HTML5 2D Canvas RPG renderer for cobblestone streets, bespoke Portuguese architecture, azulejo tilework, Metro station entrances, 6 distinct character clothing styles, animated vehicles, mini-map, time-of-day lighting, and detailed interior rooms.
+- `src/app.js`: Browser controller handling keyboard and sidewalk-first click-to-walk input, LAN sync, animation frame updates, and interactive DOM panels.
+- `tests/engine.test.js` & `tests/multiplayer.test.js`: Automated unit, integration, LAN multi-client SSE, collision-safety, renderer, and compliance test suites using `node --test`.
 
-## Running Locally
+## Running Locally (LAN Multiplayer)
 
-Because the application uses native ES modules (`<script type="module">`), serve the workspace over HTTP:
+Requires Node.js 20+. Start the built-in LAN multiplayer server:
 
 ```bash
-python -m http.server 8000
+npm start
 ```
 
-Then open `http://localhost:8000` in your browser.
+Open `http://localhost:3000` on the host computer, and open the printed **Network** address (for example `http://192.168.1.42:3000`) on another computer in the same Wi-Fi or local network. You can also choose a custom port via `PORT=8080 npm start`.
+
+For static single-player hosting (such as GitHub Pages or `python -m http.server 8000`), the app gracefully runs in Solo Mode while retaining full cloth-style customization.
 
 ## Running Tests
 
