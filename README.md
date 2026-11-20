@@ -38,7 +38,8 @@
   - Manage **Wallet (EUR)**, **Energy**, and **Fullness** as Lisbon shifts from Morning through Afternoon, Golden Hour, and Lantern Evening.
   - As **Energy** or **Fullness** drops low, walking speed slows down proportionally; if **Energy** falls critically low (`<= 20`), your traveler slows to an exhausted crawl until you enjoy a proper meal at a bakery, cafe, or restaurant.
   - Capture **26 Memories** and unlock contextual **European Portuguese phrases** with phonetic pronunciation guides.
-  - When your **Wallet** reaches `0.00 EUR`, a **Game Over & Final Lisboa Memories Scorecard** popup presents your complete exploration tally (total score, explorer rank, venues visited, dishes tasted, keepsakes collected, transit rides, postcards, and a full checklist of all 26 Memories captured and missed).
+  - When your **Wallet** reaches `0.00 EUR`, a **Game Over & Final Lisboa Memories Scorecard** popup presents your complete exploration tally (total score, explorer rank, venues visited, dishes tasted, keepsakes collected, transit rides, postcards, a **Comparative Multiplayer Scorecard** ranking all connected LAN companions side by side, and a full checklist of all 26 Memories captured and missed).
+  - Export or copy a formatted **Lisboa Memory Summary Card** (`.txt` download or one-click clipboard copy) anytime from the **Lisboa Memory Album** tab or from the **Game Over Scorecard** modal.
 
 ## Project Structure
 

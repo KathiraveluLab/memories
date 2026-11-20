@@ -602,6 +602,53 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(state.gameOverSummary.memoriesList.length, 26);
   assert.equal(state.gameOverSummary.venuesVisited, 15);
   assert.ok(state.gameOverSummary.totalScore >= 2600);
+
+  // Verify Comparative Multiplayer End-of-Stroll Scorecard & Exportable Memory Summary Card (.txt and .json)
+  engine.setRemotePlayers([
+    {
+      id: 'peer-2',
+      slot: 2,
+      name: 'Alice',
+      outfitId: 'alfama-dress',
+      x: 1151,
+      y: 546,
+      mode: 'overworld',
+      memoriesCaptured: 14,
+      venuesVisited: 8,
+      mealsEaten: 3,
+      souvenirsBought: 2,
+      transitRides: 4,
+      phrasesLearned: 10,
+      postcardsCaptured: 1,
+      eurosRemaining: 42.5,
+      totalScore: 2160,
+      explorerRank: 'Chiado & Alfama Cultural Flaneur',
+      gameOver: false
+    }
+  ], { snap: true });
+  assert.equal(state.gameOverSummary.multiplayerComparison.length, 2);
+  assert.equal(state.gameOverSummary.multiplayerComparison[0].isLocal, true);
+  assert.equal(state.gameOverSummary.multiplayerComparison[0].standing, 1);
+  assert.equal(state.gameOverSummary.multiplayerComparison[1].name, 'Alice');
+  assert.equal(state.gameOverSummary.multiplayerComparison[1].standing, 2);
+  assert.equal(state.gameOverSummary.groupTotals.totalPlayers, 2);
+  assert.equal(
+    state.gameOverSummary.groupTotals.combinedScore,
+    state.gameOverSummary.totalScore + 2160
+  );
+
+  const exportedText = engine.exportMemorySummaryCard({ format: 'text' });
+  assert.equal(exportedText.ok, true);
+  assert.ok(exportedText.cardText.includes('=== MEMORIES: LISBOA EXPLORATION SUMMARY CARD ==='));
+  assert.ok(exportedText.cardText.includes('COMPARATIVE MULTIPLAYER SCORECARD (2 Travelers'));
+  assert.ok(exportedText.cardText.includes('#2 Alice - 2160 pts'));
+  assert.ok(exportedText.cardText.includes('[CAPTURED] Bica at Cafe A Brasileira'));
+
+  const exportedJson = engine.exportMemorySummaryCard({ format: 'json' });
+  assert.equal(exportedJson.ok, true);
+  const parsedCard = JSON.parse(exportedJson.cardText);
+  assert.equal(parsedCard.memoriesCaptured, 26);
+  assert.equal(parsedCard.multiplayerComparison.length, 2);
 });
 
 test('AC-08: directional arrow-key doorway entry for south/north buildings and Metro entrances, plus exit cooldown', () => {

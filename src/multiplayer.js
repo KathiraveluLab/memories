@@ -193,7 +193,10 @@ export class LanMultiplayerClient {
       r: snapshot.ridingVehicleId,
       o: snapshot.outfitId,
       n: snapshot.name,
-      e: snapshot.emoteText
+      e: snapshot.emoteText,
+      sc: snapshot.totalScore,
+      mc: snapshot.memoriesCaptured,
+      go: snapshot.gameOver
     });
 
     const elapsed = now - this.lastSentAt;

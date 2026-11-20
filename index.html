@@ -186,7 +186,11 @@
         <section class="panel tab-panel" id="tab-memories">
           <div class="panel-header compact">
             <h3>Lisboa Memory Album</h3>
-            <span class="badge-muted" id="album-count-badge">0 / 26 captured</span>
+            <div class="action-strip">
+              <span class="badge-muted" id="album-count-badge">0 / 26 captured</span>
+              <button type="button" class="btn btn-sm" id="btn-album-copy-card">Copy Summary Card</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-album-download-card">Export Card (.txt)</button>
+            </div>
           </div>
           <div id="album-complete-banner" class="album-complete hidden">
             <strong>Album Complete!</strong> You captured all 26 neighborhood, landmark, transit, metro, ferry, and
@@ -248,12 +252,31 @@
 
         <div class="scorecard-grid" id="game-over-tally-grid"></div>
 
+        <div class="scorecard-memories-box" id="game-over-multiplayer-box">
+          <div class="panel-header compact">
+            <h3>Comparative Multiplayer Scorecard</h3>
+            <span class="badge-muted" id="game-over-multiplayer-badge">1 Traveler</span>
+          </div>
+          <div class="stack-list" id="game-over-multiplayer-list"></div>
+        </div>
+
         <div class="scorecard-memories-box">
           <div class="panel-header compact">
             <h3>Captured Memories Scorecard</h3>
             <span class="badge-muted" id="game-over-memories-badge">0 / 26 Memories</span>
           </div>
           <div class="memory-grid scorecard-memories-list" id="game-over-memories-list"></div>
+        </div>
+
+        <div class="scorecard-memories-box">
+          <div class="panel-header compact">
+            <h3>Exportable Lisboa Memory Summary Card</h3>
+            <div class="action-strip">
+              <button type="button" class="btn btn-sm" id="btn-gameover-copy-card">Copy Summary Card</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-gameover-download-card">Download Summary Card (.txt)</button>
+            </div>
+          </div>
+          <pre class="summary-card-preview" id="game-over-card-preview"></pre>
         </div>
 
         <div class="modal-actions">

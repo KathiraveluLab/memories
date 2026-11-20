@@ -369,6 +369,7 @@ export function createInitialState() {
     needsMealToRecoverSpeed: false,
     gameOver: false,
     gameOverSummary: null,
+    lastExportedSummaryCard: '',
     day: 1,
     minutesOfDay: DAY_START_MINUTES,
     eveningNoticeShown: false,
@@ -599,26 +600,113 @@ export class MemoriesGameEngine {
     return s.walkSpeedMultiplier;
   }
 
-  buildFinalScorecard() {
+  computePlayerScore() {
     const s = this.state;
-    const totalRides =
-      s.stats.tramRides + s.stats.busRides + s.stats.metroRides + s.stats.ferryRides;
-    const totalScore =
+    return (
       s.memories.length * 100 +
       s.visitedVenues.length * 40 +
       s.learnedPhrases.length * 25 +
       s.stats.mealsEaten * 30 +
       s.stats.souvenirsBought * 35 +
       (s.visitedFerryPorts || []).length * 50 +
-      (s.postcards || []).length * 30;
-    const explorerRank =
-      s.memories.length >= ALL_MEMORIES.length
-        ? 'Grand Master of Lisboa (All 26 Memories Captured)'
-        : s.memories.length >= 18
-          ? 'Seasoned Lisboeta Chronicler'
-          : s.memories.length >= 10
-            ? 'Chiado & Alfama Cultural Flaneur'
-            : 'Bairro Alto Cobblestone Stroller';
+      (s.postcards || []).length * 30
+    );
+  }
+
+  computeExplorerRank(memoriesCount = this.state.memories.length) {
+    if (memoriesCount >= ALL_MEMORIES.length) {
+      return 'Grand Master of Lisboa (All 26 Memories Captured)';
+    }
+    if (memoriesCount >= 18) {
+      return 'Seasoned Lisboeta Chronicler';
+    }
+    if (memoriesCount >= 10) {
+      return 'Chiado & Alfama Cultural Flaneur';
+    }
+    return 'Bairro Alto Cobblestone Stroller';
+  }
+
+  buildFinalScorecard() {
+    const s = this.state;
+    const totalRides =
+      s.stats.tramRides + s.stats.busRides + s.stats.metroRides + s.stats.ferryRides;
+    const totalScore = this.computePlayerScore();
+    const explorerRank = this.computeExplorerRank(s.memories.length);
+
+    const localEntry = {
+      id: 'local',
+      name: s.player.name || 'Traveler 1',
+      outfitId: s.player.outfitId,
+      isLocal: true,
+      totalScore,
+      explorerRank,
+      memoriesCaptured: s.memories.length,
+      memoriesTotal: s.totalMemoriesPossible,
+      venuesVisited: s.visitedVenues.length,
+      venuesTotal: VENUES.length,
+      mealsEaten: s.stats.mealsEaten,
+      souvenirsBought: s.stats.souvenirsBought,
+      transitRides: totalRides,
+      phrasesLearned: s.learnedPhrases.length,
+      postcardsCaptured: (s.postcards || []).length,
+      eurosRemaining: s.euros,
+      gameOver: Boolean(s.gameOver)
+    };
+
+    const peerEntries = (s.remotePlayers || []).map((rp) => {
+      const rpMemories = Number.isFinite(rp.memoriesCaptured) ? rp.memoriesCaptured : 0;
+      const rpVenues = Number.isFinite(rp.venuesVisited) ? rp.venuesVisited : 0;
+      const rpMeals = Number.isFinite(rp.mealsEaten) ? rp.mealsEaten : 0;
+      const rpSouvenirs = Number.isFinite(rp.souvenirsBought) ? rp.souvenirsBought : 0;
+      const rpRides = Number.isFinite(rp.transitRides) ? rp.transitRides : 0;
+      const rpPhrases = Number.isFinite(rp.phrasesLearned) ? rp.phrasesLearned : 1;
+      const rpPostcards = Number.isFinite(rp.postcardsCaptured) ? rp.postcardsCaptured : 0;
+      const rpScore = Number.isFinite(rp.totalScore)
+        ? rp.totalScore
+        : rpMemories * 100 + rpVenues * 40 + rpPhrases * 25 + rpMeals * 30 + rpSouvenirs * 35 + rpPostcards * 30;
+      return {
+        id: rp.id,
+        name: rp.name || 'Companion',
+        outfitId: rp.outfitId,
+        isLocal: false,
+        totalScore: rpScore,
+        explorerRank: rp.explorerRank || this.computeExplorerRank(rpMemories),
+        memoriesCaptured: rpMemories,
+        memoriesTotal: s.totalMemoriesPossible,
+        venuesVisited: rpVenues,
+        venuesTotal: VENUES.length,
+        mealsEaten: rpMeals,
+        souvenirsBought: rpSouvenirs,
+        transitRides: rpRides,
+        phrasesLearned: rpPhrases,
+        postcardsCaptured: rpPostcards,
+        eurosRemaining: Number.isFinite(rp.eurosRemaining) ? rp.eurosRemaining : 120,
+        gameOver: Boolean(rp.gameOver)
+      };
+    });
+
+    const multiplayerComparison = [localEntry, ...peerEntries]
+      .sort(
+        (a, b) =>
+          b.totalScore - a.totalScore ||
+          b.memoriesCaptured - a.memoriesCaptured ||
+          b.venuesVisited - a.venuesVisited ||
+          (a.isLocal ? -1 : 1)
+      )
+      .map((entry, idx) => ({
+        ...entry,
+        standing: idx + 1
+      }));
+
+    const localStanding =
+      multiplayerComparison.find((entry) => entry.isLocal)?.standing || 1;
+    const groupTotals = {
+      totalPlayers: multiplayerComparison.length,
+      combinedScore: multiplayerComparison.reduce((acc, p) => acc + p.totalScore, 0),
+      highestMemories: Math.max(...multiplayerComparison.map((p) => p.memoriesCaptured)),
+      topScorerName: multiplayerComparison[0]?.name || localEntry.name,
+      localStanding
+    };
 
     return {
       title: 'GAME OVER - Wallet Reached 0.00 EUR',
@@ -660,8 +748,66 @@ export class MemoriesGameEngine {
         neighborhood: m.neighborhood,
         day: m.day,
         clock: m.clock
-      }))
+      })),
+      multiplayerComparison,
+      groupTotals
     };
+  }
+
+  exportMemorySummaryCard({ format = 'text' } = {}) {
+    const sc = this.buildFinalScorecard();
+    if (this.state.gameOver) {
+      this.state.gameOverSummary = sc;
+    }
+    if (format === 'json') {
+      const jsonText = JSON.stringify(sc, null, 2);
+      this.state.lastExportedSummaryCard = jsonText;
+      return { ok: true, format: 'json', cardText: jsonText, scorecard: sc };
+    }
+
+    const outfit = PLAYER_OUTFITS.find((o) => o.id === this.state.player.outfitId) || PLAYER_OUTFITS[0];
+    const capturedMap = new Map((sc.memoriesList || []).map((m) => [m.id, m]));
+    const lines = [
+      '=== MEMORIES: LISBOA EXPLORATION SUMMARY CARD ===',
+      `Traveler: ${this.state.player.name} (${outfit.name})`,
+      `Stroll Status: ${this.state.gameOver ? 'Game Over (Wallet 0.00 EUR)' : `Active Stroll (${sc.eurosRemaining.toFixed(2)} EUR remaining)`}`,
+      `Timeline: Day ${sc.dayReached} - ${sc.finalClock} | Neighborhood: ${sc.finalNeighborhood}`,
+      `Final Score: ${sc.totalScore} pts | Rank: ${sc.explorerRank}`,
+      '',
+      '--- EXPLORATION TALLY ---',
+      `Memories Captured: ${sc.memoriesCaptured} / ${sc.memoriesTotal}`,
+      `Buildings Explored: ${sc.venuesVisited} / ${sc.venuesTotal} Venues (${sc.neighborhoodsVisited} / ${sc.neighborhoodsTotal} Neighborhoods)`,
+      `Tagus Ferry Ports: ${sc.ferryPortsVisited} / ${sc.ferryPortsTotal} South-Bank Ports`,
+      `Meals & Pastries: ${sc.mealsEaten} (${sc.tastedFoods.length > 0 ? sc.tastedFoods.join(', ') : 'None'})`,
+      `Keepsakes & Souvenirs: ${sc.souvenirsBought} (${sc.satchelItems.length > 0 ? sc.satchelItems.join(', ') : 'None'})`,
+      `Public Transit Rides: ${sc.transitRides.total} (Tram 28E: ${sc.transitRides.tram}, Bus 737: ${sc.transitRides.bus}, Metro: ${sc.transitRides.metro}, Ferry: ${sc.transitRides.ferry})`,
+      `Portuguese Phrases Learned: ${sc.phrasesLearned} | Shared Postcards: ${sc.postcardsCaptured}`,
+      `Distance Walked: ${sc.distanceWalkedMeters} m | Total Spent: ${sc.eurosSpent.toFixed(2)} EUR`,
+      '',
+      `--- COMPARATIVE MULTIPLAYER SCORECARD (${sc.groupTotals.totalPlayers} ${sc.groupTotals.totalPlayers === 1 ? 'Traveler' : 'Travelers'} | Combined Score: ${sc.groupTotals.combinedScore} pts) ---`
+    ];
+
+    for (const p of sc.multiplayerComparison) {
+      const tag = p.isLocal ? ' (YOU)' : '';
+      const statusTag = p.gameOver ? 'Wallet 0.00 EUR' : `${p.eurosRemaining.toFixed(2)} EUR`;
+      lines.push(
+        `#${p.standing} ${p.name}${tag} - ${p.totalScore} pts | Memories: ${p.memoriesCaptured}/${p.memoriesTotal} | Venues: ${p.venuesVisited}/${p.venuesTotal} | Meals: ${p.mealsEaten} | Keepsakes: ${p.souvenirsBought} | Rides: ${p.transitRides} | ${statusTag}`
+      );
+    }
+
+    lines.push('', `--- LISBOA MEMORIES CHECKLIST (${sc.memoriesCaptured} / ${sc.memoriesTotal}) ---`);
+    for (const mem of ALL_MEMORIES) {
+      const found = capturedMap.get(mem.id);
+      if (found) {
+        lines.push(`[CAPTURED] ${found.title} (${found.neighborhood} - Day ${found.day} ${found.clock})`);
+      } else {
+        lines.push(`[MISSED]   ${mem.title} (${mem.neighborhood})`);
+      }
+    }
+
+    const cardText = lines.join('\n');
+    this.state.lastExportedSummaryCard = cardText;
+    return { ok: true, format: 'text', cardText, scorecard: sc };
   }
 
   checkWalletGameOver() {
@@ -1176,9 +1322,23 @@ export class MemoriesGameEngine {
         ferryPhase: raw.ferryPhase || null,
         ridingVehicleId: raw.ridingVehicleId || null,
         neighborhoodName: raw.neighborhoodName || 'Chiado',
-        emoteText: typeof raw.emoteText === 'string' ? raw.emoteText : ''
+        emoteText: typeof raw.emoteText === 'string' ? raw.emoteText : '',
+        memoriesCaptured: Number.isFinite(raw.memoriesCaptured) ? raw.memoriesCaptured : (prev?.memoriesCaptured || 0),
+        venuesVisited: Number.isFinite(raw.venuesVisited) ? raw.venuesVisited : (prev?.venuesVisited || 0),
+        mealsEaten: Number.isFinite(raw.mealsEaten) ? raw.mealsEaten : (prev?.mealsEaten || 0),
+        souvenirsBought: Number.isFinite(raw.souvenirsBought) ? raw.souvenirsBought : (prev?.souvenirsBought || 0),
+        transitRides: Number.isFinite(raw.transitRides) ? raw.transitRides : (prev?.transitRides || 0),
+        phrasesLearned: Number.isFinite(raw.phrasesLearned) ? raw.phrasesLearned : (prev?.phrasesLearned || 1),
+        postcardsCaptured: Number.isFinite(raw.postcardsCaptured) ? raw.postcardsCaptured : (prev?.postcardsCaptured || 0),
+        eurosRemaining: Number.isFinite(raw.eurosRemaining) ? raw.eurosRemaining : (prev?.eurosRemaining ?? 120),
+        totalScore: Number.isFinite(raw.totalScore) ? raw.totalScore : (prev?.totalScore || 25),
+        explorerRank: typeof raw.explorerRank === 'string' && raw.explorerRank ? raw.explorerRank : (prev?.explorerRank || 'Bairro Alto Cobblestone Stroller'),
+        gameOver: typeof raw.gameOver === 'boolean' ? raw.gameOver : Boolean(prev?.gameOver)
       };
     });
+    if (this.state.gameOver) {
+      this.state.gameOverSummary = this.buildFinalScorecard();
+    }
     return this.state.remotePlayers;
   }
 
@@ -1229,7 +1389,18 @@ export class MemoriesGameEngine {
       neighborhoodName: s.currentNeighborhoodName,
       outfitId: s.player.outfitId,
       name: s.player.name,
-      emoteText: s.player.emoteText
+      emoteText: s.player.emoteText,
+      memoriesCaptured: s.memories.length,
+      venuesVisited: s.visitedVenues.length,
+      mealsEaten: s.stats.mealsEaten,
+      souvenirsBought: s.stats.souvenirsBought,
+      transitRides: s.stats.tramRides + s.stats.busRides + s.stats.metroRides + s.stats.ferryRides,
+      phrasesLearned: s.learnedPhrases.length,
+      postcardsCaptured: (s.postcards || []).length,
+      eurosRemaining: s.euros,
+      totalScore: this.computePlayerScore(),
+      explorerRank: this.computeExplorerRank(s.memories.length),
+      gameOver: Boolean(s.gameOver)
     };
   }
 

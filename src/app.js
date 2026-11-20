@@ -174,6 +174,8 @@ const dom = {
   visitedVenuesBadge: document.getElementById('visited-venues-badge'),
   guideList: document.getElementById('guide-list'),
   albumCountBadge: document.getElementById('album-count-badge'),
+  btnAlbumCopyCard: document.getElementById('btn-album-copy-card'),
+  btnAlbumDownloadCard: document.getElementById('btn-album-download-card'),
   albumCompleteBanner: document.getElementById('album-complete-banner'),
   memoriesList: document.getElementById('memories-list'),
   phraseCountBadge: document.getElementById('phrase-count-badge'),
@@ -189,8 +191,13 @@ const dom = {
   gameOverScore: document.getElementById('game-over-score'),
   gameOverRank: document.getElementById('game-over-rank'),
   gameOverTallyGrid: document.getElementById('game-over-tally-grid'),
+  gameOverMultiplayerBadge: document.getElementById('game-over-multiplayer-badge'),
+  gameOverMultiplayerList: document.getElementById('game-over-multiplayer-list'),
   gameOverMemoriesBadge: document.getElementById('game-over-memories-badge'),
   gameOverMemoriesList: document.getElementById('game-over-memories-list'),
+  gameOverCardPreview: document.getElementById('game-over-card-preview'),
+  btnGameOverCopyCard: document.getElementById('btn-gameover-copy-card'),
+  btnGameOverDownloadCard: document.getElementById('btn-gameover-download-card'),
   btnGameOverRestart: document.getElementById('btn-gameover-restart')
 };
 
@@ -1044,7 +1051,8 @@ function renderGameOverModal(state) {
     score: sum.totalScore,
     mem: sum.memoriesCaptured,
     ven: sum.venuesVisited,
-    meals: sum.mealsEaten
+    meals: sum.mealsEaten,
+    mp: (sum.multiplayerComparison || []).map((p) => `${p.id}:${p.totalScore}:${p.memoriesCaptured}:${p.gameOver}`)
   });
   dom.gameOverModal.classList.remove('hidden');
   if (sig === lastGameOverSignature) return;
@@ -1095,6 +1103,44 @@ function renderGameOverModal(state) {
         <span class="scorecard-stat-sub">${sum.postcardsCaptured} Shared Postcards | ${sum.distanceWalkedMeters} m walked</span>
       </div>
     `;
+  }
+
+  if (dom.gameOverMultiplayerBadge && sum.groupTotals) {
+    const gt = sum.groupTotals;
+    dom.gameOverMultiplayerBadge.textContent =
+      gt.totalPlayers > 1
+        ? `${gt.totalPlayers} Travelers | Combined Score: ${gt.combinedScore} pts | Leader: ${gt.topScorerName}`
+        : `Solo Stroll | Rank #1 (${sum.totalScore} pts)`;
+  }
+
+  if (dom.gameOverMultiplayerList && Array.isArray(sum.multiplayerComparison)) {
+    dom.gameOverMultiplayerList.innerHTML = sum.multiplayerComparison
+      .map((entry) => {
+        const outfit = getOutfitById(entry.outfitId);
+        const walletTag = entry.gameOver ? 'Finished (0.00 EUR)' : `Exploring (${entry.eurosRemaining.toFixed(2)} EUR)`;
+        return `
+          <div class="mp-score-row ${entry.isLocal ? 'local' : ''}">
+            <div>
+              <span class="mp-score-rank">#${entry.standing}</span>
+              <strong>${escapeHtml(entry.name)}${entry.isLocal ? ' (You)' : ''}</strong>
+              <span class="badge-muted">${escapeHtml(outfit.name)}</span>
+              <div class="item-meta">${escapeHtml(entry.explorerRank)} | ${escapeHtml(walletTag)}</div>
+            </div>
+            <div style="text-align:right;">
+              <strong>${entry.totalScore} pts</strong>
+              <div class="item-meta">
+                Memories: ${entry.memoriesCaptured}/${entry.memoriesTotal} | Venues: ${entry.venuesVisited}/${entry.venuesTotal} | Meals: ${entry.mealsEaten} | Keepsakes: ${entry.souvenirsBought} | Rides: ${entry.transitRides}
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  if (dom.gameOverCardPreview) {
+    const exported = engine.exportMemorySummaryCard({ format: 'text' });
+    dom.gameOverCardPreview.textContent = exported.cardText;
   }
 
   if (dom.gameOverMemoriesList) {
@@ -1719,6 +1765,57 @@ if (dom.btnGameOverRestart) {
     lastGameOverSignature = '';
     refreshUi(true);
   });
+}
+
+async function copyMemorySummaryCardToClipboard() {
+  const { cardText } = engine.exportMemorySummaryCard({ format: 'text' });
+  if (dom.gameOverCardPreview) {
+    dom.gameOverCardPreview.textContent = cardText;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(cardText);
+      setStatusBanner('Copied Lisboa Memory Summary Card to clipboard!');
+      return;
+    }
+  } catch {
+    // Fallback below
+  }
+  setStatusBanner('Generated Lisboa Memory Summary Card (ready to copy or download).');
+}
+
+function downloadMemorySummaryCardFile() {
+  const { cardText, scorecard } = engine.exportMemorySummaryCard({ format: 'text' });
+  if (dom.gameOverCardPreview) {
+    dom.gameOverCardPreview.textContent = cardText;
+  }
+  if (typeof Blob !== 'function' || typeof URL === 'undefined' || typeof document === 'undefined') {
+    return;
+  }
+  const blob = new Blob([cardText], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const safeName = (engine.getState().player.name || 'traveler').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  link.href = url;
+  link.download = `memories-lisboa-summary-${safeName}-day${scorecard.dayReached}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  setStatusBanner(`Downloaded Lisboa Memory Summary Card (${link.download}).`);
+}
+
+if (dom.btnGameOverCopyCard) {
+  dom.btnGameOverCopyCard.addEventListener('click', copyMemorySummaryCardToClipboard);
+}
+if (dom.btnAlbumCopyCard) {
+  dom.btnAlbumCopyCard.addEventListener('click', copyMemorySummaryCardToClipboard);
+}
+if (dom.btnGameOverDownloadCard) {
+  dom.btnGameOverDownloadCard.addEventListener('click', downloadMemorySummaryCardFile);
+}
+if (dom.btnAlbumDownloadCard) {
+  dom.btnAlbumDownloadCard.addEventListener('click', downloadMemorySummaryCardFile);
 }
 
 document.querySelectorAll('.tab-btn').forEach((btn) => {

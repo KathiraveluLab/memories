@@ -800,7 +800,18 @@ export function createMultiplayerServer({
       ferryPhase: p.ferryPhase || null,
       ridingVehicleId: p.ridingVehicleId,
       neighborhoodName: p.neighborhoodName,
-      emoteText: p.emoteText
+      emoteText: p.emoteText,
+      memoriesCaptured: p.memoriesCaptured || 0,
+      venuesVisited: p.venuesVisited || 0,
+      mealsEaten: p.mealsEaten || 0,
+      souvenirsBought: p.souvenirsBought || 0,
+      transitRides: p.transitRides || 0,
+      phrasesLearned: p.phrasesLearned || 1,
+      postcardsCaptured: p.postcardsCaptured || 0,
+      eurosRemaining: Number.isFinite(p.eurosRemaining) ? p.eurosRemaining : 120,
+      totalScore: p.totalScore || 25,
+      explorerRank: p.explorerRank || 'Bairro Alto Cobblestone Stroller',
+      gameOver: Boolean(p.gameOver)
     }));
   }
 
@@ -922,6 +933,17 @@ export function createMultiplayerServer({
           ridingVehicleId: null,
           neighborhoodName: 'Chiado',
           emoteText: '',
+          memoriesCaptured: 0,
+          venuesVisited: 0,
+          mealsEaten: 0,
+          souvenirsBought: 0,
+          transitRides: 0,
+          phrasesLearned: 1,
+          postcardsCaptured: 0,
+          eurosRemaining: 120,
+          totalScore: 25,
+          explorerRank: 'Bairro Alto Cobblestone Stroller',
+          gameOver: false,
           lastSeen: Date.now()
         };
         players.set(id, record);
@@ -1028,6 +1050,39 @@ export function createMultiplayerServer({
         }
         if (typeof st.emoteText === 'string') {
           record.emoteText = sanitizeText(st.emoteText, '', 36);
+        }
+        if (Number.isFinite(st.memoriesCaptured)) {
+          record.memoriesCaptured = Math.max(0, Math.floor(st.memoriesCaptured));
+        }
+        if (Number.isFinite(st.venuesVisited)) {
+          record.venuesVisited = Math.max(0, Math.floor(st.venuesVisited));
+        }
+        if (Number.isFinite(st.mealsEaten)) {
+          record.mealsEaten = Math.max(0, Math.floor(st.mealsEaten));
+        }
+        if (Number.isFinite(st.souvenirsBought)) {
+          record.souvenirsBought = Math.max(0, Math.floor(st.souvenirsBought));
+        }
+        if (Number.isFinite(st.transitRides)) {
+          record.transitRides = Math.max(0, Math.floor(st.transitRides));
+        }
+        if (Number.isFinite(st.phrasesLearned)) {
+          record.phrasesLearned = Math.max(0, Math.floor(st.phrasesLearned));
+        }
+        if (Number.isFinite(st.postcardsCaptured)) {
+          record.postcardsCaptured = Math.max(0, Math.floor(st.postcardsCaptured));
+        }
+        if (Number.isFinite(st.eurosRemaining)) {
+          record.eurosRemaining = Math.max(0, Math.round(st.eurosRemaining * 100) / 100);
+        }
+        if (Number.isFinite(st.totalScore)) {
+          record.totalScore = Math.max(0, Math.floor(st.totalScore));
+        }
+        if (typeof st.explorerRank === 'string') {
+          record.explorerRank = sanitizeText(st.explorerRank, record.explorerRank, 52);
+        }
+        if (typeof st.gameOver === 'boolean') {
+          record.gameOver = st.gameOver;
         }
         record.lastSeen = Date.now();
 

@@ -509,6 +509,43 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       assert.equal(brunoEngine.getState().postcards[0].caption, 'Postcard from Cafe A Brasileira with Alice & Bruno');
       assert.equal(brunoEngine.getState().player.emoteText, 'Sorria!');
 
+      // 4c-v. Comparative Multiplayer End-of-Stroll Scorecards sync live across LAN peers!
+      await fetch(`${baseUrl}/api/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          state: {
+            x: 1151,
+            y: 546,
+            mode: 'interior',
+            currentVenueId: 'cafe-do-poeta',
+            memoriesCaptured: 19,
+            venuesVisited: 11,
+            mealsEaten: 4,
+            souvenirsBought: 3,
+            transitRides: 5,
+            phrasesLearned: 14,
+            postcardsCaptured: 2,
+            eurosRemaining: 0,
+            totalScore: 2975,
+            explorerRank: 'Seasoned Lisboeta Chronicler',
+            gameOver: true
+          }
+        })
+      });
+      const scoreEvtOnB = await streamB.waitFor((evt) => {
+        const alice = evt.players?.find((p) => p.id === joinA.player.id);
+        return alice && alice.gameOver === true && alice.totalScore === 2975 && alice.memoriesCaptured === 19;
+      });
+      const aliceRemoteForB = scoreEvtOnB.players.filter((p) => p.id !== joinB.player.id);
+      brunoEngine.setRemotePlayers(aliceRemoteForB, { snap: true });
+      const brunoCard = brunoEngine.exportMemorySummaryCard({ format: 'text' });
+      assert.equal(brunoCard.scorecard.multiplayerComparison.length, 2);
+      assert.equal(brunoCard.scorecard.multiplayerComparison[0].name, 'Alice');
+      assert.equal(brunoCard.scorecard.multiplayerComparison[0].totalScore, 2975);
+      assert.ok(brunoCard.cardText.includes('#1 Alice - 2975 pts | Memories: 19/26'));
+
       // 4d. Server-Authoritative Ambient Villagers & Ferry-Mode Remote Players stay synchronized across clients!
       assert.ok(Array.isArray(joinA.transit.npcs) && joinA.transit.npcs.length === 6);
       const initialNpc1X = joinA.transit.npcs.find((n) => n.id === 'npc-1').x;

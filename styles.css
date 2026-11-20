@@ -984,3 +984,41 @@ h1, h2, h3, h4, p {
   justify-content: flex-end;
   gap: 10px;
 }
+
+
+.mp-score-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid var(--border-soft);
+}
+
+.mp-score-row.local {
+  border-color: var(--azulejo);
+  background: #eff6ff;
+}
+
+.mp-score-rank {
+  font-weight: 800;
+  color: var(--terracotta);
+  margin-right: 6px;
+}
+
+.summary-card-preview {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  max-height: 165px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
