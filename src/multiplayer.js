@@ -4,13 +4,15 @@ export class LanMultiplayerClient {
     onStatusChange = () => {},
     onJoined = () => {},
     onRemotePlayers = () => {},
-    onClockSync = () => {}
+    onClockSync = () => {},
+    onTransitSync = () => {}
   } = {}) {
     this.baseUrl = baseUrl;
     this.onStatusChange = onStatusChange;
     this.onJoined = onJoined;
     this.onRemotePlayers = onRemotePlayers;
     this.onClockSync = onClockSync;
+    this.onTransitSync = onTransitSync;
 
     this.status = 'connecting'; // 'connecting' | 'connected' | 'solo' | 'reconnecting'
     this.playerId = null;
@@ -73,6 +75,9 @@ export class LanMultiplayerClient {
       if (joinData.clock) {
         this.onClockSync(joinData.clock);
       }
+      if (joinData.transit) {
+        this.onTransitSync(joinData.transit);
+      }
       this.onJoined(joinData.player, this.lanUrls);
       this.handlePlayersPayload(joinData.players || []);
       this.openEventStream();
@@ -95,6 +100,7 @@ export class LanMultiplayerClient {
     this.playerId = null;
     this.allPlayers = [];
     this.onClockSync(null);
+    this.onTransitSync(null);
     this.onRemotePlayers([], []);
     this.notifyStatus();
   }
@@ -126,6 +132,9 @@ export class LanMultiplayerClient {
         if (data.clock) {
           this.onClockSync(data.clock);
         }
+        if (data.transit) {
+          this.onTransitSync(data.transit);
+        }
         if (Array.isArray(data.players)) {
           if (this.status !== 'connected') {
             this.status = 'connected';
@@ -135,6 +144,20 @@ export class LanMultiplayerClient {
         }
       } catch {
         // Ignore malformed SSE message
+      }
+    });
+
+    es.addEventListener('transit', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.clock) {
+          this.onClockSync(data.clock);
+        }
+        if (data.transit) {
+          this.onTransitSync(data.transit);
+        }
+      } catch {
+        // Ignore malformed SSE transit packet
       }
     });
 
@@ -240,6 +263,37 @@ export class LanMultiplayerClient {
       // Ignore transient network error
     }
     return null;
+  }
+
+  async postTransitAction(payload) {
+    if (this.status !== 'connected' || !this.playerId) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: this.playerId, ...payload })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.transit) {
+        this.onTransitSync(data.transit);
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  requestSurfaceSummon(lineId, stopId) {
+    return this.postTransitAction({ action: 'summon-surface', lineId, stopId });
+  }
+
+  requestMetroDepart(fromStationId, toStationId) {
+    return this.postTransitAction({ action: 'metro-depart', fromStationId, toStationId });
+  }
+
+  requestFerryBoard(routeId, fromPortId, toPortId) {
+    return this.postTransitAction({ action: 'ferry-board', routeId, fromPortId, toPortId });
   }
 
   handleBeforeUnload() {

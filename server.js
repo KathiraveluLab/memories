@@ -4,7 +4,14 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { PLAYER_OUTFITS, MULTIPLAYER_SPAWN_POINTS } from './src/data.js';
+import {
+  PLAYER_OUTFITS,
+  MULTIPLAYER_SPAWN_POINTS,
+  TRANSIT_LINES,
+  METRO_STATIONS,
+  FERRY_TERMINAL,
+  FERRY_DESTINATIONS
+} from './src/data.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,7 +107,8 @@ export function createMultiplayerServer({
   port = 3000,
   staleTimeoutMs = 25000,
   clockMsPerMinute = 2400,
-  initialMinutesOfDay = 9 * 60
+  initialMinutesOfDay = 9 * 60,
+  transitTickMs = 100
 } = {}) {
   const resolvedRoot = path.resolve(rootDir);
   const players = new Map();
@@ -110,6 +118,7 @@ export function createMultiplayerServer({
   let cleanupTimer = null;
   let keepaliveTimer = null;
   let clockTimer = null;
+  let transitTimer = null;
 
   const worldClock = {
     day: 1,
@@ -117,6 +126,266 @@ export function createMultiplayerServer({
     msPerGameMinute: Math.max(50, Number(clockMsPerMinute) || 2400),
     updatedAt: Date.now()
   };
+
+  function getNextWaypointStep(line, currentIndex, direction) {
+    const len = line.waypoints.length;
+    if (line.loopType === 'cycle') {
+      return { nextIndex: (currentIndex + 1) % len, nextDirection: 1 };
+    }
+    let nextIdx = currentIndex + direction;
+    let nextDir = direction;
+    if (nextIdx >= len) {
+      nextDir = -1;
+      nextIdx = len - 2;
+    } else if (nextIdx < 0) {
+      nextDir = 1;
+      nextIdx = 1;
+    }
+    return { nextIndex: nextIdx, nextDirection: nextDir };
+  }
+
+  function findNextStopName(line, fromIndex, direction) {
+    const len = line.waypoints.length;
+    let idx = fromIndex;
+    let dir = direction;
+    for (let s = 0; s < len * 2; s += 1) {
+      const step = getNextWaypointStep(line, idx, dir);
+      idx = step.nextIndex;
+      dir = step.nextDirection;
+      const wp = line.waypoints[idx];
+      if (wp && wp.stopName) return wp.stopName;
+    }
+    return line.name;
+  }
+
+  // Authoritative server-owned Tram 28E & Carris Bus 737/758 simulation
+  const transitVehicles = TRANSIT_LINES.map((line, i) => {
+    const startIdx = i === 0 ? 1 : 2;
+    const wp = line.waypoints[startIdx];
+    const nextStep = getNextWaypointStep(line, startIdx, 1);
+    const nextWp = line.waypoints[nextStep.nextIndex];
+    return {
+      id: line.id,
+      mode: line.mode,
+      x: wp.x,
+      y: wp.y,
+      heading: Math.atan2(nextWp.y - wp.y, nextWp.x - wp.x),
+      waypointIndex: startIdx,
+      direction: 1,
+      dwellRemaining: wp.stopId ? 2.5 : 0,
+      yielding: false,
+      currentStopId: wp.stopId || null,
+      currentStopName: wp.stopName || null,
+      nextStopName: findNextStopName(line, startIdx, 1)
+    };
+  });
+
+  // Authoritative server-owned Metropolitano de Lisboa (Linha Azul) shuttle train
+  const metroOrder = METRO_STATIONS.map((s) => s.id);
+  const sharedMetro = {
+    phase: 'docked', // 'docked' | 'riding'
+    stationId: metroOrder[0],
+    fromStationId: metroOrder[0],
+    toStationId: metroOrder[1] || metroOrder[0],
+    direction: 1,
+    progress: 0,
+    rideDuration: 3.0,
+    dwellRemaining: 4.5,
+    trainX: 380
+  };
+
+  // Authoritative server-owned Transtejo Tagus Catamaran fleet (Cacilhas, Seixal, Montijo)
+  const sharedFerries = FERRY_DESTINATIONS.map((dest) => ({
+    routeId: dest.id,
+    phase: 'docked', // 'docked' | 'sailing'
+    portId: FERRY_TERMINAL.id,
+    fromPortId: FERRY_TERMINAL.id,
+    toPortId: dest.id,
+    progress: 0,
+    sailDuration: dest.sailDurationSec || 4.5,
+    dwellRemaining: 6.0
+  }));
+
+  function shouldServerVehicleYield(vehicle, nextHeading) {
+    const cos = Math.cos(nextHeading);
+    const sin = Math.sin(nextHeading);
+    for (const p of players.values()) {
+      if (p.mode !== 'overworld' || p.ridingVehicleId) continue;
+      const dx = p.x - vehicle.x;
+      const dy = p.y - vehicle.y;
+      const localX = dx * cos + dy * sin;
+      const localY = -dx * sin + dy * cos;
+      if (localX > -51 && localX < 114 && Math.abs(localY) < 33) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function stepServerTransit(dt) {
+    // 1. Surface Tram 28E & Carris Bus 737/758
+    for (const vehicle of transitVehicles) {
+      const line = TRANSIT_LINES.find((l) => l.id === vehicle.id);
+      if (!line) continue;
+      if (vehicle.dwellRemaining > 0) {
+        vehicle.yielding = false;
+        vehicle.dwellRemaining = Math.max(0, vehicle.dwellRemaining - dt);
+        continue;
+      }
+      const step = getNextWaypointStep(line, vehicle.waypointIndex, vehicle.direction);
+      const targetWp = line.waypoints[step.nextIndex];
+      const dx = targetWp.x - vehicle.x;
+      const dy = targetWp.y - vehicle.y;
+      const dist = Math.hypot(dx, dy);
+      const nextHeading = dist > 0.001 ? Math.atan2(dy, dx) : vehicle.heading;
+      if (shouldServerVehicleYield(vehicle, nextHeading)) {
+        vehicle.yielding = true;
+        continue;
+      }
+      vehicle.yielding = false;
+      const moveDist = line.speedPxPerSec * dt;
+      vehicle.currentStopId = null;
+      vehicle.currentStopName = null;
+      vehicle.heading = nextHeading;
+      if (dist <= moveDist) {
+        vehicle.x = targetWp.x;
+        vehicle.y = targetWp.y;
+        vehicle.waypointIndex = step.nextIndex;
+        vehicle.direction = step.nextDirection;
+        vehicle.nextStopName = findNextStopName(line, vehicle.waypointIndex, vehicle.direction);
+        if (targetWp.stopId) {
+          vehicle.currentStopId = targetWp.stopId;
+          vehicle.currentStopName = targetWp.stopName;
+          vehicle.dwellRemaining = line.dwellSeconds;
+        }
+      } else {
+        vehicle.x += (dx / dist) * moveDist;
+        vehicle.y += (dy / dist) * moveDist;
+      }
+    }
+
+    // 2. Shared Underground Metro Linha Azul Train
+    if (sharedMetro.phase === 'docked') {
+      sharedMetro.trainX = 380;
+      sharedMetro.dwellRemaining = Math.max(0, sharedMetro.dwellRemaining - dt);
+      if (sharedMetro.dwellRemaining <= 0) {
+        const curIdx = Math.max(0, metroOrder.indexOf(sharedMetro.stationId));
+        let nextIdx = curIdx + sharedMetro.direction;
+        if (nextIdx >= metroOrder.length || nextIdx < 0) {
+          sharedMetro.direction *= -1;
+          nextIdx = curIdx + sharedMetro.direction;
+        }
+        sharedMetro.fromStationId = sharedMetro.stationId;
+        sharedMetro.toStationId = metroOrder[nextIdx] || metroOrder[0];
+        sharedMetro.phase = 'riding';
+        sharedMetro.progress = 0;
+        sharedMetro.rideDuration = 3.0;
+      }
+    } else if (sharedMetro.phase === 'riding') {
+      sharedMetro.progress = Math.min(1, sharedMetro.progress + dt / Math.max(1.2, sharedMetro.rideDuration));
+      const p = sharedMetro.progress;
+      const dir = sharedMetro.direction || 1;
+      if (p < 0.16) {
+        const k = p / 0.16;
+        sharedMetro.trainX = 380 + dir * k * k * 560;
+      } else if (p < 0.84) {
+        sharedMetro.trainX = 380;
+      } else {
+        const k = (p - 0.84) / 0.16;
+        const ease = 1 - Math.pow(1 - k, 3);
+        sharedMetro.stationId = sharedMetro.toStationId;
+        sharedMetro.trainX = 380 - dir * (1 - ease) * 560;
+      }
+      if (sharedMetro.progress >= 1) {
+        sharedMetro.stationId = sharedMetro.toStationId;
+        sharedMetro.phase = 'docked';
+        sharedMetro.progress = 0;
+        sharedMetro.dwellRemaining = 4.5;
+        sharedMetro.trainX = 380;
+      }
+    }
+
+    // 3. Shared Transtejo Tagus Catamaran Fleet
+    for (const ferry of sharedFerries) {
+      if (ferry.phase === 'docked') {
+        ferry.dwellRemaining = Math.max(0, ferry.dwellRemaining - dt);
+        if (ferry.dwellRemaining <= 0) {
+          const nextPort = ferry.portId === FERRY_TERMINAL.id ? ferry.routeId : FERRY_TERMINAL.id;
+          ferry.fromPortId = ferry.portId;
+          ferry.toPortId = nextPort;
+          ferry.phase = 'sailing';
+          ferry.progress = 0;
+        }
+      } else if (ferry.phase === 'sailing') {
+        ferry.progress = Math.min(1, ferry.progress + dt / Math.max(1.5, ferry.sailDuration));
+        if (ferry.progress >= 1) {
+          ferry.portId = ferry.toPortId;
+          ferry.phase = 'docked';
+          ferry.progress = 0;
+          ferry.dwellRemaining = 6.0;
+        }
+      }
+    }
+  }
+
+  function getTransitSnapshot() {
+    return {
+      vehicles: transitVehicles.map((v) => ({
+        id: v.id,
+        mode: v.mode,
+        x: Math.round(v.x * 10) / 10,
+        y: Math.round(v.y * 10) / 10,
+        heading: Math.round(v.heading * 1000) / 1000,
+        waypointIndex: v.waypointIndex,
+        direction: v.direction,
+        dwellRemaining: Math.round(v.dwellRemaining * 100) / 100,
+        yielding: v.yielding,
+        currentStopId: v.currentStopId,
+        currentStopName: v.currentStopName,
+        nextStopName: v.nextStopName
+      })),
+      metro: {
+        phase: sharedMetro.phase,
+        stationId: sharedMetro.stationId,
+        fromStationId: sharedMetro.fromStationId,
+        toStationId: sharedMetro.toStationId,
+        direction: sharedMetro.direction,
+        progress: Math.round(sharedMetro.progress * 1000) / 1000,
+        rideDuration: sharedMetro.rideDuration,
+        dwellRemaining: Math.round(sharedMetro.dwellRemaining * 100) / 100,
+        trainX: Math.round(sharedMetro.trainX * 10) / 10
+      },
+      ferries: sharedFerries.map((f) => ({
+        routeId: f.routeId,
+        phase: f.phase,
+        portId: f.portId,
+        fromPortId: f.fromPortId,
+        toPortId: f.toPortId,
+        progress: Math.round(f.progress * 1000) / 1000,
+        sailDuration: f.sailDuration,
+        dwellRemaining: Math.round(f.dwellRemaining * 100) / 100
+      }))
+    };
+  }
+
+  function broadcastTransit(reason = 'tick') {
+    const clock = getWorldClockSnapshot();
+    const payload = JSON.stringify({
+      type: 'transit',
+      reason,
+      serverTime: clock.serverTime,
+      clock,
+      transit: getTransitSnapshot()
+    });
+    const frame = `event: transit\ndata: ${payload}\n\n`;
+    for (const [clientId, res] of sseClients.entries()) {
+      try {
+        res.write(frame);
+      } catch {
+        sseClients.delete(clientId);
+      }
+    }
+  }
 
   function getWorldClockSnapshot(now = Date.now()) {
     const elapsedMins = Math.floor(Math.max(0, now - worldClock.updatedAt) / worldClock.msPerGameMinute);
@@ -270,6 +539,7 @@ export function createMultiplayerServer({
         lanUrls: getLanUrls(boundPort),
         playerCount: players.size,
         clock: getWorldClockSnapshot(),
+        transit: getTransitSnapshot(),
         outfits: PLAYER_OUTFITS.map((o) => ({ id: o.id, name: o.name }))
       });
       return;
@@ -316,6 +586,7 @@ export function createMultiplayerServer({
           player: serializePlayers().find((p) => p.id === id),
           players: serializePlayers(),
           clock: getWorldClockSnapshot(),
+          transit: getTransitSnapshot(),
           lanUrls: getLanUrls(boundPort)
         });
       } catch (err) {
@@ -349,6 +620,7 @@ export function createMultiplayerServer({
         reason: 'snapshot',
         serverTime: snapClock.serverTime,
         clock: snapClock,
+        transit: getTransitSnapshot(),
         players: serializePlayers()
       });
       res.write(`event: players\ndata: ${snapshot}\n\n`);
@@ -446,6 +718,102 @@ export function createMultiplayerServer({
       return;
     }
 
+    if (req.method === 'POST' && pathname === '/api/transit') {
+      try {
+        const body = await readJsonBody(req);
+        const requesterId = body.playerId || null;
+
+        if (body.action === 'summon-surface') {
+          const line = TRANSIT_LINES.find((l) => l.id === body.lineId);
+          const vehicle = transitVehicles.find((v) => v.id === body.lineId);
+          const stopIdx = line ? line.waypoints.findIndex((w) => w.stopId === body.stopId) : -1;
+          if (!line || !vehicle || stopIdx === -1) {
+            sendJson(res, 404, { ok: false, error: 'Unknown surface transit stop.' });
+            return;
+          }
+          const companionAboard = [...players.values()].some(
+            (p) => p.id !== requesterId && p.ridingVehicleId === vehicle.id
+          );
+          if (!companionAboard && vehicle.currentStopId !== body.stopId) {
+            const wp = line.waypoints[stopIdx];
+            vehicle.x = wp.x;
+            vehicle.y = wp.y;
+            vehicle.waypointIndex = stopIdx;
+            vehicle.currentStopId = wp.stopId;
+            vehicle.currentStopName = wp.stopName;
+            vehicle.dwellRemaining = line.dwellSeconds;
+            vehicle.yielding = false;
+            vehicle.nextStopName = findNextStopName(line, stopIdx, vehicle.direction);
+            broadcastTransit('summon-surface');
+          }
+          sendJson(res, 200, { ok: true, companionAboard, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'metro-depart') {
+          const origin = METRO_STATIONS.find((s) => s.id === body.fromStationId);
+          const dest = METRO_STATIONS.find((s) => s.id === body.toStationId);
+          if (!origin || !dest || origin.id === dest.id) {
+            sendJson(res, 400, { ok: false, error: 'Invalid Metro route.' });
+            return;
+          }
+          const companionRiding = [...players.values()].some(
+            (p) => p.id !== requesterId && p.mode === 'metro' && p.metroPhase === 'riding'
+          );
+          if (!companionRiding || (sharedMetro.fromStationId === origin.id && sharedMetro.toStationId === dest.id)) {
+            const hops = Math.max(1, Math.abs((dest.order ?? 0) - (origin.order ?? 0)));
+            sharedMetro.fromStationId = origin.id;
+            sharedMetro.toStationId = dest.id;
+            sharedMetro.stationId = origin.id;
+            sharedMetro.direction = (dest.order ?? 0) >= (origin.order ?? 0) ? 1 : -1;
+            sharedMetro.rideDuration = 3.0 + (hops - 1) * 1.2;
+            if (sharedMetro.phase !== 'riding') {
+              sharedMetro.phase = 'riding';
+              sharedMetro.progress = 0;
+            }
+            broadcastTransit('metro-depart');
+          }
+          sendJson(res, 200, { ok: true, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'ferry-board') {
+          const ferry = sharedFerries.find((f) => f.routeId === body.routeId);
+          if (!ferry) {
+            sendJson(res, 404, { ok: false, error: 'Unknown Transtejo ferry route.' });
+            return;
+          }
+          const fromPort = body.fromPortId || ferry.portId;
+          const toPort = body.toPortId || (fromPort === FERRY_TERMINAL.id ? ferry.routeId : FERRY_TERMINAL.id);
+          const companionSailingOtherWay = [...players.values()].some(
+            (p) =>
+              p.id !== requesterId &&
+              p.mode === 'ferry' &&
+              p.ferryPhase === 'sailing' &&
+              ferry.phase === 'sailing' &&
+              ferry.toPortId !== toPort
+          );
+          if (!companionSailingOtherWay) {
+            if (!(ferry.phase === 'sailing' && ferry.toPortId === toPort)) {
+              ferry.fromPortId = fromPort;
+              ferry.toPortId = toPort;
+              ferry.portId = fromPort;
+              ferry.phase = 'sailing';
+              ferry.progress = 0;
+            }
+            broadcastTransit('ferry-board');
+          }
+          sendJson(res, 200, { ok: true, transit: getTransitSnapshot() });
+          return;
+        }
+
+        sendJson(res, 200, { ok: true, transit: getTransitSnapshot() });
+      } catch (err) {
+        sendJson(res, 400, { ok: false, error: err.message });
+      }
+      return;
+    }
+
     if (req.method === 'POST' && pathname === '/api/leave') {
       try {
         const body = await readJsonBody(req);
@@ -519,6 +887,20 @@ export function createMultiplayerServer({
         }, Math.max(250, worldClock.msPerGameMinute));
         clockTimer.unref?.();
 
+        // Advance & broadcast authoritative Tram 28E, Carris Bus, Metro Linha Azul & Transtejo Ferries
+        const tickMs = Math.max(40, Number(transitTickMs) || 100);
+        let lastTransitTickAt = Date.now();
+        transitTimer = setInterval(() => {
+          const now = Date.now();
+          const dtSec = Math.min(0.25, Math.max(0.01, (now - lastTransitTickAt) / 1000));
+          lastTransitTickAt = now;
+          stepServerTransit(dtSec);
+          if (sseClients.size > 0) {
+            broadcastTransit('tick');
+          }
+        }, tickMs);
+        transitTimer.unref?.();
+
         resolve({
           port: boundPort,
           host,
@@ -532,9 +914,11 @@ export function createMultiplayerServer({
     if (cleanupTimer) clearInterval(cleanupTimer);
     if (keepaliveTimer) clearInterval(keepaliveTimer);
     if (clockTimer) clearInterval(clockTimer);
+    if (transitTimer) clearInterval(transitTimer);
     cleanupTimer = null;
     keepaliveTimer = null;
     clockTimer = null;
+    transitTimer = null;
     for (const res of sseClients.values()) {
       try {
         res.end();
@@ -554,7 +938,8 @@ export function createMultiplayerServer({
     start,
     stop,
     getPlayers: serializePlayers,
-    getClock: getWorldClockSnapshot
+    getClock: getWorldClockSnapshot,
+    getTransit: getTransitSnapshot
   };
 }
 

@@ -67,7 +67,8 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
     port: 0,
     staleTimeoutMs: 15000,
     clockMsPerMinute: 120,
-    initialMinutesOfDay: 18 * 60 + 10 // Golden Hour sky for all players
+    initialMinutesOfDay: 18 * 60 + 10, // Golden Hour sky for all players
+    transitTickMs: 60
   });
   const { port } = await srv.start();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -208,6 +209,72 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       );
       assert.equal(morningOnB.clock.day, 2);
       assert.equal(morningOnB.clock.minutesOfDay, 9 * 60);
+
+      // 4c. Server-Authoritative Shared Transit Sync (Tram 28E, Bus 737, Metro Linha Azul & Transtejo Ferries)
+      assert.ok(joinA.transit && Array.isArray(joinA.transit.vehicles) && joinA.transit.vehicles.length === 2);
+      assert.ok(joinA.transit.metro && Array.isArray(joinA.transit.ferries) && joinA.transit.ferries.length === 3);
+
+      // Summon Tram 28E to Praca Luis de Camoes -> BOTH clients receive identical stop docking via SSE transit stream
+      const summonRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'summon-surface',
+          lineId: 'tram-28e',
+          stopId: 'stop-tram-camoes'
+        })
+      });
+      const summonJson = await summonRes.json();
+      assert.equal(summonJson.ok, true);
+      const tramAtCamoesOnB = await streamB.waitFor(
+        (evt) =>
+          evt.transit &&
+          evt.transit.vehicles?.some((v) => v.id === 'tram-28e' && v.currentStopId === 'stop-tram-camoes')
+      );
+      assert.ok(tramAtCamoesOnB.transit.vehicles.some((v) => v.id === 'tram-28e' && v.currentStopId === 'stop-tram-camoes'));
+
+      // Shared Metro Linha Azul departure -> BOTH clients sync on the exact same tunnel ride
+      const metroDeptRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'metro-depart',
+          fromStationId: 'metro-baixa-chiado',
+          toStationId: 'metro-santa-apolonia'
+        })
+      });
+      assert.equal((await metroDeptRes.json()).ok, true);
+      const metroOnB = await streamB.waitFor(
+        (evt) =>
+          evt.transit?.metro?.phase === 'riding' &&
+          evt.transit.metro.toStationId === 'metro-santa-apolonia'
+      );
+      assert.equal(metroOnB.transit.metro.fromStationId, 'metro-baixa-chiado');
+
+      // Shared Transtejo Ferry departure -> BOTH clients sail across the Tagus together on Cacilhas catamaran
+      const ferryDeptRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'ferry-board',
+          routeId: 'cacilhas',
+          fromPortId: 'cais-do-sodre',
+          toPortId: 'cacilhas'
+        })
+      });
+      assert.equal((await ferryDeptRes.json()).ok, true);
+      const ferryOnB = await streamB.waitFor(
+        (evt) =>
+          evt.transit?.ferries?.some(
+            (f) => f.routeId === 'cacilhas' && f.phase === 'sailing' && f.toPortId === 'cacilhas'
+          )
+      );
+      assert.ok(
+        ferryOnB.transit.ferries.some((f) => f.routeId === 'cacilhas' && f.phase === 'sailing')
+      );
 
       // 5. Bruno leaves cleanly -> Alice immediately receives 1-player roster
       await fetch(`${baseUrl}/api/leave`, {

@@ -1022,6 +1022,14 @@ export class LisboaScenes3DRenderer {
       ctx.font = '700 13px "Consolas", monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`LINHA AZUL  |  PROXIMA ESTACAO: ${(dest?.name || 'LISBOA').toUpperCase()}`, w * 0.5, 43);
+      const metroPeers = (state.remotePlayers || []).filter(
+        (rp) => rp.mode === 'metro' && rp.metroPhase === 'riding'
+      );
+      if (metroPeers.length > 0) {
+        ctx.fillStyle = '#fde68a';
+        ctx.font = '700 11px "Segoe UI", sans-serif';
+        ctx.fillText(`RIDING TOGETHER WITH: ${metroPeers.map((p) => p.name).join(', ')}`, w * 0.5, h - 82);
+      }
       ctx.textAlign = 'left';
       return;
     }
@@ -1304,6 +1312,35 @@ export class LisboaScenes3DRenderer {
       ctx.strokeStyle = '#f8fafc';
       ctx.lineWidth = 4;
       ctx.strokeRect(midX - 178, h - 138 + bob, 356, 36);
+
+      // Connected LAN companions sailing right alongside you on the Transtejo bow deck!
+      const ferryPeers = (state.remotePlayers || []).filter(
+        (rp) => rp.mode === 'ferry' && rp.ferryPhase === 'sailing'
+      );
+      ferryPeers.slice(0, 4).forEach((rp, idx) => {
+        const outfit = getOutfitById(rp.outfitId);
+        const px = midX - 100 + idx * 66;
+        const py = h - 106 + bob;
+        ctx.fillStyle = outfit.primaryColor;
+        drawRoundedRect(ctx, px - 12, py - 38, 24, 34, 5);
+        ctx.fill();
+        ctx.fillStyle = outfit.skinColor || '#f1c7a6';
+        ctx.beginPath();
+        ctx.arc(px, py - 47, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = outfit.hairColor || '#3b2b20';
+        ctx.beginPath();
+        ctx.arc(px, py - 49, 9.2, Math.PI, Math.PI * 2);
+        ctx.fill();
+        ctx.font = '700 10px "Segoe UI", sans-serif';
+        const tw = ctx.measureText(rp.name).width + 10;
+        drawRoundedRect(ctx, px - tw * 0.5, py - 74, tw, 16, 4);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fill();
+        ctx.fillStyle = '#fde68a';
+        ctx.textAlign = 'center';
+        ctx.fillText(rp.name, px, py - 62);
+      });
 
       // Progress Header
       drawRoundedRect(ctx, midX - 230, 16, 460, 50, 8);

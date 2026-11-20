@@ -456,7 +456,110 @@ export class MemoriesGameEngine {
     this.timeAccumulator = 0;
     this.doorEntryCooldown = 0;
     this.announcementSeq = 0;
+    this.transitIntentSeq = 0;
     this.globalClockSynced = false;
+    this.globalTransitSynced = false;
+    this.serverMetro = null;
+    this.serverFerries = null;
+  }
+
+  emitTransitIntent(payload) {
+    this.transitIntentSeq += 1;
+    this.state.lastTransitIntent = {
+      id: this.transitIntentSeq,
+      ...payload
+    };
+  }
+
+  syncGlobalTransit(transit) {
+    if (!transit || typeof transit !== 'object') return;
+    const wasSynced = this.globalTransitSynced;
+    this.globalTransitSynced = true;
+    this.state.globalTransitSynced = true;
+
+    // 1. Authoritative Surface Tram 28E & Carris Bus 737/758
+    if (Array.isArray(transit.vehicles)) {
+      for (const sv of transit.vehicles) {
+        const local = this.state.vehicles.find((v) => v.id === sv.id);
+        if (!local) continue;
+        const prevStopId = local.currentStopId;
+        local.targetX = sv.x;
+        local.targetY = sv.y;
+        const jumpDist = Math.hypot((sv.x ?? local.x) - local.x, (sv.y ?? local.y) - local.y);
+        if (!wasSynced || jumpDist > 180) {
+          local.x = sv.x;
+          local.y = sv.y;
+        }
+        local.heading = sv.heading;
+        local.waypointIndex = sv.waypointIndex;
+        local.direction = sv.direction;
+        local.dwellRemaining = sv.dwellRemaining;
+        local.yielding = Boolean(sv.yielding);
+        local.currentStopId = sv.currentStopId || null;
+        local.currentStopName = sv.currentStopName || null;
+        local.nextStopName = sv.nextStopName || local.nextStopName;
+
+        // If local player rang the bell and shared tram/bus just docked at a stop, alight cleanly!
+        if (
+          this.state.ridingVehicleId === local.id &&
+          this.state.alightAtNextStop &&
+          local.currentStopId &&
+          local.currentStopId !== prevStopId
+        ) {
+          local.x = sv.x;
+          local.y = sv.y;
+          this.disembarkTransit();
+        }
+      }
+    }
+
+    // 2. Authoritative Underground Metro Linha Azul Train
+    if (transit.metro && typeof transit.metro === 'object') {
+      this.serverMetro = transit.metro;
+      if (this.state.mode === 'metro') {
+        const m = this.state.metro;
+        const sm = transit.metro;
+        if (m.phase === 'platform') {
+          if (sm.stationId === m.stationId && sm.phase === 'docked') {
+            m.trainX = 380;
+          } else if (sm.fromStationId === m.stationId || sm.toStationId === m.stationId) {
+            m.trainX = sm.trainX;
+          } else {
+            m.trainX = 380;
+          }
+        } else if (m.phase === 'riding') {
+          if (sm.phase === 'riding' && sm.toStationId === m.toStationId) {
+            m.phaseProgress = Math.max(m.phaseProgress, sm.progress);
+          } else if (sm.phase === 'docked' && sm.stationId === m.toStationId && m.phaseProgress > 0.25) {
+            m.phaseProgress = 1;
+          }
+        }
+      }
+    }
+
+    // 3. Authoritative Transtejo Tagus Catamaran Fleet
+    if (Array.isArray(transit.ferries)) {
+      this.serverFerries = transit.ferries;
+      if (this.state.mode === 'ferry' && this.state.ferry.phase === 'sailing') {
+        const f = this.state.ferry;
+        const routeId = f.toPortId === FERRY_TERMINAL.id ? f.fromPortId : f.toPortId;
+        const sf = transit.ferries.find((entry) => entry.routeId === routeId);
+        if (sf) {
+          if (sf.phase === 'sailing' && sf.toPortId === f.toPortId) {
+            f.phaseProgress = Math.max(f.phaseProgress, sf.progress);
+          } else if (sf.phase === 'docked' && sf.portId === f.toPortId && f.phaseProgress > 0.2) {
+            f.phaseProgress = 1;
+          }
+        }
+      }
+    }
+  }
+
+  clearGlobalTransit() {
+    this.globalTransitSynced = false;
+    this.state.globalTransitSynced = false;
+    this.serverMetro = null;
+    this.serverFerries = null;
   }
 
   syncGlobalClock(clock) {
@@ -856,6 +959,29 @@ export class MemoriesGameEngine {
   }
 
   updateVehicles(dt) {
+    if (this.globalTransitSynced) {
+      // Smoothly interpolate toward the central server node's authoritative Tram 28E & Carris Bus positions
+      const alpha = Math.min(1, dt * 12);
+      for (const vehicle of this.state.vehicles) {
+        if (Number.isFinite(vehicle.targetX) && Number.isFinite(vehicle.targetY)) {
+          const dx = vehicle.targetX - vehicle.x;
+          const dy = vehicle.targetY - vehicle.y;
+          const d = Math.hypot(dx, dy);
+          if (d > 180) {
+            vehicle.x = vehicle.targetX;
+            vehicle.y = vehicle.targetY;
+          } else if (d > 0.2) {
+            vehicle.x += dx * alpha;
+            vehicle.y += dy * alpha;
+          } else {
+            vehicle.x = vehicle.targetX;
+            vehicle.y = vehicle.targetY;
+          }
+        }
+      }
+      return;
+    }
+
     for (const vehicle of this.state.vehicles) {
       const line = getTransitLineById(vehicle.id);
       if (!line) continue;
@@ -2071,6 +2197,10 @@ export class MemoriesGameEngine {
 
     this.state.statusMessage = `Sailing aboard Transtejo Catamaran from ${fromLabel} to ${destLabel} (-${fareEur.toFixed(2)} EUR, +6 Energy).`;
     recordLog(this.state, 'ferry', `Boarded Transtejo ferry from ${fromLabel} to ${destLabel} (-${fareEur.toFixed(2)} EUR).`);
+    if (this.globalTransitSynced) {
+      const routeId = targetPortId === FERRY_TERMINAL.id ? fromPortId : targetPortId;
+      this.emitTransitIntent({ action: 'ferry-board', routeId, fromPortId, toPortId: targetPortId });
+    }
 
     return {
       ok: true,
@@ -2333,6 +2463,9 @@ export class MemoriesGameEngine {
 
     this.state.statusMessage = `Boarded Metropolitano de Lisboa (Linha Azul) from ${origin.name} toward ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`;
     recordLog(this.state, 'metro', `Boarded Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`);
+    if (this.globalTransitSynced) {
+      this.emitTransitIntent({ action: 'metro-depart', fromStationId: origin.id, toStationId: destination.id });
+    }
 
     return {
       ok: true,
@@ -2530,8 +2663,21 @@ export class MemoriesGameEngine {
       if (!waitIfApproaching) {
         return { ok: false, error: `${line.name} has not reached ${stop.stopName} yet.`, state: this.state };
       }
+      if (this.globalTransitSynced) {
+        const companionAboard = (this.state.remotePlayers || []).some(
+          (rp) => rp.ridingVehicleId === vehicle.id
+        );
+        if (companionAboard) {
+          const distM = Math.round(distance(vehicle.x, vehicle.y, stop.x, stop.y));
+          this.state.statusMessage = `${line.name} is en route with your companion (${distM}m away). Wait at ${stop.stopName} to hop aboard together!`;
+          return { ok: false, error: this.state.statusMessage, state: this.state };
+        }
+        this.emitTransitIntent({ action: 'summon-surface', lineId: line.id, stopId: stop.stopId });
+      }
       vehicle.x = stop.x;
       vehicle.y = stop.y;
+      vehicle.targetX = stop.x;
+      vehicle.targetY = stop.y;
       vehicle.waypointIndex = stop.waypointIndex;
       vehicle.currentStopId = stop.stopId;
       vehicle.currentStopName = stop.stopName;

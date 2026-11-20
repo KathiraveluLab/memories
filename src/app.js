@@ -120,6 +120,7 @@ let prevAudioVenueId = null;
 let prevAudioRidingId = null;
 let prevAudioFerryPhase = null;
 let lastAnnouncementId = 0;
+let lastTransitIntentId = 0;
 
 const pressedKeys = new Set();
 let activeTab = 'guide';
@@ -1326,6 +1327,13 @@ const mpClient = new LanMultiplayerClient({
       engine.clearGlobalClock();
     }
   },
+  onTransitSync: (transit) => {
+    if (transit) {
+      engine.syncGlobalTransit(transit);
+    } else {
+      engine.clearGlobalTransit();
+    }
+  },
   onRemotePlayers: (remotes) => {
     const prevIds = new Set((engine.getState().remotePlayers || []).map((r) => r.id));
     engine.setRemotePlayers(remotes);
@@ -1827,6 +1835,19 @@ function frame(now) {
       mode: state.transitAnnouncement.vehicleMode,
       ringBell: state.transitAnnouncement.ringBell
     });
+  }
+  if (state.lastTransitIntent && state.lastTransitIntent.id !== lastTransitIntentId) {
+    lastTransitIntentId = state.lastTransitIntent.id;
+    const intent = state.lastTransitIntent;
+    if (mpStatusInfo.status === 'connected') {
+      if (intent.action === 'summon-surface') {
+        mpClient.requestSurfaceSummon(intent.lineId, intent.stopId);
+      } else if (intent.action === 'metro-depart') {
+        mpClient.requestMetroDepart(intent.fromStationId, intent.toStationId);
+      } else if (intent.action === 'ferry-board') {
+        mpClient.requestFerryBoard(intent.routeId, intent.fromPortId, intent.toPortId);
+      }
+    }
   }
   prevAudioMode = state.mode;
   prevAudioVenueId = state.currentVenueId;

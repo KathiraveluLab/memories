@@ -25,7 +25,7 @@
 - **LAN Multiplayer, Shared Global Sky Clock & Distinct Cloth Styles**:
   - Run `npm start` on one computer and share the displayed network address (such as `http://192.168.x.x:3000`) with another computer on the same Wi-Fi or LAN.
   - Both players explore Lisboa completely independently across Bairro Alto, Chiado, and Alfama, see each other live in 3D on cobblestone sidewalks, inside shared 3D shops, bakeries, restaurants, underground Metro platforms, and ferry piers, appear on the radar mini-map, and can wave with `[G]`.
-  - The central LAN server maintains an authoritative **Global Lisboa Clock** (`[SYNC]`) broadcast via SSE so every connected computer sees the exact same Morning, Afternoon, Golden Hour, or Starry Evening sky simultaneously (including synchronized morning sunrises).
+  - The central LAN server maintains an authoritative **Global Lisboa Clock** (`[SYNC]`) and live **Shared Public Transit Simulation** (Tram 28E, Carris Bus 737/758, Metro Linha Azul, and all three Transtejo Tagus ferries) broadcast via SSE so every connected computer sees the exact same sky lighting and companions can board and ride the exact same streetcar, bus, subway train, or ferry together.
   - Every joining player automatically receives a distinct clothing style from 6 unique Lisboa traveler outfits (*Chiado Trench & Scarf*, *Alfama Sundress & Sun Hat*, *Tagus Sailor Knit & Beret*, *Bairro Alto Woven Poncho*, *Azulejo Overalls & Flat Cap*, and *Linen Blazer & Fedora*), customizable anytime.
 - **Atmospheric Lisboa Soundscapes & Cultural Music (Web Audio API)**:
   - **Bakeries (`Casa da Rosa - Padaria` & `Arcadas do Chiado`)**: Warm rumble and crackling oak embers of a brick wood-fired bread oven.

@@ -5113,7 +5113,8 @@ export class LisboaCanvasRenderer {
     ctx.fillRect(0, 386, this.viewWidth, 10);
 
     // Classic blue-green patterned Carris seat tops along foreground
-    for (const sx of [56, 176, 364, 484, 672, 792]) {
+    const busSeatXs = [56, 176, 364, 484, 672, 792];
+    for (const sx of busSeatXs) {
       ctx.fillStyle = '#155e4a';
       drawRoundedRect(ctx, sx, 398, 92, 48, 10);
       ctx.fill();
@@ -5124,6 +5125,22 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(sx + 16, 412, 60, 4);
       ctx.fillRect(sx + 24, 424, 44, 4);
     }
+
+    // Connected LAN companions riding the exact same Carris Bus seated right beside you!
+    const busCompanions = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === 'bus-737-758');
+    busCompanions.slice(0, busSeatXs.length).forEach((rp, idx) => {
+      const cx = busSeatXs[idx] + 46;
+      this.drawCharacterSprite(ctx, cx, 392, {
+        facing: 'down',
+        walkPhase: 0,
+        isMoving: false,
+        outfitId: rp.outfitId,
+        label: rp.name,
+        emoteText: rp.emoteText || '',
+        isPlayer: false,
+        isRemotePlayer: true
+      });
+    });
 
     // Bottom Bus Route Progress Strip cleanly positioned above the interaction prompt banner
     const busLine = TRANSIT_LINES.find((l) => l.id === 'bus-737-758');
@@ -5432,7 +5449,8 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = '#ca8a04';
     ctx.fillRect(0, 386, this.viewWidth, 6);
 
-    for (const sx of [52, 266, 488, 702]) {
+    const tramBenchXs = [52, 266, 488, 702];
+    for (const sx of tramBenchXs) {
       ctx.fillStyle = '#8b4e24';
       drawRoundedRect(ctx, sx, 398, 162, 46, 8);
       ctx.fill();
@@ -5445,6 +5463,22 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(sx + 10, 420, 142, 5);
       ctx.fillRect(sx + 10, 432, 142, 5);
     }
+
+    // Connected LAN companions riding the exact same Remodelado Eletrico 28E with you!
+    const tramCompanions = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === 'tram-28e');
+    tramCompanions.slice(0, tramBenchXs.length).forEach((rp, idx) => {
+      const cx = tramBenchXs[idx] + 81;
+      this.drawCharacterSprite(ctx, cx, 392, {
+        facing: 'down',
+        walkPhase: 0,
+        isMoving: false,
+        outfitId: rp.outfitId,
+        label: rp.name,
+        emoteText: rp.emoteText || '',
+        isPlayer: false,
+        isRemotePlayer: true
+      });
+    });
 
     // Bottom Eletrico 28E 5-Stop Route Strip cleanly above interaction prompt banner
     const tramLine = TRANSIT_LINES.find((l) => l.id === 'tram-28e');
