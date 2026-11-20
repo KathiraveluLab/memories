@@ -546,6 +546,62 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(state.mode, 'overworld');
   assert.equal(state.memories.length, 26);
   assert.equal(state.albumCompleted, true);
+
+  // Proportional walk-speed slowdown on low energy / fullness, critical low-energy crawl until eating a meal, and Wallet 0.00 EUR Game Over Scorecard
+  state.energy = 85;
+  state.fullness = 85;
+  state.needsMealToRecoverSpeed = false;
+  assert.equal(engine.computeWalkSpeedMultiplier(), 1.0);
+
+  // Proportional slowdown as energy or fullness drops below 70
+  state.energy = 50;
+  state.fullness = 80;
+  const speedAtEnergy50 = engine.computeWalkSpeedMultiplier();
+  assert.ok(speedAtEnergy50 < 1.0 && speedAtEnergy50 > 0.45, `Expected proportional slowdown at energy=50, got ${speedAtEnergy50}`);
+
+  state.energy = 32;
+  const speedAtEnergy32 = engine.computeWalkSpeedMultiplier();
+  assert.ok(speedAtEnergy32 < speedAtEnergy50, `Expected slower speed at energy=32 (${speedAtEnergy32}) than energy=50 (${speedAtEnergy50})`);
+
+  state.energy = 85;
+  state.fullness = 35;
+  const speedAtFullness35 = engine.computeWalkSpeedMultiplier();
+  assert.ok(speedAtFullness35 < 1.0 && speedAtFullness35 > 0.4, `Expected proportional slowdown at fullness=35, got ${speedAtFullness35}`);
+
+  // Critical low-energy crawl (energy <= 20): moves really slowly (<= 0.22x) even after bench rest until eating a meal in a bakery or restaurant!
+  state.energy = 12;
+  state.fullness = 35;
+  const crawlSpeed = engine.computeWalkSpeedMultiplier();
+  assert.equal(state.needsMealToRecoverSpeed, true);
+  assert.ok(crawlSpeed <= 0.22, `Expected critical low-energy crawl <= 0.22, got ${crawlSpeed}`);
+
+  // Resting on a street bench restores energy (+30 -> 42), but player stays in critical slow mode until eating a meal!
+  engine.restAtBench('bench-chiado');
+  assert.equal(state.needsMealToRecoverSpeed, true);
+  assert.ok(engine.computeWalkSpeedMultiplier() <= 0.22);
+
+  // Eating a meal at a bakery (Casa da Rosa) clears needsMealToRecoverSpeed and restores normal walking speed!
+  state.euros = 10.0;
+  engine.enterVenue('casa-da-rosa');
+  const mealRes = engine.purchaseVenueItem('item-pao-mafra'); // 3.20 EUR food item (+28 fullness, +22 energy)
+  assert.equal(mealRes.ok, true);
+  assert.equal(state.needsMealToRecoverSpeed, false);
+  assert.ok(state.walkSpeedMultiplier > 0.65, `Expected walk speed restored after bakery meal, got ${state.walkSpeedMultiplier}`);
+
+  // Spending remaining wallet down to 0.00 EUR triggers Game Over with complete Final Memories Scorecard!
+  state.euros = 3.5;
+  engine.exitVenue();
+  engine.enterVenue('cafe-do-poeta');
+  const finalEuroRes = engine.purchaseVenueItem('item-bica-nata'); // 3.50 EUR -> wallet reaches 0.00 EUR
+  assert.equal(finalEuroRes.ok, true);
+  assert.equal(state.euros, 0);
+  assert.equal(state.gameOver, true);
+  assert.ok(state.gameOverSummary, 'Expected gameOverSummary scorecard when wallet reaches 0.00 EUR');
+  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
+  assert.equal(state.gameOverSummary.memoriesTotal, 26);
+  assert.equal(state.gameOverSummary.memoriesList.length, 26);
+  assert.equal(state.gameOverSummary.venuesVisited, 15);
+  assert.ok(state.gameOverSummary.totalScore >= 2600);
 });
 
 test('AC-08: directional arrow-key doorway entry for south/north buildings and Metro entrances, plus exit cooldown', () => {

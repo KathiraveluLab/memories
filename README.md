@@ -34,10 +34,11 @@
   - **Historic Cafes (`Cafe A Brasileira` & `Quiosque de Sao Pedro`)**: Pressurized espresso steam wand bursts, delicate porcelain teacup clinks, and cozy salon murmur.
   - **Underground Metro & Streetcars**: Subterranean station vault hum and 3-note platform chime shifting into deep tunnel train rumble and rhythmic rail-joint clacks while riding *Linha Azul* (plus streetcar rail hum and brass bell aboard Tram 28E).
   - **Cathedral & Cultural Shops**: Resonant pipe-organ chords inside *Se de Lisboa (1147)*, sunlit Portuguese folk guitar across bookshops, galleries, and ateliers (with a warm ceramic kiln hum in *Oficina de Azulejos*), and spatially swelling **Tagus Riverfront** waves along Avenida Ribeira and Cais de Alfama (toggle anytime with `Sound: ON / OFF` or `[M]`).
-- **Gentle Memories Collection Loop**:
+- **Resource Loop, Fatigue Slowdown & Wallet Zero Game Over Scorecard**:
   - Manage **Wallet (EUR)**, **Energy**, and **Fullness** as Lisbon shifts from Morning through Afternoon, Golden Hour, and Lantern Evening.
-  - Rest free at three scenic **Miradouro Benches** or take a gentle overnight stay at a neighborhood pensao without harsh game-over lockouts.
+  - As **Energy** or **Fullness** drops low, walking speed slows down proportionally; if **Energy** falls critically low (`<= 20`), your traveler slows to an exhausted crawl until you enjoy a proper meal at a bakery, cafe, or restaurant.
   - Capture **26 Memories** and unlock contextual **European Portuguese phrases** with phonetic pronunciation guides.
+  - When your **Wallet** reaches `0.00 EUR`, a **Game Over & Final Lisboa Memories Scorecard** popup presents your complete exploration tally (total score, explorer rank, venues visited, dishes tasted, keepsakes collected, transit rides, postcards, and a full checklist of all 26 Memories captured and missed).
 
 ## Project Structure
 

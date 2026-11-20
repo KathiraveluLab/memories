@@ -37,6 +37,8 @@ export const VEHICLE_BRAKE_LOOKAHEAD = 76;
 export const BASE_WALK_SPEED = 64;
 export const INTERIOR_WALK_SPEED = 76;
 export const INTERACT_DISTANCE = 76;
+export const CRITICAL_LOW_ENERGY_THRESHOLD = 20;
+export const PROPORTIONAL_SLOWDOWN_THRESHOLD = 70;
 
 const VENUE_MAP = new Map(VENUES.map((v) => [v.id, v]));
 const METRO_MAP = new Map(METRO_STATIONS.map((m) => [m.id, m]));
@@ -363,6 +365,10 @@ export function createInitialState() {
     euros: INITIAL_EUROS,
     energy: INITIAL_ENERGY,
     fullness: INITIAL_FULLNESS,
+    walkSpeedMultiplier: 1.0,
+    needsMealToRecoverSpeed: false,
+    gameOver: false,
+    gameOverSummary: null,
     day: 1,
     minutesOfDay: DAY_START_MINUTES,
     eveningNoticeShown: false,
@@ -550,6 +556,136 @@ export class MemoriesGameEngine {
       locationKey: `overworld:${s.currentNeighborhoodId || 'chiado'}`,
       locationName: s.currentNeighborhoodName || 'Chiado'
     };
+  }
+
+  computeWalkSpeedMultiplier() {
+    const s = this.state;
+    const energy = clamp(Number(s.energy) || 0, 0, 100);
+    const fullness = clamp(Number(s.fullness) || 0, 0, 100);
+
+    if (energy <= CRITICAL_LOW_ENERGY_THRESHOLD) {
+      s.needsMealToRecoverSpeed = true;
+    }
+
+    // Critical low-energy crawl: player moves really, really slow (15% - 22% speed) until they eat a meal in a restaurant or bakery
+    if (s.needsMealToRecoverSpeed || energy <= CRITICAL_LOW_ENERGY_THRESHOLD) {
+      const crawl = 0.15 + (clamp(energy, 0, CRITICAL_LOW_ENERGY_THRESHOLD) / CRITICAL_LOW_ENERGY_THRESHOLD) * 0.07;
+      s.walkSpeedMultiplier = roundMoney(clamp(crawl, 0.15, 0.22));
+      return s.walkSpeedMultiplier;
+    }
+
+    // Above threshold on both energy and fullness: full 1.0x strolling speed
+    if (energy >= PROPORTIONAL_SLOWDOWN_THRESHOLD && fullness >= PROPORTIONAL_SLOWDOWN_THRESHOLD) {
+      s.walkSpeedMultiplier = 1.0;
+      return 1.0;
+    }
+
+    // Proportional slowdown as either energy or fullness drops below PROPORTIONAL_SLOWDOWN_THRESHOLD (70)
+    const energySpan = Math.max(1, PROPORTIONAL_SLOWDOWN_THRESHOLD - CRITICAL_LOW_ENERGY_THRESHOLD);
+    const energyFactor =
+      energy >= PROPORTIONAL_SLOWDOWN_THRESHOLD
+        ? 1.0
+        : 0.3 + 0.7 * clamp((energy - CRITICAL_LOW_ENERGY_THRESHOLD) / energySpan, 0, 1);
+
+    const fullnessFactor =
+      fullness >= PROPORTIONAL_SLOWDOWN_THRESHOLD
+        ? 1.0
+        : 0.35 + 0.65 * clamp(fullness / PROPORTIONAL_SLOWDOWN_THRESHOLD, 0, 1);
+
+    const minFactor = Math.min(energyFactor, fullnessFactor);
+    const maxFactor = Math.max(energyFactor, fullnessFactor);
+    const combined = minFactor * (0.85 + 0.15 * maxFactor);
+    s.walkSpeedMultiplier = roundMoney(clamp(combined, 0.26, 1.0));
+    return s.walkSpeedMultiplier;
+  }
+
+  buildFinalScorecard() {
+    const s = this.state;
+    const totalRides =
+      s.stats.tramRides + s.stats.busRides + s.stats.metroRides + s.stats.ferryRides;
+    const totalScore =
+      s.memories.length * 100 +
+      s.visitedVenues.length * 40 +
+      s.learnedPhrases.length * 25 +
+      s.stats.mealsEaten * 30 +
+      s.stats.souvenirsBought * 35 +
+      (s.visitedFerryPorts || []).length * 50 +
+      (s.postcards || []).length * 30;
+    const explorerRank =
+      s.memories.length >= ALL_MEMORIES.length
+        ? 'Grand Master of Lisboa (All 26 Memories Captured)'
+        : s.memories.length >= 18
+          ? 'Seasoned Lisboeta Chronicler'
+          : s.memories.length >= 10
+            ? 'Chiado & Alfama Cultural Flaneur'
+            : 'Bairro Alto Cobblestone Stroller';
+
+    return {
+      title: 'GAME OVER - Wallet Reached 0.00 EUR',
+      subtitle: `Your Lisboa exploration concluded on Day ${s.day} at ${formatClock(s.minutesOfDay)} in ${s.currentNeighborhoodName}.`,
+      explorerRank,
+      totalScore,
+      dayReached: s.day,
+      finalClock: formatClock(s.minutesOfDay),
+      finalNeighborhood: s.currentNeighborhoodName,
+      eurosRemaining: s.euros,
+      eurosSpent: s.stats.eurosSpent,
+      distanceWalkedPx: Math.round(s.stats.distanceWalkedPx),
+      distanceWalkedMeters: Math.max(0, Math.round(s.stats.distanceWalkedPx / 12)),
+      neighborhoodsVisited: s.visitedNeighborhoods.length,
+      neighborhoodsTotal: NEIGHBORHOODS.length,
+      venuesVisited: s.visitedVenues.length,
+      venuesTotal: VENUES.length,
+      ferryPortsVisited: (s.visitedFerryPorts || []).length,
+      ferryPortsTotal: FERRY_DESTINATIONS.length,
+      mealsEaten: s.stats.mealsEaten,
+      tastedFoods: s.tastedFoods.map((f) => f.name),
+      souvenirsBought: s.stats.souvenirsBought,
+      satchelItems: s.satchel.map((k) => k.name),
+      phrasesLearned: s.learnedPhrases.length,
+      postcardsCaptured: (s.postcards || []).length,
+      transitRides: {
+        tram: s.stats.tramRides,
+        bus: s.stats.busRides,
+        metro: s.stats.metroRides,
+        ferry: s.stats.ferryRides,
+        total: totalRides
+      },
+      memoriesCaptured: s.memories.length,
+      memoriesTotal: s.totalMemoriesPossible,
+      memoriesList: s.memories.map((m) => ({
+        id: m.id,
+        title: m.title,
+        category: m.category,
+        neighborhood: m.neighborhood,
+        day: m.day,
+        clock: m.clock
+      }))
+    };
+  }
+
+  checkWalletGameOver() {
+    if (this.state.euros <= 0) {
+      this.state.euros = 0;
+      const wasGameOver = this.state.gameOver;
+      this.state.gameOver = true;
+      this.state.player.isMoving = false;
+      this.state.player.walkTarget = null;
+      this.state.player.walkQueue = [];
+      this.state.gameOverSummary = this.buildFinalScorecard();
+      if (!wasGameOver) {
+        this.state.statusMessage =
+          `GAME OVER: Your wallet reached 0.00 EUR! Final Tally: ${this.state.memories.length} / ${this.state.totalMemoriesPossible} Memories, ` +
+          `${this.state.visitedVenues.length} / ${VENUES.length} Venues, Score ${this.state.gameOverSummary.totalScore} pts.`;
+        recordLog(
+          this.state,
+          'gameover',
+          `Game Over at 0.00 EUR (${this.state.memories.length}/${this.state.totalMemoriesPossible} Memories, Score ${this.state.gameOverSummary.totalScore}).`
+        );
+      }
+      return true;
+    }
+    return false;
   }
 
   emitTransitIntent(payload) {
@@ -1667,6 +1803,10 @@ export class MemoriesGameEngine {
   }
 
   movePlayerByInput(inputX, inputY, dt) {
+    if (this.state.gameOver) {
+      this.state.player.isMoving = false;
+      return;
+    }
     let vx = inputX;
     let vy = inputY;
     const player = this.state.player;
@@ -1736,8 +1876,7 @@ export class MemoriesGameEngine {
       }
     }
 
-    const fatigueFactor =
-      this.state.energy < 15 || this.state.fullness < 15 ? 0.68 : 1.0;
+    const fatigueFactor = this.computeWalkSpeedMultiplier();
     const speed =
       (this.state.mode === 'interior' ? INTERIOR_WALK_SPEED : BASE_WALK_SPEED) *
       fatigueFactor;
@@ -1768,14 +1907,20 @@ export class MemoriesGameEngine {
     const movedDist = Math.hypot(movedX, movedY);
     if (movedDist > 0.01) {
       player.isMoving = true;
-      player.walkPhase = (player.walkPhase + dt * 9.5) % (Math.PI * 2);
+      player.walkPhase = (player.walkPhase + dt * 9.5 * Math.max(0.32, fatigueFactor)) % (Math.PI * 2);
 
       if (this.state.mode === 'overworld') {
         player.overworldX = player.x;
         player.overworldY = player.y;
         this.state.stats.distanceWalkedPx += movedDist;
+        const wasCritLow = this.state.needsMealToRecoverSpeed;
         this.state.energy = clamp(this.state.energy - (movedDist / 100) * 1.15, 0, 100);
         this.state.fullness = clamp(this.state.fullness - (movedDist / 100) * 0.85, 0, 100);
+        this.computeWalkSpeedMultiplier();
+        if (!wasCritLow && this.state.needsMealToRecoverSpeed) {
+          this.state.statusMessage =
+            'Your energy is critically low! You are moving very slowly until you eat a meal at a bakery, cafe, or restaurant.';
+        }
         this.updateNeighborhoodTracking();
       } else if (this.state.mode === 'interior') {
         const mat = INTERIOR_STATIONS.exitMat;
@@ -2083,6 +2228,9 @@ export class MemoriesGameEngine {
     const dt = clamp(Number(dtSeconds) || 0, 0, 0.25);
     if (dt <= 0) return this.state;
 
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
+
     if (this.doorEntryCooldown > 0) {
       this.doorEntryCooldown = Math.max(0, this.doorEntryCooldown - dt);
     }
@@ -2186,6 +2334,7 @@ export class MemoriesGameEngine {
         this.state.player.overworldY = vehicle.y;
         this.state.player.isMoving = false;
         this.state.energy = clamp(this.state.energy + dt * 0.6, 0, 100);
+        this.computeWalkSpeedMultiplier();
         this.updateNeighborhoodTracking();
       }
     } else {
@@ -2670,6 +2819,8 @@ export class MemoriesGameEngine {
         triggeredBy: this.state.player.name || 'Traveler'
       });
     }
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
 
     return {
       ok: true,
@@ -2846,6 +2997,7 @@ export class MemoriesGameEngine {
     this.state.energy = clamp(this.state.energy + (item.energyDelta || 0), 0, 100);
 
     if (item.kind === 'food') {
+      this.state.needsMealToRecoverSpeed = false;
       this.state.stats.mealsEaten += 1;
       if (!this.state.tastedFoods.some((f) => f.id === item.id)) {
         this.state.tastedFoods.push({
@@ -2875,6 +3027,8 @@ export class MemoriesGameEngine {
       recordLog(this.state, 'shop', `Bought ${item.name} at ${spot.name} in ${dest.shortName} (-${item.costEur.toFixed(2)} EUR).`);
     }
 
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
     return { ok: true, dest, spot, item, state: this.state };
   }
 
@@ -3040,6 +3194,8 @@ export class MemoriesGameEngine {
         triggeredBy: this.state.player.name || 'Traveler'
       });
     }
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
 
     return {
       ok: true,
@@ -3200,6 +3356,7 @@ export class MemoriesGameEngine {
     let unlockedMilestone = false;
 
     if (item.kind === 'food') {
+      this.state.needsMealToRecoverSpeed = false;
       this.state.stats.mealsEaten += 1;
       if (!this.state.tastedFoods.some((f) => f.id === item.id)) {
         this.state.tastedFoods.push({
@@ -3233,6 +3390,8 @@ export class MemoriesGameEngine {
 
     recordPhrase(this.state, venue.phrase, venue.name);
     unlockMemory(this.state, venue.memory);
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
 
     return {
       ok: true,
@@ -3320,6 +3479,7 @@ export class MemoriesGameEngine {
 
     this.state.statusMessage = `Boarded ${line.name} at ${stop.stopName} (-${line.fareEur.toFixed(2)} EUR). Heading toward ${vehicle.nextStopName}. Press [E] to ring bell for the next stop.`;
     recordLog(this.state, 'transit', `Boarded ${line.name} at ${stop.stopName} (-${line.fareEur.toFixed(2)} EUR).`);
+    this.checkWalletGameOver();
 
     return {
       ok: true,
@@ -3651,6 +3811,8 @@ export class MemoriesGameEngine {
     this.state.eveningNoticeShown = false;
     this.state.energy = 100;
     this.state.fullness = Math.max(this.state.fullness, 75);
+    this.state.needsMealToRecoverSpeed = false;
+    this.computeWalkSpeedMultiplier();
     this.state.stats.restsTaken += 1;
 
     const costText = paid > 0 ? `-${paid.toFixed(2)} EUR pensao stay` : 'complimentary neighborhood host stay';

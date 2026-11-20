@@ -133,6 +133,7 @@ let lastUiSignature = '';
 let lastContextSignature = '';
 let lastLanSignature = '';
 let lastStatusText = '';
+let lastGameOverSignature = '';
 let mpStatusInfo = { status: 'connecting', lanUrls: [], playerCount: 1 };
 const QUICK_GREETINGS = ['Ola!', 'Bom dia!', 'Vamos ao cafe!', 'Espera por mim!'];
 let greetingIndex = 0;
@@ -181,7 +182,16 @@ const dom = {
   postcardsList: document.getElementById('postcards-list'),
   satchelList: document.getElementById('satchel-list'),
   tastedList: document.getElementById('tasted-list'),
-  journalList: document.getElementById('journal-list')
+  journalList: document.getElementById('journal-list'),
+  gameOverModal: document.getElementById('game-over-modal'),
+  gameOverTitle: document.getElementById('game-over-title'),
+  gameOverSubtitle: document.getElementById('game-over-subtitle'),
+  gameOverScore: document.getElementById('game-over-score'),
+  gameOverRank: document.getElementById('game-over-rank'),
+  gameOverTallyGrid: document.getElementById('game-over-tally-grid'),
+  gameOverMemoriesBadge: document.getElementById('game-over-memories-badge'),
+  gameOverMemoriesList: document.getElementById('game-over-memories-list'),
+  btnGameOverRestart: document.getElementById('btn-gameover-restart')
 };
 
 function setStatusBanner(message, isError = false) {
@@ -1020,6 +1030,99 @@ function renderLists(state) {
     .join('');
 }
 
+function renderGameOverModal(state) {
+  if (!dom.gameOverModal) return;
+  if (!state.gameOver || !state.gameOverSummary) {
+    dom.gameOverModal.classList.add('hidden');
+    lastGameOverSignature = '';
+    return;
+  }
+
+  const sum = state.gameOverSummary;
+  const sig = JSON.stringify({
+    go: state.gameOver,
+    score: sum.totalScore,
+    mem: sum.memoriesCaptured,
+    ven: sum.venuesVisited,
+    meals: sum.mealsEaten
+  });
+  dom.gameOverModal.classList.remove('hidden');
+  if (sig === lastGameOverSignature) return;
+  lastGameOverSignature = sig;
+
+  if (dom.gameOverTitle) dom.gameOverTitle.textContent = sum.title;
+  if (dom.gameOverSubtitle) dom.gameOverSubtitle.textContent = sum.subtitle;
+  if (dom.gameOverScore) dom.gameOverScore.textContent = `${sum.totalScore} pts`;
+  if (dom.gameOverRank) dom.gameOverRank.textContent = sum.explorerRank;
+  if (dom.gameOverMemoriesBadge) {
+    dom.gameOverMemoriesBadge.textContent = `${sum.memoriesCaptured} / ${sum.memoriesTotal} Memories Captured`;
+  }
+
+  if (dom.gameOverTallyGrid) {
+    const tastedPreview =
+      sum.tastedFoods.length > 0 ? sum.tastedFoods.slice(0, 3).join(', ') : 'No dishes ordered';
+    const satchelPreview =
+      sum.satchelItems.length > 0 ? sum.satchelItems.slice(0, 3).join(', ') : 'No keepsakes bought';
+    dom.gameOverTallyGrid.innerHTML = `
+      <div class="scorecard-stat">
+        <span class="scorecard-stat-label">Memories Captured</span>
+        <strong class="scorecard-stat-val">${sum.memoriesCaptured} / ${sum.memoriesTotal}</strong>
+        <span class="scorecard-stat-sub">${Math.round((sum.memoriesCaptured / Math.max(1, sum.memoriesTotal)) * 100)}% of Lisboa Album</span>
+      </div>
+      <div class="scorecard-stat">
+        <span class="scorecard-stat-label">Buildings Explored</span>
+        <strong class="scorecard-stat-val">${sum.venuesVisited} / ${sum.venuesTotal} Venues</strong>
+        <span class="scorecard-stat-sub">${sum.neighborhoodsVisited} / ${sum.neighborhoodsTotal} Neighborhoods</span>
+      </div>
+      <div class="scorecard-stat">
+        <span class="scorecard-stat-label">Meals &amp; Pastries Tasted</span>
+        <strong class="scorecard-stat-val">${sum.mealsEaten} Dishes</strong>
+        <span class="scorecard-stat-sub">${escapeHtml(tastedPreview)}</span>
+      </div>
+      <div class="scorecard-stat">
+        <span class="scorecard-stat-label">Keepsakes Collected</span>
+        <strong class="scorecard-stat-val">${sum.souvenirsBought} Keepsakes</strong>
+        <span class="scorecard-stat-sub">${escapeHtml(satchelPreview)}</span>
+      </div>
+      <div class="scorecard-stat">
+        <span class="scorecard-stat-label">Transit &amp; Tagus Ferries</span>
+        <strong class="scorecard-stat-val">${sum.transitRides.total} Rides</strong>
+        <span class="scorecard-stat-sub">Tram ${sum.transitRides.tram} | Bus ${sum.transitRides.bus} | Metro ${sum.transitRides.metro} | Ferry ${sum.transitRides.ferry}</span>
+      </div>
+      <div class="scorecard-stat">
+        <span class="scorecard-stat-label">Phrases &amp; Postcards</span>
+        <strong class="scorecard-stat-val">${sum.phrasesLearned} Phrases</strong>
+        <span class="scorecard-stat-sub">${sum.postcardsCaptured} Shared Postcards | ${sum.distanceWalkedMeters} m walked</span>
+      </div>
+    `;
+  }
+
+  if (dom.gameOverMemoriesList) {
+    const capturedMap = new Map((sum.memoriesList || []).map((m) => [m.id, m]));
+    dom.gameOverMemoriesList.innerHTML = ALL_MEMORIES.map((mem) => {
+      const found = capturedMap.get(mem.id);
+      if (found) {
+        return `
+          <article class="memory-card captured">
+            <div class="memory-top">
+              <span class="memory-title">[CAPTURED] ${escapeHtml(found.title)}</span>
+              <span class="memory-stamp">Day ${found.day} ${escapeHtml(found.clock)} | ${escapeHtml(found.neighborhood)}</span>
+            </div>
+          </article>
+        `;
+      }
+      return `
+        <article class="memory-card locked">
+          <div class="memory-top">
+            <span class="memory-title">[MISSED] ${escapeHtml(mem.title)}</span>
+            <span class="memory-stamp">${escapeHtml(mem.neighborhood)}</span>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+}
+
 function refreshUi(force = false) {
   const state = engine.getState();
   const phase = getDayPhase(state.minutesOfDay);
@@ -1163,6 +1266,7 @@ function refreshUi(force = false) {
   renderActiveContextPanel(state);
   renderLists(state);
   renderMultiplayerPanel(state);
+  renderGameOverModal(state);
   updateAudioIndicator();
 }
 
@@ -1603,8 +1707,19 @@ dom.btnReset.addEventListener('click', () => {
   engine.reset();
   lastUiSignature = '';
   lastContextSignature = '';
+  lastGameOverSignature = '';
   refreshUi(true);
 });
+
+if (dom.btnGameOverRestart) {
+  dom.btnGameOverRestart.addEventListener('click', () => {
+    engine.reset();
+    lastUiSignature = '';
+    lastContextSignature = '';
+    lastGameOverSignature = '';
+    refreshUi(true);
+  });
+}
 
 document.querySelectorAll('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {

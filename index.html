@@ -228,6 +228,39 @@
         </section>
       </aside>
     </main>
+
+    <div class="modal-backdrop hidden" id="game-over-modal" role="dialog" aria-modal="true"
+      aria-labelledby="game-over-title">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <span class="brand-tag">FINAL LISBOA EXPLORATION SCORECARD</span>
+            <h2 id="game-over-title">GAME OVER - Wallet Reached 0.00 EUR</h2>
+            <p class="panel-subtitle" id="game-over-subtitle">Your stroll across Bairro Alto, Chiado, Alfama, and the
+              Tagus has concluded.</p>
+          </div>
+          <div class="score-badge-box">
+            <span class="metric-label">FINAL SCORE</span>
+            <strong class="score-total-val" id="game-over-score">0 pts</strong>
+            <span class="badge-muted" id="game-over-rank">Lisboa Explorer</span>
+          </div>
+        </div>
+
+        <div class="scorecard-grid" id="game-over-tally-grid"></div>
+
+        <div class="scorecard-memories-box">
+          <div class="panel-header compact">
+            <h3>Captured Memories Scorecard</h3>
+            <span class="badge-muted" id="game-over-memories-badge">0 / 26 Memories</span>
+          </div>
+          <div class="memory-grid scorecard-memories-list" id="game-over-memories-list"></div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary" id="btn-gameover-restart">Start New Lisboa Stroll</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./src/app.js"></script>

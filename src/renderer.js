@@ -320,6 +320,95 @@ export class LisboaCanvasRenderer {
       );
       ctx.restore();
     }
+
+    // 3. Low-Energy / Low-Fullness Walk Speed Indicator Pill (when slowed down)
+    if (!state.gameOver && !state.ridingVehicleId && state.walkSpeedMultiplier < 1) {
+      ctx.save();
+      const pct = Math.round((state.walkSpeedMultiplier || 1) * 100);
+      const isCrit = Boolean(state.needsMealToRecoverSpeed);
+      const text = isCrit
+        ? `EXHAUSTED (${pct}% Walk Speed)  -  Eat a meal at a bakery or restaurant to recover!`
+        : `TIRED / HUNGRY (${pct}% Walk Speed)  -  Energy ${Math.round(state.energy)} | Fullness ${Math.round(state.fullness)}`;
+      ctx.font = '700 10.5px "Segoe UI", sans-serif';
+      const tw = Math.min(this.viewWidth - 40, Math.max(320, ctx.measureText(text).width + 28));
+      const tx = Math.round((this.viewWidth - tw) / 2);
+      const ty = this.viewHeight - 96;
+      drawRoundedRect(ctx, tx, ty, tw, 24, 6);
+      ctx.fillStyle = isCrit ? 'rgba(153, 27, 27, 0.94)' : 'rgba(146, 64, 14, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#fef3c7';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, this.viewWidth / 2, ty + 16, tw - 16);
+      ctx.restore();
+    }
+
+    // 4. On-Canvas Game Over & Final Memories Scorecard Summary Banner (when Wallet reaches 0.00 EUR)
+    if (state.gameOver && state.gameOverSummary) {
+      const sum = state.gameOverSummary;
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+      ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+
+      const bw = 640;
+      const bh = 210;
+      const bx = Math.round((this.viewWidth - bw) / 2);
+      const by = Math.round((this.viewHeight - bh) / 2);
+      drawRoundedRect(ctx, bx, by, bw, bh, 12);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f87171';
+      ctx.font = '700 18px Georgia, serif';
+      ctx.fillText(sum.title, this.viewWidth / 2, by + 34, bw - 32);
+
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 13px "Segoe UI", sans-serif';
+      ctx.fillText(
+        `FINAL SCORE: ${sum.totalScore} PTS  |  RANK: ${sum.explorerRank}`,
+        this.viewWidth / 2,
+        by + 62,
+        bw - 32
+      );
+
+      ctx.fillStyle = '#f1f5f9';
+      ctx.font = '600 12px "Segoe UI", sans-serif';
+      ctx.fillText(
+        `Memories Captured: ${sum.memoriesCaptured} / ${sum.memoriesTotal}   |   Venues Explored: ${sum.venuesVisited} / ${sum.venuesTotal}   |   Neighborhoods: ${sum.neighborhoodsVisited} / ${sum.neighborhoodsTotal}`,
+        this.viewWidth / 2,
+        by + 96,
+        bw - 32
+      );
+      ctx.fillText(
+        `Meals Tasted: ${sum.mealsEaten}   |   Keepsakes: ${sum.souvenirsBought}   |   Transit Rides: ${sum.transitRides.total}   |   Phrases: ${sum.phrasesLearned}`,
+        this.viewWidth / 2,
+        by + 122,
+        bw - 32
+      );
+      ctx.fillStyle = '#93c5fd';
+      ctx.font = '600 11px "Segoe UI", sans-serif';
+      ctx.fillText(
+        `Total Spent: ${sum.eurosSpent.toFixed(2)} EUR   |   Distance Walked: ${sum.distanceWalkedMeters} m   |   Postcards: ${sum.postcardsCaptured}`,
+        this.viewWidth / 2,
+        by + 148,
+        bw - 32
+      );
+      ctx.fillStyle = '#fde68a';
+      ctx.font = '700 11.5px Georgia, serif';
+      ctx.fillText(
+        'Review your complete Memories Scorecard popup or click "Start New Lisboa Stroll" to play again.',
+        this.viewWidth / 2,
+        by + 182,
+        bw - 32
+      );
+      ctx.restore();
+    }
   }
 
   renderOverworld(ctx, state, nearbyInteraction) {
