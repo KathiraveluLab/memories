@@ -680,30 +680,103 @@ test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, ve
   engine.tick(0.1, { x: 0, y: 0 });
   assert.equal(tram.yielding, true, 'Tram should yield for remote multiplayer traveler on rails');
 
-  // Case 5: Blocked villager proactively walks around pedestrian on sidewalk (never gets stuck or steps into street)
+  // Case 5: Blocked villager curves AROUND the player and continues in the EXACT SAME direction (never reverses!)
   engine.setRemotePlayers([]);
-  const strollNpc = state.npcs[0];
-  strollNpc.x = 500;
-  strollNpc.y = strollNpc.homeY;
-  strollNpc.dir = 1;
-  strollNpc.blockedTime = 0;
-  state.player.x = 526; // Standing directly in front of the villager on the sidewalk
-  state.player.y = strollNpc.homeY;
+  const strollNpc = state.npcs[0]; // patrols x: 590..805 on north Tram Ave sidewalk (y: 538..575)
+  for (const scenario of [
+    { label: 'building-side homeY', startY: 544, playerY: 544 },
+    { label: 'dead-center sidewalk', startY: 556, playerY: 556 },
+    { label: 'curb-side sidewalk', startY: 570, playerY: 572 }
+  ]) {
+    strollNpc.x = 610;
+    strollNpc.y = scenario.startY;
+    strollNpc.dir = 1;
+    strollNpc.avoidSide = 0;
+    strollNpc.blockedTime = 0;
+    state.player.x = 645;
+    state.player.y = scenario.playerY;
 
-  let stayedStrictlyOnSidewalk = true;
-  let maxDeviationFromStartX = 0;
-  for (let i = 0; i < 80; i += 1) {
-    engine.tick(0.1, { x: 0, y: 0 });
-    if (!isPointOnSidewalk(strollNpc.x, strollNpc.y)) {
-      stayedStrictlyOnSidewalk = false;
+    let stayedStrictlyOnSidewalk = true;
+    let keptSameDirection = true;
+    let minPlayerSep = Infinity;
+    let maxLatDodge = 0;
+
+    for (let i = 0; i < 60; i += 1) {
+      engine.tick(0.1, { x: 0, y: 0 });
+      if (!isPointOnSidewalk(strollNpc.x, strollNpc.y)) {
+        stayedStrictlyOnSidewalk = false;
+      }
+      if (strollNpc.dir !== 1) {
+        keptSameDirection = false;
+      }
+      minPlayerSep = Math.min(minPlayerSep, Math.hypot(strollNpc.x - state.player.x, strollNpc.y - state.player.y));
+      maxLatDodge = Math.max(maxLatDodge, Math.abs(strollNpc.y - scenario.playerY));
     }
-    maxDeviationFromStartX = Math.max(maxDeviationFromStartX, Math.abs(strollNpc.x - 500));
+
+    assert.equal(stayedStrictlyOnSidewalk, true, `[${scenario.label}] Dodging villager must remain strictly on the sidewalk`);
+    assert.equal(keptSameDirection, true, `[${scenario.label}] Villager must NOT reverse direction when blocked by player`);
+    assert.ok(
+      strollNpc.x > 668,
+      `[${scenario.label}] Expected villager to walk completely around and past player at x=645, ended at x=${strollNpc.x.toFixed(1)}`
+    );
+    assert.ok(
+      maxLatDodge >= 16,
+      `[${scenario.label}] Expected villager to curve laterally around player (maxLatDodge=${maxLatDodge.toFixed(1)})`
+    );
+    assert.ok(
+      minPlayerSep >= 16.5,
+      `[${scenario.label}] Expected villager to maintain non-overlapping clearance around player (minSep=${minPlayerSep.toFixed(1)})`
+    );
   }
-  assert.equal(stayedStrictlyOnSidewalk, true, 'Dodging villager must remain strictly on the sidewalk');
-  assert.ok(
-    maxDeviationFromStartX > 45,
-    `Expected blocked villager to walk around or reverse freely rather than getting stuck (moved ${maxDeviationFromStartX}px)`
-  );
+
+  // Case 5: Blocked villager curves AROUND the player and continues in the EXACT SAME direction (never reverses!)
+  engine.setRemotePlayers([]);
+  const strollNpc = state.npcs[0]; // patrols x: 590..805 on north Tram Ave sidewalk (y: 538..575)
+  for (const scenario of [
+    { label: 'building-side homeY', startY: 544, playerY: 544 },
+    { label: 'dead-center sidewalk', startY: 556, playerY: 556 },
+    { label: 'curb-side sidewalk', startY: 570, playerY: 572 }
+  ]) {
+    strollNpc.x = 610;
+    strollNpc.y = scenario.startY;
+    strollNpc.dir = 1;
+    strollNpc.avoidSide = 0;
+    strollNpc.blockedTime = 0;
+    state.player.x = 645;
+    state.player.y = scenario.playerY;
+
+    let stayedStrictlyOnSidewalk = true;
+    let keptSameDirection = true;
+    let minPlayerSep = Infinity;
+    let maxLatDodge = 0;
+
+    for (let i = 0; i < 60; i += 1) {
+      engine.tick(0.1, { x: 0, y: 0 });
+      if (!isPointOnSidewalk(strollNpc.x, strollNpc.y)) {
+        stayedStrictlyOnSidewalk = false;
+      }
+      if (strollNpc.dir !== 1) {
+        keptSameDirection = false;
+      }
+      minPlayerSep = Math.min(minPlayerSep, Math.hypot(strollNpc.x - state.player.x, strollNpc.y - state.player.y));
+      maxLatDodge = Math.max(maxLatDodge, Math.abs(strollNpc.y - scenario.playerY));
+    }
+
+    assert.equal(stayedStrictlyOnSidewalk, true, `[${scenario.label}] Dodging villager must remain strictly on the sidewalk`);
+    assert.equal(keptSameDirection, true, `[${scenario.label}] Villager must NOT reverse direction when blocked by player`);
+    assert.ok(
+      strollNpc.x > 668,
+      `[${scenario.label}] Expected villager to walk completely around and past player at x=645, ended at x=${strollNpc.x.toFixed(1)}`
+    );
+    assert.ok(
+      maxLatDodge >= 16,
+      `[${scenario.label}] Expected villager to curve laterally around player (maxLatDodge=${maxLatDodge.toFixed(1)})`
+    );
+    assert.ok(
+      minPlayerSep >= 16.5,
+      `[${scenario.label}] Expected villager to maintain non-overlapping clearance around player (minSep=${minPlayerSep.toFixed(1)})`
+    );
+  }
 });
 
 test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 15 venue interiors cleanly', () => {
@@ -972,9 +1045,9 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   // 11. LisboaSoundEngine Web Audio graph & scheduler smoke test across all 9 buses
   const createMockParam = (initial = 0) => ({
     value: initial,
-    setValueAtTime: () => {},
-    linearRampToValueAtTime: () => {},
-    exponentialRampToValueAtTime: () => {},
+    setValueAtTime: () => { },
+    linearRampToValueAtTime: () => { },
+    exponentialRampToValueAtTime: () => { },
     setTargetAtTime(v) { this.value = v; }
   });
   let startedNodes = 0;
@@ -987,27 +1060,27 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
     resume: () => Promise.resolve(),
     close: () => { closed = true; },
     createBuffer: (ch, len) => ({ getChannelData: () => new Float32Array(len) }),
-    createGain: () => ({ gain: createMockParam(1), connect: () => {} }),
+    createGain: () => ({ gain: createMockParam(1), connect: () => { } }),
     createBiquadFilter: () => ({
       type: 'lowpass',
       frequency: createMockParam(440),
       Q: createMockParam(1),
-      connect: () => {}
+      connect: () => { }
     }),
     createOscillator: () => ({
       type: 'sine',
       frequency: createMockParam(440),
       detune: createMockParam(0),
-      connect: () => {},
+      connect: () => { },
       start: () => { startedNodes += 1; },
-      stop: () => {}
+      stop: () => { }
     }),
     createBufferSource: () => ({
       buffer: null,
       loop: false,
-      connect: () => {},
+      connect: () => { },
       start: () => { startedNodes += 1; },
-      stop: () => {}
+      stop: () => { }
     })
   };
 

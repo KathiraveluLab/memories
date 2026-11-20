@@ -168,7 +168,7 @@ export function pointIntersectsVehicle(px, py, radius, vehicle) {
 export function isPedestrianAheadOfVehicle(vehicle, px, py, radius = PLAYER_RADIUS) {
   const { localX, localY } = toVehicleLocal(px, py, vehicle);
   const inFront = localX > -VEHICLE_HALF_LEN - radius && localX < VEHICLE_HALF_LEN + VEHICLE_BRAKE_LOOKAHEAD;
-  const inLane = Math.abs(localY) < VEHICLE_HALF_WIDTH + radius + 12;
+  const inLane = Math.abs(localY) < VEHICLE_HALF_WIDTH + radius + 3;
   return inFront && inLane;
 }
 
@@ -188,10 +188,10 @@ export function isPointInVehicleLane(px, py) {
 export function isPointOnSidewalk(px, py) {
   if (isPointInVehicleLane(px, py)) return false;
   if (!isOverworldPositionValid(px, py, PLAYER_RADIUS)) return false;
-  // Exclude center lanes of horizontal streets (allow stone sidewalks & curb aprons)
-  if (py > 246 && py < 326) return false;
-  if (py > 570 && py < 650) return false;
-  if (py > 892 && py < 972) return false;
+  // Exclude roadway curb-to-curb lanes of horizontal streets while preserving full stone sidewalks
+  if (py > 246 && py < 324) return false;
+  if (py > 575 && py < 645) return false;
+  if (py > 892 && py < 970) return false;
   return true;
 }
 
@@ -301,7 +301,8 @@ function createInitialNpcs() {
     dir: 1,
     walkPhase: 0,
     isMoving: true,
-    blockedTime: 0
+    blockedTime: 0,
+    avoidSide: 0
   }));
 }
 
@@ -693,7 +694,13 @@ export class MemoriesGameEngine {
     if (this.state.mode === 'overworld') {
       for (const npc of this.state.npcs) {
         if (npc.id === ignoreNpcId) continue;
-        if (distance(x, y, npc.x, npc.y) < PERSON_SEPARATION_DIST) {
+        const nextDist = distance(x, y, npc.x, npc.y);
+        if (nextDist < PERSON_SEPARATION_DIST) {
+          // Anti-deadlock: if a villager slips closely past on a narrow sidewalk, always allow stepping farther apart
+          if (Number.isFinite(fromX) && Number.isFinite(fromY)) {
+            const curDist = distance(fromX, fromY, npc.x, npc.y);
+            if (nextDist > curDist + 0.05) continue;
+          }
           return { kind: 'npc', name: npc.name, npc };
         }
       }
@@ -839,121 +846,239 @@ export class MemoriesGameEngine {
   }
 
   updateNpcs(dt) {
-    const politeSep = PLAYER_RADIUS * 1.48; // ~19.2px courteous passing clearance on Lisbon sidewalks
-    const isNpcCandidateClear = (npc, cx, cy, sepDist) => {
-      if (!isPointOnSidewalk(cx, cy)) return false;
-      if (this.isBlockedByVehicle(cx, cy, PLAYER_RADIUS + 4)) return false;
+    const passClearance = 17.0; // Clean shoulder-to-shoulder passing clearance on 35-38px Lisbon sidewalks
+    const preferredGap = 24.0; // Comfortable berth when full sidewalk width is open
+    const lookahead = 54.0; // Start curving around blocking people well before colliding
+
+    const getPedestriansFor = (npc) => {
+      const list = [];
       if (this.state.mode === 'overworld' && !this.state.ridingVehicleId) {
-        if (distance(cx, cy, this.state.player.x, this.state.player.y) < sepDist) return false;
+        list.push({ x: this.state.player.x, y: this.state.player.y });
       }
       for (const rp of this.state.remotePlayers || []) {
         if (rp.mode === 'overworld' && !rp.ridingVehicleId) {
-          if (distance(cx, cy, rp.x, rp.y) < sepDist) return false;
+          list.push({ x: rp.x, y: rp.y });
         }
       }
       for (const other of this.state.npcs) {
         if (other.id === npc.id) continue;
-        if (distance(cx, cy, other.x, other.y) < sepDist) return false;
+        list.push({ x: other.x, y: other.y });
+      }
+      return list;
+    };
+
+    const getSidewalkSpanY = (x, refY) => {
+      const base = Math.round(refY);
+      let minY = base;
+      let maxY = base;
+      while (minY > base - 50 && isPointOnSidewalk(x, minY - 1)) minY -= 1;
+      while (maxY < base + 50 && isPointOnSidewalk(x, maxY + 1)) maxY += 1;
+      return { minY, maxY };
+    };
+
+    const getSidewalkSpanX = (refX, y) => {
+      const base = Math.round(refX);
+      let minX = base;
+      let maxX = base;
+      while (minX > base - 50 && isPointOnSidewalk(minX - 1, y)) minX -= 1;
+      while (maxX < base + 50 && isPointOnSidewalk(maxX + 1, y)) maxX += 1;
+      return { minX, maxX };
+    };
+
+    const isNpcCandidateClear = (npc, cx, cy, pedestrians, minSep) => {
+      if (!isPointOnSidewalk(cx, cy)) return false;
+      if (this.isBlockedByVehicle(cx, cy, PLAYER_RADIUS)) return false;
+      for (const p of pedestrians) {
+        const nextDist = distance(cx, cy, p.x, p.y);
+        if (nextDist < minSep) {
+          const curDist = distance(npc.x, npc.y, p.x, p.y);
+          // If already closer than minSep, only allow stepping strictly farther away
+          if (curDist < minSep && nextDist > curDist + 0.05) continue;
+          return false;
+        }
       }
       return true;
     };
 
     for (const npc of this.state.npcs) {
       const step = npc.speed * dt;
-      let targetX = npc.x;
-      let targetY = npc.y;
+      const pedestrians = getPedestriansFor(npc);
 
       if (npc.patrolAxis === 'x') {
-        targetX += step * npc.dir;
-        if (targetX >= npc.max) {
-          targetX = npc.max;
-          npc.dir = -1;
-        } else if (targetX <= npc.min) {
-          targetX = npc.min;
-          npc.dir = 1;
+        // Reached patrol corridor end: turn around naturally only at endpoints
+        if (npc.x >= npc.max && npc.dir > 0) npc.dir = -1;
+        else if (npc.x <= npc.min && npc.dir < 0) npc.dir = 1;
+
+        // Detect closest blocking pedestrian ahead or directly beside us along our travel direction
+        let blocker = null;
+        let bestAlong = Infinity;
+        for (const p of pedestrians) {
+          const along = (p.x - npc.x) * npc.dir;
+          const lat = Math.abs(p.y - npc.y);
+          if (along > -20 && along < lookahead && lat < preferredGap - 1) {
+            if (along < bestAlong) {
+              bestAlong = along;
+              blocker = p;
+            }
+          }
         }
-        // Gently drift back onto home sidewalk lane once past an obstacle
+
+        if (blocker) {
+          const curSpan = getSidewalkSpanY(npc.x, npc.y);
+          const passSpan = getSidewalkSpanY(clamp(blocker.x, npc.min, npc.max), npc.y);
+          const sideMinY = Math.max(curSpan.minY, passSpan.minY);
+          const sideMaxY = Math.min(curSpan.maxY, passSpan.maxY);
+          const useMinY = sideMaxY - sideMinY >= passClearance ? sideMinY : curSpan.minY;
+          const useMaxY = sideMaxY - sideMinY >= passClearance ? sideMaxY : curSpan.maxY;
+
+          const spaceUp = blocker.y - useMinY;
+          const spaceDown = useMaxY - blocker.y;
+
+          // Lock a consistent passing side so the villager arcs smoothly around you without reversing direction
+          if (!npc.avoidSide) {
+            npc.avoidSide = spaceDown >= spaceUp ? 1 : -1;
+          } else if (npc.avoidSide === 1 && spaceDown < passClearance && spaceUp >= passClearance) {
+            npc.avoidSide = -1;
+          } else if (npc.avoidSide === -1 && spaceUp < passClearance && spaceDown >= passClearance) {
+            npc.avoidSide = 1;
+          }
+
+          const desiredY =
+            npc.avoidSide > 0
+              ? Math.min(useMaxY, blocker.y + preferredGap)
+              : Math.max(useMinY, blocker.y - preferredGap);
+
+          const dyNeeded = desiredY - npc.y;
+          const latMove = Math.sign(dyNeeded) * Math.min(Math.abs(dyNeeded), Math.max(step * 1.65, 2.2));
+          const nextY = clamp(npc.y + latMove, useMinY, useMaxY);
+          const nextX = clamp(npc.x + step * npc.dir, npc.min, npc.max);
+          const halfX = clamp(npc.x + step * 0.55 * npc.dir, npc.min, npc.max);
+
+          const candidates = [
+            { x: nextX, y: nextY },
+            { x: halfX, y: nextY },
+            { x: npc.x, y: nextY },
+            { x: nextX, y: npc.y }
+          ];
+
+          let moved = false;
+          for (const c of candidates) {
+            if (isNpcCandidateClear(npc, c.x, c.y, pedestrians, passClearance)) {
+              npc.x = c.x;
+              npc.y = c.y;
+              npc.isMoving = true;
+              npc.blockedTime = 0;
+              npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+              moved = true;
+              break;
+            }
+          }
+          if (!moved) {
+            // Never reverse direction because of a person; wait politely if completely walled off
+            npc.isMoving = false;
+          }
+          continue;
+        }
+
+        // Path ahead is clear: reset avoidSide, continue in the SAME direction, and ease gently back to homeY
+        npc.avoidSide = 0;
+        const targetX = clamp(npc.x + step * npc.dir, npc.min, npc.max);
+        let targetY = npc.y;
         const homeDy = npc.homeY - npc.y;
-        if (Math.abs(homeDy) > 0.5) {
-          const driftY = npc.y + clamp(homeDy, -step * 0.85, step * 0.85);
-          if (isNpcCandidateClear(npc, targetX, driftY, PERSON_SEPARATION_DIST)) {
+        if (Math.abs(homeDy) > 0.4) {
+          const driftY = npc.y + clamp(homeDy, -step * 0.8, step * 0.8);
+          if (isNpcCandidateClear(npc, targetX, driftY, pedestrians, preferredGap)) {
             targetY = driftY;
           }
         }
-      } else {
-        targetY += step * npc.dir;
-        if (targetY >= npc.max) {
-          targetY = npc.max;
-          npc.dir = -1;
-        } else if (targetY <= npc.min) {
-          targetY = npc.min;
-          npc.dir = 1;
+
+        if (isNpcCandidateClear(npc, targetX, targetY, pedestrians, passClearance)) {
+          npc.x = targetX;
+          npc.y = targetY;
+          npc.isMoving = true;
+          npc.blockedTime = 0;
+          npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+          if (npc.x >= npc.max) npc.dir = -1;
+          else if (npc.x <= npc.min) npc.dir = 1;
+        } else {
+          npc.isMoving = false;
         }
+      } else {
+        // Symmetric vertical sidewalk patrol & smooth go-around logic (never flips direction on person block)
+        if (npc.y >= npc.max && npc.dir > 0) npc.dir = -1;
+        else if (npc.y <= npc.min && npc.dir < 0) npc.dir = 1;
+
+        let blocker = null;
+        let bestAlong = Infinity;
+        for (const p of pedestrians) {
+          const along = (p.y - npc.y) * npc.dir;
+          const lat = Math.abs(p.x - npc.x);
+          if (along > -20 && along < lookahead && lat < preferredGap - 1) {
+            if (along < bestAlong) {
+              bestAlong = along;
+              blocker = p;
+            }
+          }
+        }
+
+        if (blocker) {
+          const curSpan = getSidewalkSpanX(npc.x, npc.y);
+          const spaceLeft = blocker.x - curSpan.minX;
+          const spaceRight = curSpan.maxX - blocker.x;
+          if (!npc.avoidSide) {
+            npc.avoidSide = spaceRight >= spaceLeft ? 1 : -1;
+          }
+          const desiredX =
+            npc.avoidSide > 0
+              ? Math.min(curSpan.maxX, blocker.x + preferredGap)
+              : Math.max(curSpan.minX, blocker.x - preferredGap);
+          const dxNeeded = desiredX - npc.x;
+          const latMove = Math.sign(dxNeeded) * Math.min(Math.abs(dxNeeded), Math.max(step * 1.65, 2.2));
+          const nextX = clamp(npc.x + latMove, curSpan.minX, curSpan.maxX);
+          const nextY = clamp(npc.y + step * npc.dir, npc.min, npc.max);
+          const halfY = clamp(npc.y + step * 0.55 * npc.dir, npc.min, npc.max);
+
+          let moved = false;
+          for (const c of [
+            { x: nextX, y: nextY },
+            { x: nextX, y: halfY },
+            { x: nextX, y: npc.y },
+            { x: npc.x, y: nextY }
+          ]) {
+            if (isNpcCandidateClear(npc, c.x, c.y, pedestrians, passClearance)) {
+              npc.x = c.x;
+              npc.y = c.y;
+              npc.isMoving = true;
+              npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+              moved = true;
+              break;
+            }
+          }
+          if (!moved) npc.isMoving = false;
+          continue;
+        }
+
+        npc.avoidSide = 0;
+        const targetY = clamp(npc.y + step * npc.dir, npc.min, npc.max);
+        let targetX = npc.x;
         const homeDx = npc.homeX - npc.x;
-        if (Math.abs(homeDx) > 0.5) {
-          const driftX = npc.x + clamp(homeDx, -step * 0.85, step * 0.85);
-          if (isNpcCandidateClear(npc, driftX, targetY, PERSON_SEPARATION_DIST)) {
+        if (Math.abs(homeDx) > 0.4) {
+          const driftX = npc.x + clamp(homeDx, -step * 0.8, step * 0.8);
+          if (isNpcCandidateClear(npc, driftX, targetY, pedestrians, preferredGap)) {
             targetX = driftX;
           }
         }
-      }
-
-      if (isNpcCandidateClear(npc, targetX, targetY, PERSON_SEPARATION_DIST)) {
-        npc.x = targetX;
-        npc.y = targetY;
-        npc.isMoving = true;
-        npc.blockedTime = 0;
-        npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
-        continue;
-      }
-
-      // Blocked on sidewalk: proactively sidestep around the obstacle while staying strictly on the sidewalk!
-      const lateralStep = Math.max(2.2, step * 1.45);
-      const candidates =
-        npc.patrolAxis === 'x'
-          ? [
-              { x: targetX, y: npc.y + lateralStep },
-              { x: targetX, y: npc.y - lateralStep },
-              { x: npc.x, y: npc.y + lateralStep },
-              { x: npc.x, y: npc.y - lateralStep },
-              { x: targetX, y: npc.y }
-            ]
-          : [
-              { x: npc.x + lateralStep, y: targetY },
-              { x: npc.x - lateralStep, y: targetY },
-              { x: npc.x + lateralStep, y: npc.y },
-              { x: npc.x - lateralStep, y: npc.y },
-              { x: npc.x, y: targetY }
-            ];
-
-      // Pick the valid sidewalk sidestep farthest from the player so villagers curve neatly around people
-      let bestMove = null;
-      let bestClearance = -1;
-      for (const c of candidates) {
-        if (!isNpcCandidateClear(npc, c.x, c.y, politeSep)) continue;
-        const playerClear = distance(c.x, c.y, this.state.player.x, this.state.player.y);
-        if (playerClear > bestClearance) {
-          bestClearance = playerClear;
-          bestMove = c;
+        if (isNpcCandidateClear(npc, targetX, targetY, pedestrians, passClearance)) {
+          npc.x = targetX;
+          npc.y = targetY;
+          npc.isMoving = true;
+          npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
+          if (npc.y >= npc.max) npc.dir = -1;
+          else if (npc.y <= npc.min) npc.dir = 1;
+        } else {
+          npc.isMoving = false;
         }
       }
-
-      if (bestMove) {
-        npc.x = bestMove.x;
-        npc.y = bestMove.y;
-        npc.isMoving = true;
-        npc.blockedTime = 0;
-        npc.walkPhase = (npc.walkPhase + dt * 4.6) % (Math.PI * 2);
-        continue;
-      }
-
-      // Completely boxed in against building + curb: turn around politely instead of staying stuck
-      npc.blockedTime = (npc.blockedTime || 0) + dt;
-      if (npc.blockedTime >= 0.25) {
-        npc.dir *= -1;
-        npc.blockedTime = 0;
-      }
-      npc.isMoving = false;
     }
   }
 
