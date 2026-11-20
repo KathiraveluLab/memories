@@ -2601,6 +2601,192 @@ export class LisboaCanvasRenderer {
           ctx.fillRect(68 + c * 24, 34 + r * 24, 14, 14);
         }
       }
+    } else if (theme.layout === 'bakery') {
+      // Back wall of Bakery / Confeitaria: glowing brick wood-fired bread oven + tiered oak bread racks
+      this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
+
+      // Left brick wood-fired Lisbon bread oven with arched firebox & baker's peel
+      ctx.fillStyle = '#a64b33';
+      drawRoundedRect(ctx, 36, 20, 152, 112, 8);
+      ctx.fill();
+      ctx.strokeStyle = '#6b2c1c';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Brick courses
+      ctx.strokeStyle = 'rgba(255, 224, 200, 0.28)';
+      ctx.lineWidth = 1;
+      for (let by = 34; by < 126; by += 14) {
+        ctx.beginPath();
+        ctx.moveTo(38, by);
+        ctx.lineTo(186, by);
+        ctx.stroke();
+      }
+      // Arched glowing hearth mouth
+      ctx.fillStyle = '#29150e';
+      ctx.beginPath();
+      ctx.arc(112, 92, 34, Math.PI, 0);
+      ctx.lineTo(146, 126);
+      ctx.lineTo(78, 126);
+      ctx.closePath();
+      ctx.fill();
+      const emberPulse = 0.72 + Math.sin(this.animTime * 4.5) * 0.14;
+      const fireGrad = ctx.createRadialGradient(112, 114, 4, 112, 108, 34);
+      fireGrad.addColorStop(0, `rgba(254, 240, 138, ${emberPulse})`);
+      fireGrad.addColorStop(0.5, 'rgba(249, 115, 22, 0.85)');
+      fireGrad.addColorStop(1, 'rgba(154, 52, 18, 0.1)');
+      ctx.fillStyle = fireGrad;
+      ctx.beginPath();
+      ctx.arc(112, 96, 30, Math.PI, 0);
+      ctx.lineTo(142, 124);
+      ctx.lineTo(82, 124);
+      ctx.closePath();
+      ctx.fill();
+      // Crusty loaves baking inside oven hearth
+      this.drawCountryLoaf(ctx, 98, 116, 11, 6);
+      this.drawCountryLoaf(ctx, 126, 116, 11, 6);
+
+      // Right oak bakery bread shelving stacked with crusty loaves, baguettes & pastries
+      ctx.fillStyle = '#6c492e';
+      drawRoundedRect(ctx, 566, 20, 158, 112, 6);
+      ctx.fill();
+      ctx.strokeStyle = '#3d2514';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      for (let shelf = 0; shelf < 3; shelf += 1) {
+        const sy = 50 + shelf * 34;
+        ctx.fillStyle = '#4e311c';
+        ctx.fillRect(572, sy, 146, 4);
+        if (shelf === 0) {
+          this.drawCountryLoaf(ctx, 598, sy - 9, 16, 9);
+          this.drawCountryLoaf(ctx, 644, sy - 9, 16, 9);
+          this.drawCountryLoaf(ctx, 690, sy - 9, 16, 9);
+        } else if (shelf === 1) {
+          for (let px = 588; px <= 702; px += 22) {
+            this.drawPastelDeNata(ctx, px, sy - 8, 7.5);
+          }
+        } else {
+          // Crusty baguettes / cacetes
+          for (let bx = 582; bx <= 676; bx += 46) {
+            this.drawCountryLoaf(ctx, bx + 18, sy - 7, 20, 6);
+          }
+        }
+      }
+    } else if (theme.layout === 'restaurant') {
+      // Back wall of Restaurant: copper pots, wine cellar rack, and Fado guitar or Alfama sardine grill
+      this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
+
+      // Left open kitchen pass & hanging gleaming copper saucepans
+      ctx.fillStyle = '#3b2416';
+      drawRoundedRect(ctx, 36, 20, 162, 108, 6);
+      ctx.fill();
+      ctx.fillStyle = '#f5d08a';
+      ctx.fillRect(46, 30, 142, 68);
+      // Hanging copper pots along upper rail
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(50, 38);
+      ctx.lineTo(184, 38);
+      ctx.stroke();
+      for (const px of [72, 114, 156]) {
+        ctx.fillStyle = '#c86d3b';
+        ctx.beginPath();
+        ctx.arc(px, 56, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#7c3214';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#f5b07c';
+        ctx.beginPath();
+        ctx.arc(px - 3, 53, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Kitchen pass shelf holding steaming soup pot & sardine platter
+      ctx.fillStyle = '#7c4f2b';
+      ctx.fillRect(44, 96, 146, 10);
+      this.drawCaldoVerdeBowl(ctx, 86, 90);
+      this.drawSardinePlatter(ctx, 118, 80, 62, 18);
+
+      // Right wall: wooden wine bottle rack + Portuguese guitar (Tasca) or glowing grill (Taberna)
+      ctx.fillStyle = '#5c3a21';
+      drawRoundedRect(ctx, 564, 22, 160, 106, 6);
+      ctx.fill();
+      ctx.strokeStyle = '#3d2514';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Wine bottles (Vinho Verde & Douro reds)
+      for (let r = 0; r < 2; r += 1) {
+        for (let c = 0; c < 4; c += 1) {
+          const bx = 582 + c * 20;
+          const by = 46 + r * 38;
+          ctx.fillStyle = r === 0 ? '#166534' : '#7f1d1d';
+          ctx.fillRect(bx, by, 10, 24);
+          ctx.fillStyle = '#fef3c7';
+          ctx.fillRect(bx + 2, by + 8, 6, 8);
+        }
+      }
+      if (venue.id === 'tasca-do-fado') {
+        // Mounted 12-string Portuguese Guitar on back wall
+        const gx = 690;
+        const gy = 84;
+        ctx.fillStyle = '#d49442';
+        ctx.beginPath();
+        ctx.arc(gx, gy, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#5c3317';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#5c3317';
+        ctx.fillRect(gx - 3, gy - 44, 6, 28);
+        ctx.fillStyle = '#29150e';
+        ctx.beginPath();
+        ctx.arc(gx, gy, 5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Glowing charcoal sardine brazier with silver grilled sardines & smoke wisps on right wall
+        ctx.fillStyle = '#27272a';
+        drawRoundedRect(ctx, 666, 56, 50, 58, 4);
+        ctx.fill();
+        ctx.fillStyle = '#ea580c';
+        ctx.fillRect(671, 68, 40, 34);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(675, 74, 32, 22);
+        // Grill bars
+        ctx.strokeStyle = '#18181b';
+        ctx.lineWidth = 1.2;
+        for (let gy = 72; gy <= 98; gy += 6) {
+          ctx.beginPath();
+          ctx.moveTo(671, gy);
+          ctx.lineTo(711, gy);
+          ctx.stroke();
+        }
+        // Three sizzling silver sardines with forked tails on the charcoal grill
+        for (const sy of [75, 85, 95]) {
+          ctx.fillStyle = '#cbd5e1';
+          ctx.beginPath();
+          ctx.ellipse(692, sy, 12, 2.8, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(680, sy);
+          ctx.lineTo(675, sy - 2.5);
+          ctx.lineTo(675, sy + 2.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#334155';
+          ctx.fillRect(688, sy - 2, 1.8, 4);
+          ctx.fillRect(695, sy - 2, 1.8, 4);
+        }
+        // Subtle rising charcoal grill smoke
+        const smokeDrift = Math.sin(this.animTime * 3) * 2;
+        ctx.strokeStyle = 'rgba(241, 245, 249, 0.55)';
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(684, 54);
+        ctx.quadraticCurveTo(682 + smokeDrift, 44, 686, 36);
+        ctx.moveTo(698, 54);
+        ctx.quadraticCurveTo(700 - smokeDrift, 43, 696, 35);
+        ctx.stroke();
+      }
     } else {
       this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
     }
@@ -2610,25 +2796,29 @@ export class LisboaCanvasRenderer {
     const skyColor =
       phase.id === 'evening' ? '#1c2c4d' : phase.id === 'golden' ? '#e89a54' : '#8ec5e8';
     const winXs =
-      theme.layout === 'cathedral' || theme.layout === 'bookshop' || theme.layout === 'gallery'
+      theme.layout === 'cathedral' ||
+      theme.layout === 'bookshop' ||
+      theme.layout === 'gallery' ||
+      theme.layout === 'bakery' ||
+      theme.layout === 'restaurant'
         ? []
-        : [78, 578];
+        : [88, 588];
     for (const wx of winXs) {
       ctx.fillStyle = skyColor;
       ctx.beginPath();
-      ctx.arc(wx + 52, 46, 52, Math.PI, 0);
-      ctx.lineTo(wx + 104, 102);
-      ctx.lineTo(wx, 102);
+      ctx.arc(wx + 42, 56, 42, Math.PI, 0);
+      ctx.lineTo(wx + 84, 108);
+      ctx.lineTo(wx, 108);
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = theme.trim;
       ctx.lineWidth = 3;
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(wx + 52, 18);
-      ctx.lineTo(wx + 52, 102);
-      ctx.moveTo(wx, 64);
-      ctx.lineTo(wx + 104, 64);
+      ctx.moveTo(wx + 42, 14);
+      ctx.lineTo(wx + 42, 108);
+      ctx.moveTo(wx, 66);
+      ctx.lineTo(wx + 84, 66);
       ctx.stroke();
     }
 
@@ -2667,157 +2857,276 @@ export class LisboaCanvasRenderer {
       }
     }
 
-    this.drawCharacterSprite(ctx, 380, 140, {
-      facing: 'down',
-      walkPhase: 0,
-      isMoving: false,
-      tunicColor: theme.trim,
-      scarfColor: '#f5cb5c',
-      hairColor: '#3a2b22',
-      isPlayer: false
-    });
-    ctx.fillStyle = '#ffffff';
-    drawRoundedRect(ctx, 336, 98, 88, 17, 4);
-    ctx.fill();
-    ctx.strokeStyle = '#1b4d89';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = '#14375f';
-    ctx.font = '700 10.5px "Segoe UI", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(venue.proprietor, 380, 110);
+    // Person(s) in charge clearly visible behind the counter (Chef/Baker + dedicated Cashier where applicable)
+    const hasSecondCashier = Boolean(venue.cashierName);
+    const primaryStaffX = hasSecondCashier ? 314 : 380;
+    const isChefOrBaker =
+      theme.layout === 'bakery' || theme.layout === 'restaurant';
 
+    this.drawStaffMember(ctx, primaryStaffX, 132, {
+      name: venue.proprietor,
+      role: venue.proprietorRole,
+      tunicColor: isChefOrBaker ? '#f8fafc' : theme.trim,
+      apronColor: isChefOrBaker ? '#ffffff' : theme.layout === 'mercearia' ? '#15803d' : theme.layout === 'cafe' ? '#1e293b' : null,
+      chefHat: isChefOrBaker,
+      hairColor: '#3a2b22'
+    });
+
+    if (hasSecondCashier) {
+      this.drawStaffMember(ctx, 495, 132, {
+        name: venue.cashierName,
+        role: venue.cashierRole || 'Cashier',
+        tunicColor: theme.trim,
+        apronColor: '#f5f0e4',
+        chefHat: false,
+        hairColor: '#543828'
+      });
+    }
+
+    // Wide service & cashier counter (y: 144..190)
     ctx.fillStyle = 'rgba(20, 20, 25, 0.22)';
-    ctx.fillRect(236, 152, 294, 42);
+    ctx.fillRect(216, 154, 334, 42);
     ctx.fillStyle = theme.counter;
-    drawRoundedRect(ctx, 230, 142, 300, 44, 6);
+    drawRoundedRect(ctx, 210, 144, 340, 44, 6);
     ctx.fill();
     ctx.strokeStyle = '#3d2514';
     ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.fillStyle = 'rgba(255, 248, 235, 0.25)';
-    for (let cx = 244; cx < 516; cx += 24) {
-      ctx.fillRect(cx, 174, 14, 7);
+    for (let cx = 224; cx < 536; cx += 24) {
+      ctx.fillRect(cx, 176, 14, 7);
     }
 
-    if (theme.layout === 'cafe' || theme.layout === 'bakery') {
-      // Brass espresso machine + glowing pastry / bread showcase
-      ctx.fillStyle = '#c5922b';
-      ctx.fillRect(250, 148, 42, 24);
-      ctx.fillStyle = '#fff5dc';
-      ctx.fillRect(426, 148, 82, 24);
+    // Vintage brass cash register centered right in front of the Cashier (all commercial venues)
+    if (theme.layout !== 'cathedral') {
+      this.drawCashRegister(ctx, 472, 146);
+    }
+
+    if (theme.layout === 'bakery') {
+      // Wide crystal-clear glass bakery showcase filled with breads, pasteis de nata & pastries
+      ctx.fillStyle = '#fff9eb';
+      drawRoundedRect(ctx, 222, 147, 236, 36, 4);
+      ctx.fill();
       ctx.strokeStyle = '#92400e';
-      ctx.lineWidth = 1.2;
-      ctx.strokeRect(426, 148, 82, 24);
-      ctx.fillStyle = theme.layout === 'bakery' ? '#c8802b' : '#d98a1c';
-      for (let px = 438; px <= 496; px += 14) {
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      // Glass reflection sheen
+      ctx.fillStyle = 'rgba(186, 230, 253, 0.24)';
+      ctx.fillRect(224, 149, 232, 10);
+
+      // Top tier: crusty scored Pao de Mafra loaves & Pao com Chourico
+      this.drawCountryLoaf(ctx, 250, 158, 16, 7);
+      this.drawCountryLoaf(ctx, 292, 158, 16, 7);
+      // Pao com chourico with red chorizo slice peeking out
+      this.drawCountryLoaf(ctx, 334, 158, 15, 6.5);
+      ctx.fillStyle = '#b91c1c';
+      ctx.beginPath();
+      ctx.arc(339, 158, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Sugar-dusted travesseiros
+      for (const tx of [372, 406, 438]) {
+        ctx.fillStyle = '#d99a38';
+        drawRoundedRect(ctx, tx - 11, 153, 22, 10, 3);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(tx - 7, 156, 14, 3);
+      }
+
+      // Bottom tier: row of blistered golden Pasteis de Nata & Queijadas
+      for (let nx = 240; nx <= 444; nx += 22) {
+        this.drawPastelDeNata(ctx, nx, 174, 7.5);
+      }
+    } else if (theme.layout === 'cafe') {
+      // Polished brass espresso machine + glass pastel de nata & bolo de arroz vitrine
+      ctx.fillStyle = '#c5922b';
+      drawRoundedRect(ctx, 224, 147, 50, 28, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(232, 166, 10, 7);
+      ctx.fillRect(252, 166, 10, 7);
+
+      // Glass pastry vitrine with pasteis de nata & rice muffins
+      ctx.fillStyle = '#fff8e6';
+      drawRoundedRect(ctx, 284, 148, 174, 34, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      for (let nx = 302; nx <= 384; nx += 20) {
+        this.drawPastelDeNata(ctx, nx, 164, 7.5);
+      }
+      // Bolo de arroz muffins in white paper cups
+      for (const bx of [412, 436]) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(bx - 7, 163, 14, 10);
+        ctx.fillStyle = '#d98a1c';
         ctx.beginPath();
-        ctx.ellipse(px, 160, theme.layout === 'bakery' ? 6 : 4.5, 4.5, 0, 0, Math.PI * 2);
+        ctx.arc(bx, 162, 7.5, Math.PI, 0);
         ctx.fill();
       }
     } else if (theme.layout === 'restaurant') {
-      // Steaming caldo verde soup tureen + grilled sardine platter + wine bottle
-      ctx.fillStyle = '#e5e7eb';
-      ctx.beginPath();
-      ctx.arc(280, 162, 13, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#3d7a4a';
-      ctx.beginPath();
-      ctx.arc(280, 162, 8.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#14532d';
-      ctx.fillRect(306, 146, 8, 22);
+      // Rich Portuguese restaurant spread right along the kitchen pass counter, tailored to each restaurant's menu
+      if (venue.id === 'tasca-do-fado') {
+        // 1. Steaming terracotta bowl of Caldo Verde + sliced broa corn bread
+        this.drawCaldoVerdeBowl(ctx, 246, 165);
+        this.drawCountryLoaf(ctx, 282, 167, 13, 6.5);
+        // 2. Platter of golden Pasteis de Bacalhau with tomato rice & parsley
+        ctx.fillStyle = '#f8fafc';
+        drawRoundedRect(ctx, 304, 151, 78, 28, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = '#d97706';
+        for (let bx = 317; bx <= 355; bx += 13) {
+          ctx.beginPath();
+          ctx.ellipse(bx, 162, 5.5, 3.8, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(369, 166, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(334, 171, 6, 3);
+        // 3. Arroz Doce cinnamon-lattice dessert bowl & Bifana roll
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath();
+        ctx.arc(406, 165, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#b45309';
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+        // Cinnamon lattice lines
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(398, 160); ctx.lineTo(414, 170);
+        ctx.moveTo(398, 170); ctx.lineTo(414, 160);
+        ctx.stroke();
+        // Warm Bifana roll
+        this.drawCountryLoaf(ctx, 444, 165, 14, 7.5);
+      } else {
+        // Taberna da Sardinha: Tomato & Broa salad, Grilled Sardines platter, Bacalhau a Bras with black olives
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.arc(246, 165, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(242, 163, 4.5, 0, Math.PI * 2);
+        ctx.arc(250, 167, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(245, 160, 4, 3);
+        this.drawCountryLoaf(ctx, 279, 167, 12, 6.5);
 
-      ctx.fillStyle = '#f5f5f4';
-      ctx.fillRect(430, 150, 78, 22);
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillRect(438, 155, 24, 5);
-      ctx.fillRect(470, 155, 24, 5);
-      ctx.fillStyle = '#dc2626';
-      ctx.fillRect(444, 163, 44, 4);
+        // Ceramic platter of charcoal-grilled Sardinhas Assadas with roasted peppers & lemon
+        this.drawSardinePlatter(ctx, 302, 150, 86, 30);
+
+        // Golden Bacalhau a Bras platter with olives & parsley
+        ctx.fillStyle = '#f8fafc';
+        drawRoundedRect(ctx, 398, 151, 64, 28, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = '#eab308';
+        drawRoundedRect(ctx, 405, 156, 50, 18, 5);
+        ctx.fill();
+        ctx.fillStyle = '#1f2937';
+        for (const [ox, oy] of [[418, 164], [432, 167], [445, 162]]) {
+          ctx.beginPath();
+          ctx.arc(ox, oy, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(426, 160, 5, 3);
+      }
     } else if (theme.layout === 'bookshop') {
-      // Stacked vintage volumes + brass library lamp + Bertrand heritage stamp
-      const spineCols = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18'];
+      const spineCols = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18', '#5b3a63'];
       spineCols.forEach((sc, i) => {
         ctx.fillStyle = sc;
-        ctx.fillRect(250 + i * 11, 148, 9, 24);
+        ctx.fillRect(230 + i * 11, 148, 9, 24);
       });
       ctx.fillStyle = '#15803d';
       ctx.beginPath();
-      ctx.arc(478, 154, 12, Math.PI, 0);
+      ctx.arc(444, 156, 11, Math.PI, 0);
       ctx.fill();
       ctx.fillStyle = '#ca8a04';
-      ctx.fillRect(476, 154, 4, 18);
+      ctx.fillRect(442, 156, 4, 16);
     } else if (theme.layout === 'vinyl') {
-      // Spinning turntable deck + crate of 7-inch fado vinyl sleeves
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(250, 148, 44, 26);
+      ctx.fillRect(232, 148, 44, 26);
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
-      ctx.arc(270, 161, 10, 0, Math.PI * 2);
+      ctx.arc(252, 161, 10, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#ef4444';
       ctx.beginPath();
-      ctx.arc(270, 161, 3.5, 0, Math.PI * 2);
+      ctx.arc(252, 161, 3.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(446, 148, 26, 24);
+      ctx.fillRect(416, 148, 26, 24);
       ctx.fillStyle = '#6d476c';
-      ctx.fillRect(476, 148, 26, 24);
+      ctx.fillRect(446, 148, 26, 24);
     } else if (theme.layout === 'azulejo') {
-      // Cobalt glaze paint pots, brushes, and kiln-fired tile samples
       for (const [idx, col] of ['#1d568a', '#3b82f6', '#eab308', '#f8fafc'].entries()) {
         ctx.fillStyle = col;
         ctx.beginPath();
-        ctx.arc(256 + idx * 14, 160, 5.5, 0, Math.PI * 2);
+        ctx.arc(236 + idx * 14, 160, 5.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#1e293b';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
-      for (let tx = 436; tx <= 484; tx += 24) {
+      for (let tx = 412; tx <= 452; tx += 22) {
         ctx.fillStyle = '#f8fafc';
-        ctx.fillRect(tx, 150, 20, 20);
+        ctx.fillRect(tx, 150, 19, 19);
         ctx.fillStyle = '#1d568a';
-        ctx.fillRect(tx + 5, 155, 10, 10);
+        ctx.fillRect(tx + 5, 155, 9, 9);
       }
     } else if (theme.layout === 'mercearia') {
-      // Brass grocer balance scale + colorful lithograph fish tins
       ctx.fillStyle = '#ca8a04';
-      ctx.fillRect(272, 148, 4, 22);
-      ctx.fillRect(256, 154, 36, 3);
+      ctx.fillRect(252, 148, 4, 22);
+      ctx.fillRect(236, 154, 36, 3);
       const tins = ['#e11d48', '#f59e0b', '#0284c7', '#10b981'];
       tins.forEach((tc, i) => {
         ctx.fillStyle = tc;
-        ctx.fillRect(432 + i * 19, 150, 16, 20);
+        ctx.fillRect(394 + i * 19, 150, 16, 20);
       });
     } else if (theme.layout === 'pensao') {
-      // Brass reception service bell + guest register ledger
       ctx.fillStyle = '#eab308';
       ctx.beginPath();
-      ctx.arc(276, 166, 9, Math.PI, 0);
+      ctx.arc(260, 166, 9, Math.PI, 0);
       ctx.fill();
       ctx.fillStyle = '#7c2d12';
-      ctx.fillRect(442, 148, 56, 24);
+      ctx.fillRect(410, 148, 56, 24);
       ctx.fillStyle = '#fef3c7';
-      ctx.fillRect(446, 151, 48, 18);
+      ctx.fillRect(414, 151, 48, 18);
     } else if (theme.layout === 'gallery') {
       ctx.fillStyle = '#fef3c7';
-      ctx.fillRect(252, 148, 42, 24);
+      ctx.fillRect(236, 148, 42, 24);
       ctx.strokeStyle = '#785a36';
       ctx.lineWidth = 1.6;
-      ctx.strokeRect(252, 148, 42, 24);
+      ctx.strokeRect(236, 148, 42, 24);
       ctx.fillStyle = '#1b4d89';
-      ctx.fillRect(258, 154, 30, 12);
+      ctx.fillRect(242, 154, 30, 12);
 
       ctx.fillStyle = '#e5e7eb';
-      ctx.fillRect(452, 148, 48, 24);
-      ctx.strokeRect(452, 148, 48, 24);
+      ctx.fillRect(422, 148, 46, 24);
+      ctx.strokeRect(422, 148, 46, 24);
       ctx.fillStyle = '#b84a32';
-      ctx.fillRect(460, 154, 32, 12);
+      ctx.fillRect(430, 154, 30, 12);
     } else if (theme.layout === 'cathedral') {
-      for (const cx of [258, 274, 484, 500]) {
+      for (const cx of [248, 264, 494, 510]) {
         ctx.fillStyle = '#fef3c7';
         ctx.fillRect(cx, 154, 5, 16);
         ctx.fillStyle = '#f59e0b';
@@ -2831,13 +3140,12 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1.4;
       ctx.strokeRect(352, 152, 56, 20);
     } else {
-      // Cork & leather atelier tools + stitched cork notebooks
       ctx.fillStyle = '#c89b6d';
-      ctx.fillRect(252, 148, 38, 24);
+      ctx.fillRect(236, 148, 38, 24);
       ctx.fillStyle = '#8b5a34';
-      ctx.fillRect(444, 148, 26, 22);
+      ctx.fillRect(418, 148, 24, 22);
       ctx.fillStyle = '#1f7062';
-      ctx.fillRect(476, 148, 26, 22);
+      ctx.fillRect(446, 148, 24, 22);
     }
 
     // Left interactive display station tailored to venue category (keeps exact collision footprint 62..134, 204..322)
@@ -2848,8 +3156,89 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    if (theme.layout === 'bookshop') {
-      // Floor-to-ceiling bookshop shelf packed with vertical book spines
+    if (theme.layout === 'bakery') {
+      // Three wicker bread baskets packed with scored rustic loaves, baguettes, and warm pastries
+      for (let b = 0; b < 3; b += 1) {
+        const by = 212 + b * 36;
+        ctx.fillStyle = '#b98552';
+        drawRoundedRect(ctx, 69, by, 58, 28, 5);
+        ctx.fill();
+        ctx.strokeStyle = '#784822';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        if (b === 0) {
+          this.drawCountryLoaf(ctx, 85, by + 14, 12, 7);
+          this.drawCountryLoaf(ctx, 111, by + 14, 12, 7);
+        } else if (b === 1) {
+          this.drawCountryLoaf(ctx, 98, by + 9, 22, 5);
+          this.drawCountryLoaf(ctx, 98, by + 20, 22, 5);
+        } else {
+          this.drawPastelDeNata(ctx, 83, by + 14, 6.5);
+          this.drawPastelDeNata(ctx, 98, by + 14, 6.5);
+          this.drawPastelDeNata(ctx, 113, by + 14, 6.5);
+        }
+      }
+    } else if (theme.layout === 'cafe') {
+      // Cafe side display: roasted coffee canisters, tiered Pasteis de Nata stand, and toasted sandwiches
+      ctx.fillStyle = '#b45309';
+      for (let c = 0; c < 3; c += 1) {
+        ctx.fillRect(72 + c * 18, 214, 14, 22);
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(74 + c * 18, 220, 10, 7);
+        ctx.fillStyle = '#b45309';
+      }
+      // Tiered glass pastry shelf
+      ctx.fillStyle = '#fff8e6';
+      drawRoundedRect(ctx, 70, 246, 56, 30, 4);
+      ctx.fill();
+      this.drawPastelDeNata(ctx, 84, 261, 6.5);
+      this.drawPastelDeNata(ctx, 98, 261, 6.5);
+      this.drawPastelDeNata(ctx, 112, 261, 6.5);
+      // Warm Tosta Mista & espresso cups on bottom shelf
+      ctx.fillStyle = '#d99026';
+      drawRoundedRect(ctx, 72, 286, 26, 20, 3);
+      ctx.fill();
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(72, 286);
+      ctx.lineTo(98, 306);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(114, 296, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#3b1806';
+      ctx.beginPath();
+      ctx.arc(114, 296, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (theme.layout === 'restaurant') {
+      // Portuguese tavern side-buffet: Vinho Verde bottles, olive-oil jug, crusty bread & olive bowl
+      for (let c = 0; c < 3; c += 1) {
+        ctx.fillStyle = c === 1 ? '#7f1d1d' : '#15803d';
+        ctx.fillRect(74 + c * 18, 214, 10, 24);
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(76 + c * 18, 222, 6, 8);
+      }
+      // Bread basket on middle shelf
+      this.drawCountryLoaf(ctx, 86, 260, 12, 7);
+      this.drawCountryLoaf(ctx, 110, 260, 12, 7);
+      // Terracotta olive oil cruet & bowl of black olives on lower shelf
+      ctx.fillStyle = '#c25934';
+      ctx.beginPath();
+      ctx.arc(84, 296, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.arc(112, 296, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1f2937';
+      for (const [ox, oy] of [[109, 294], [115, 295], [112, 299]]) {
+        ctx.beginPath();
+        ctx.arc(ox, oy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (theme.layout === 'bookshop') {
       const colors = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18', '#5b3a63', '#2563eb'];
       for (let row = 0; row < 4; row += 1) {
         const sy = 212 + row * 26;
@@ -2861,7 +3250,6 @@ export class LisboaCanvasRenderer {
         ctx.fillRect(68, sy + 18, 58, 3);
       }
     } else if (theme.layout === 'vinyl') {
-      // Wooden record flip crates showing vinyl discs
       for (let sy = 216; sy <= 286; sy += 34) {
         ctx.fillStyle = '#111827';
         ctx.beginPath();
@@ -2873,7 +3261,6 @@ export class LisboaCanvasRenderer {
         ctx.fill();
       }
     } else if (theme.layout === 'gallery' || theme.layout === 'cathedral') {
-      // Glass museum display vitrine / cathedral reliquary cabinet
       ctx.fillStyle = '#dbeafe';
       ctx.fillRect(70, 214, 56, 98);
       ctx.strokeStyle = '#92400e';
@@ -2887,9 +3274,7 @@ export class LisboaCanvasRenderer {
       const swatchColors =
         theme.layout === 'azulejo'
           ? ['#1d568a', '#3b82f6', '#1e40af', '#0284c7']
-          : theme.layout === 'bakery'
-            ? ['#c8802b', '#e09f3e', '#b45309', '#d97706']
-            : ['#1b4d89', '#c98a18', '#b84a32', '#13795b'];
+          : ['#1b4d89', '#c98a18', '#b84a32', '#13795b'];
       for (let sy = 216; sy <= 298; sy += 26) {
         ctx.fillStyle = swatchColors[(sy / 26) % swatchColors.length | 0];
         ctx.fillRect(72, sy, 52, 15);
@@ -2898,42 +3283,73 @@ export class LisboaCanvasRenderer {
 
     // Right furnishings tailored to venue category (keeps exact collision footprint 590..682, 225..279 & 325..379)
     const tableYs = [225, 325];
-    for (const ty of tableYs) {
+    tableYs.forEach((ty, tIdx) => {
       if (theme.layout === 'restaurant') {
-        // Checkered restaurant dining table with plates & glowing candle
+        // Checkered restaurant table fully set with plated Portuguese dishes, wine glasses, bread & candle
         ctx.fillStyle = '#f8fafc';
         drawRoundedRect(ctx, 590, ty, 92, 54, 8);
         ctx.fill();
-        ctx.fillStyle = venue.id === 'tasca-do-fado' ? '#dc2626' : '#1d4ed8';
-        ctx.fillRect(594, ty + 4, 84, 8);
-        ctx.fillRect(594, ty + 42, 84, 8);
-        ctx.fillStyle = '#e5e7eb';
-        ctx.beginPath();
-        ctx.arc(614, ty + 27, 8, 0, Math.PI * 2);
-        ctx.arc(658, ty + 27, 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#f59e0b';
-        ctx.beginPath();
-        ctx.arc(636, ty + 27, 3.5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.strokeStyle = '#472d1b';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        const clothColor = venue.id === 'tasca-do-fado' ? '#dc2626' : '#1d4ed8';
+        ctx.save();
+        drawRoundedRect(ctx, 591, ty + 1, 90, 52, 7);
+        ctx.clip();
+        ctx.fillStyle = clothColor;
+        for (let cx = 592; cx < 680; cx += 16) {
+          ctx.fillRect(cx, ty + 1, 8, 7);
+          ctx.fillRect(cx + 8, ty + 46, 8, 7);
+        }
+        ctx.restore();
+        // Left plate: steaming Caldo Verde soup bowl (top table) or Grilled Sardines plate (bottom table)
+        if (tIdx === 0) {
+          this.drawCaldoVerdeBowl(ctx, 616, ty + 27);
+          this.drawCountryLoaf(ctx, 658, ty + 27, 11, 6);
+        } else {
+          this.drawSardinePlatter(ctx, 598, ty + 15, 48, 24);
+          // Red wine / lemonade glass + flickering table candle
+          ctx.fillStyle = '#991b1b';
+          ctx.beginPath();
+          ctx.arc(662, ty + 22, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(662, ty + 35, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else if (theme.layout === 'cafe' || theme.layout === 'bakery') {
-        // Marble bistro table with espresso cups & pastry plates
+        // Marble bistro table laid with espresso cups, blistered Pasteis de Nata, & crusty bread slice
         ctx.fillStyle = '#f8f5ef';
         drawRoundedRect(ctx, 590, ty, 92, 54, 14);
         ctx.fill();
         ctx.strokeStyle = '#64748b';
         ctx.lineWidth = 1.6;
         ctx.stroke();
-        ctx.fillStyle = '#451a03';
+        // Espresso cup on saucer
+        ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(618, ty + 27, 6, 0, Math.PI * 2);
+        ctx.arc(614, ty + 27, 9, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#d98a1c';
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = '#3b1806';
         ctx.beginPath();
-        ctx.arc(654, ty + 27, 7, 0, Math.PI * 2);
+        ctx.arc(614, ty + 27, 5, 0, Math.PI * 2);
         ctx.fill();
+        // Pastry plate holding golden Pastel de Nata or bread roll
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(654, ty + 27, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        if (theme.layout === 'bakery' && tIdx === 0) {
+          this.drawCountryLoaf(ctx, 654, ty + 27, 9, 5.5);
+        } else {
+          this.drawPastelDeNata(ctx, 654, ty + 27, 7);
+        }
       } else if (theme.layout === 'cathedral') {
-        // Carved dark-oak Romanesque church pews
         ctx.fillStyle = '#5c3a21';
         drawRoundedRect(ctx, 590, ty + 4, 92, 18, 4);
         ctx.fill();
@@ -2944,7 +3360,6 @@ export class LisboaCanvasRenderer {
         ctx.strokeRect(590, ty + 4, 92, 18);
         ctx.strokeRect(590, ty + 30, 92, 18);
       } else if (theme.layout === 'bookshop') {
-        // Oak reading table with open books
         ctx.fillStyle = '#7c4f2b';
         drawRoundedRect(ctx, 590, ty, 92, 54, 6);
         ctx.fill();
@@ -2955,7 +3370,6 @@ export class LisboaCanvasRenderer {
         ctx.lineWidth = 1.4;
         ctx.strokeRect(590, ty, 92, 54);
       } else if (theme.layout === 'gallery') {
-        // Velvet museum viewing bench
         ctx.fillStyle = '#7f1d1d';
         drawRoundedRect(ctx, 594, ty + 10, 84, 34, 8);
         ctx.fill();
@@ -2970,7 +3384,7 @@ export class LisboaCanvasRenderer {
         ctx.lineWidth = 1.6;
         ctx.stroke();
       }
-    }
+    });
 
     this.drawInteriorMarker(
       ctx,
@@ -3024,20 +3438,278 @@ export class LisboaCanvasRenderer {
     }
   }
 
+  drawCashRegister(ctx, x, y) {
+    // Detailed vintage brass-and-oak European cash register with EUR display flag
+    ctx.save();
+    ctx.fillStyle = '#6c492e';
+    drawRoundedRect(ctx, x, y + 16, 46, 18, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#3d2514';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    // Brass cash drawer handle
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(x + 16, y + 25, 14, 4);
+
+    // Ornate brass register upper body + keys
+    ctx.fillStyle = '#ca8a04';
+    drawRoundedRect(ctx, x + 4, y + 2, 38, 17, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#713f12';
+    ctx.stroke();
+    ctx.fillStyle = '#fef3c7';
+    for (let k = 0; k < 4; k += 1) {
+      ctx.fillRect(x + 9 + k * 7, y + 11, 5, 4);
+    }
+    // Price readout window
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(x + 10, y + 4, 26, 5);
+    ctx.fillStyle = '#86efac';
+    ctx.fillRect(x + 13, y + 5.5, 14, 2);
+    ctx.restore();
+  }
+
+  drawStaffMember(ctx, x, y, { name, role, tunicColor, apronColor, chefHat, hairColor }) {
+    ctx.save();
+    // Tunic / Uniform
+    ctx.fillStyle = tunicColor;
+    drawRoundedRect(ctx, x - 10, y - 5, 20, 18, 5);
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Apron
+    if (apronColor) {
+      ctx.fillStyle = apronColor;
+      ctx.fillRect(x - 7, y - 2, 14, 15);
+      ctx.strokeStyle = 'rgba(30, 41, 59, 0.3)';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x - 7, y - 2, 14, 15);
+    }
+
+    // Double-breasted chef/baker jacket buttons
+    if (chefHat) {
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(x - 3, y, 1.8, 1.8);
+      ctx.fillRect(x + 1.5, y, 1.8, 1.8);
+      ctx.fillRect(x - 3, y + 5, 1.8, 1.8);
+      ctx.fillRect(x + 1.5, y + 5, 1.8, 1.8);
+    }
+
+    // Head
+    ctx.fillStyle = '#f2cfb2';
+    ctx.beginPath();
+    ctx.arc(x, y - 13, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3b2b22';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Hair
+    ctx.fillStyle = hairColor;
+    ctx.beginPath();
+    ctx.arc(x, y - 15.5, 7.6, Math.PI, Math.PI * 2);
+    ctx.fill();
+
+    // Crisp white chef's toque hat with dark crisp outline for Bakers, Pastry Chefs & Restaurant Chefs
+    if (chefHat) {
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(x - 4.5, y - 26, 5, 0, Math.PI * 2);
+      ctx.arc(x + 4.5, y - 26, 5, 0, Math.PI * 2);
+      ctx.arc(x, y - 28.5, 5.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - 7, y - 24, 14, 6);
+      ctx.strokeRect(x - 7, y - 24, 14, 6);
+    }
+
+    // Friendly eyes & smile
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(x - 3.5, y - 13.5, 2, 2);
+    ctx.fillRect(x + 1.5, y - 13.5, 2, 2);
+    ctx.strokeStyle = '#7c2d12';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y - 10, 2.5, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+
+    // Clear two-line staff badge (Name + Role) above head sized dynamically to text width
+    const roleLabel = String(role || 'Staff').toUpperCase();
+    ctx.font = '700 9.5px "Segoe UI", sans-serif';
+    const nameWidth = ctx.measureText(name).width;
+    ctx.font = '700 7.5px "Segoe UI", sans-serif';
+    const roleWidth = ctx.measureText(roleLabel).width;
+    const badgeW = Math.max(106, Math.ceil(Math.max(nameWidth, roleWidth)) + 16);
+    const badgeH = 24;
+    const badgeY = chefHat ? y - 60 : y - 50;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+    drawRoundedRect(ctx, x - badgeW / 2, badgeY, badgeW, badgeH, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#1b4d89';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#14375f';
+    ctx.font = '700 9.5px "Segoe UI", sans-serif';
+    ctx.fillText(name, x, badgeY + 10);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '700 7.5px "Segoe UI", sans-serif';
+    ctx.fillText(roleLabel, x, badgeY + 20);
+    ctx.restore();
+  }
+
+  drawCountryLoaf(ctx, cx, cy, rx, ry) {
+    // Crusty flour-dusted Portuguese Pao de Mafra / Broa loaf with diagonal score slashes
+    ctx.save();
+    ctx.fillStyle = '#b96f22';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#d99338';
+    ctx.beginPath();
+    ctx.ellipse(cx - rx * 0.1, cy - ry * 0.15, rx * 0.82, ry * 0.72, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Diagonal baker's score cuts dusted with white flour
+    ctx.strokeStyle = '#fef3c7';
+    ctx.lineWidth = 1.3;
+    for (let s = -1; s <= 1; s += 1) {
+      ctx.beginPath();
+      ctx.moveTo(cx + s * (rx * 0.42) - 3, cy - ry * 0.45);
+      ctx.lineTo(cx + s * (rx * 0.42) + 3, cy + ry * 0.45);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawPastelDeNata(ctx, cx, cy, r) {
+    // Flaky blistered Portuguese custard tart with crimped crust & caramelized dark spots
+    ctx.save();
+    ctx.fillStyle = '#b4691e';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2);
+    ctx.fill();
+    // Signature dark caramelized blister spots
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath();
+    ctx.arc(cx - r * 0.22, cy - r * 0.18, r * 0.22, 0, Math.PI * 2);
+    ctx.arc(cx + r * 0.24, cy + r * 0.15, r * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  drawCaldoVerdeBowl(ctx, cx, cy) {
+    // Terracotta stoneware bowl of Caldo Verde kale soup with red chourico slice & animated steam
+    ctx.save();
+    ctx.fillStyle = '#b4532a';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5a8f49';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Shredded dark kale flecks
+    ctx.strokeStyle = '#2d5724';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy - 2);
+    ctx.lineTo(cx - 1, cy - 5);
+    ctx.moveTo(cx + 2, cy + 4);
+    ctx.lineTo(cx + 6, cy + 1);
+    ctx.stroke();
+    // Red chourico slice floating on top
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.6, 0, Math.PI * 2);
+    ctx.fill();
+    // Subtle rising steam curls
+    const shift = Math.sin(this.animTime * 3.5) * 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 4, cy - 11);
+    ctx.quadraticCurveTo(cx - 6 + shift, cy - 17, cx - 3, cy - 21);
+    ctx.moveTo(cx + 3, cy - 12);
+    ctx.quadraticCurveTo(cx + 5 - shift, cy - 18, cx + 2, cy - 22);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawSardinePlatter(ctx, x, y, w, h) {
+    // Glazed white Lisbon platter with charcoal-grilled silver sardines, roasted peppers & lemon
+    ctx.save();
+    ctx.fillStyle = '#f8fafc';
+    drawRoundedRect(ctx, x, y, w, h, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Three silver sardines with charred grill stripes & forked tails
+    const rows = h >= 24 ? 3 : 2;
+    for (let i = 0; i < rows; i += 1) {
+      const sy = y + 6 + i * ((h - 12) / Math.max(1, rows - 1));
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.ellipse(x + w * 0.42, sy, w * 0.28, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Forked tail
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.14, sy);
+      ctx.lineTo(x + w * 0.06, sy - 3);
+      ctx.lineTo(x + w * 0.06, sy + 3);
+      ctx.closePath();
+      ctx.fill();
+      // Charred grill marks
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + w * 0.34, sy - 2, 2, 4);
+      ctx.fillRect(x + w * 0.48, sy - 2, 2, 4);
+    }
+
+    // Roasted red & green pepper strips + yellow lemon wedge
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(x + w * 0.72, y + 5, w * 0.18, 4);
+    ctx.fillStyle = '#16a34a';
+    ctx.fillRect(x + w * 0.72, y + 11, w * 0.18, 4);
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.arc(x + w * 0.82, y + h - 6, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   drawInteriorMarker(ctx, x, y, label, active) {
     ctx.save();
-    ctx.strokeStyle = active ? '#f59e0b' : 'rgba(27, 77, 137, 0.45)';
-    ctx.lineWidth = active ? 2.5 : 1.5;
+    ctx.strokeStyle = active ? '#f59e0b' : 'rgba(27, 77, 137, 0.55)';
+    ctx.lineWidth = active ? 2.5 : 1.6;
     ctx.setLineDash([5, 4]);
     ctx.beginPath();
-    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.arc(x, y, 16, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.fillStyle = active ? '#b45309' : '#334155';
     ctx.font = '700 9.5px "Segoe UI", sans-serif';
+    const labelW = Math.ceil(ctx.measureText(label).width) + 12;
+    ctx.fillStyle = active ? 'rgba(254, 243, 199, 0.95)' : 'rgba(255, 255, 255, 0.88)';
+    drawRoundedRect(ctx, x - labelW / 2, y + 20, labelW, 16, 4);
+    ctx.fill();
+    ctx.strokeStyle = active ? '#d97706' : 'rgba(27, 77, 137, 0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = active ? '#92400e' : '#1e3a5f';
     ctx.textAlign = 'center';
-    ctx.fillText(label, x, y + 34);
+    ctx.fillText(label, x, y + 31);
     ctx.restore();
   }
 

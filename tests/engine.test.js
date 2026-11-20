@@ -77,6 +77,7 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
     );
   }
 
+  const allStaffNames = new Set();
   for (const venue of VENUES) {
     assert.ok(
       isOverworldPositionValid(venue.spawnOutside.x, venue.spawnOutside.y),
@@ -87,9 +88,39 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
       false,
       `Venue spawnOutside should sit safely on the sidewalk for ${venue.id}`
     );
+    assert.ok(venue.proprietor && venue.proprietorRole, `Venue ${venue.id} must have a named person in charge`);
+    assert.equal(allStaffNames.has(venue.proprietor), false, `Duplicate staff name: ${venue.proprietor}`);
+    allStaffNames.add(venue.proprietor);
+    if (venue.cashierName) {
+      assert.ok(venue.cashierRole, `Venue ${venue.id} cashier must have a role`);
+      assert.equal(allStaffNames.has(venue.cashierName), false, `Duplicate cashier name: ${venue.cashierName}`);
+      allStaffNames.add(venue.cashierName);
+    }
     assert.ok(venue.phrase?.pt && venue.phrase?.pronunciation && venue.phrase?.en);
     assert.ok(venue.memory?.id && venue.memory?.title && venue.memory?.caption);
     assert.ok(Array.isArray(venue.items) && venue.items.length >= 2);
+  }
+
+  // Verify bakeries stock breads & pastries and have a dedicated cashier
+  const bakery = VENUES.find((v) => v.id === 'casa-da-rosa');
+  assert.equal(bakery.interiorTheme.layout, 'bakery');
+  assert.ok(bakery.cashierName, 'Casa da Rosa bakery should have a dedicated cashier');
+  assert.ok(bakery.items.length >= 4, 'Casa da Rosa bakery should stock breads and pastries');
+  assert.ok(bakery.items.some((i) => i.name.includes('Pao de Mafra')));
+  assert.ok(bakery.items.some((i) => i.name.includes('Pastel de Nata')));
+
+  const confeitaria = VENUES.find((v) => v.id === 'arcadas-chiado');
+  assert.equal(confeitaria.interiorTheme.layout, 'bakery');
+  assert.ok(confeitaria.cashierName, 'Arcadas do Chiado confeitaria should have a dedicated cashier');
+  assert.ok(confeitaria.items.length >= 3);
+
+  // Verify restaurants stock full Portuguese meals and have a dedicated cashier
+  for (const restId of ['tasca-do-fado', 'taberna-sardinha']) {
+    const rest = VENUES.find((v) => v.id === restId);
+    assert.equal(rest.interiorTheme.layout, 'restaurant');
+    assert.ok(rest.cashierName, `Restaurant ${restId} should have a dedicated cashier`);
+    const foodItems = rest.items.filter((i) => i.kind === 'food');
+    assert.ok(foodItems.length >= 4, `Restaurant ${restId} should serve at least 4 food dishes`);
   }
 
   for (const stop of getAllTransitStops()) {
@@ -249,7 +280,7 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 });
 
-test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, and 17-memory completion', () => {
+test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, and 23-memory completion', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
@@ -457,7 +488,7 @@ test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, ve
   assert.ok(sep >= PERSON_SEPARATION_DIST - 0.5, `Expected person separation >= ${PERSON_SEPARATION_DIST}, got ${sep}`);
 });
 
-test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 9 venue interiors cleanly', () => {
+test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 15 venue interiors cleanly', () => {
   const noop = () => { };
   const mockGradient = { addColorStop: noop };
   let drawCalls = 0;

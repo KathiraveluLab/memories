@@ -445,11 +445,15 @@ function renderActiveContextPanel(state) {
       })
       .join('');
 
+    const staffText = venue.cashierName
+      ? `${escapeHtml(venue.proprietor)} (${escapeHtml(venue.proprietorRole)}) | ${escapeHtml(venue.cashierName)} (${escapeHtml(venue.cashierRole || 'Cashier')})`
+      : `${escapeHtml(venue.proprietor)} (${escapeHtml(venue.proprietorRole)})`;
+
     dom.activeContextPanel.innerHTML = `
       <div class="context-header">
         <div>
           <h3>${escapeHtml(venue.name)}</h3>
-          <div class="item-meta">${escapeHtml(venue.memory.neighborhood)} | Host: ${escapeHtml(venue.proprietor)} (${escapeHtml(venue.proprietorRole)})</div>
+          <div class="item-meta">${escapeHtml(venue.memory.neighborhood)} | ${staffText}</div>
         </div>
         <button type="button" class="btn btn-secondary btn-sm" data-venue-action="exit">Step Outside</button>
       </div>

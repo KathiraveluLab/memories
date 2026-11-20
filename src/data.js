@@ -198,7 +198,7 @@ export const VENUES = [
     awningColor: '#1a493d',
     accentColor: '#1f6e58',
     proprietor: 'Ines',
-    proprietorRole: 'Kiosk Host',
+    proprietorRole: 'Kiosk Host & Cashier',
     description: 'An octagonal wrought-iron garden pavilion overlooking the Bairro Alto ridge, serving cold lemonade, espresso, and toasted sandwiches.',
     greeting: 'Bom dia! Pull up a chair under the jacaranda trees and take in the breeze over the rooftops.',
     phrase: {
@@ -263,7 +263,7 @@ export const VENUES = [
     awningColor: '#7a3324',
     accentColor: '#b5543c',
     proprietor: 'Dona Teresa',
-    proprietorRole: 'Guesthouse Host',
+    proprietorRole: 'Receptionist & Host',
     description: 'A welcoming ochre-plaster Bairro Alto guesthouse parlor with wrought-iron balconies, herbal tea, and neighborhood walking tips.',
     greeting: 'Entre, por favor! Rest your legs in our courtyard parlor and enjoy a warm cup of lemon-verbena tea.',
     phrase: {
@@ -328,7 +328,9 @@ export const VENUES = [
     awningColor: '#7a251a',
     accentColor: '#a63e2e',
     proprietor: 'Senhor Manuel',
-    proprietorRole: 'Tasca Owner',
+    proprietorRole: 'Chef & Owner',
+    cashierName: 'Catarina',
+    cashierRole: 'Cashier',
     description: 'A traditional Bairro Alto fado tavern with an arched green stone doorway, wrought-iron lantern, and simmering caldo verde.',
     greeting: 'Bem-vindo a nossa tasca! Sit down, rest your feet, and smell the caldo verde simmering in the kitchen.',
     phrase: {
@@ -351,7 +353,7 @@ export const VENUES = [
       counter: '#6d4129',
       layout: 'restaurant'
     },
-    displayNote: 'A hand-crafted Portuguese guitar rests beside old playbills from Bairro Alto fado nights.',
+    displayNote: 'A hand-crafted Portuguese guitar rests beside old playbills, wine carafes, and stoneware soup bowls from Bairro Alto fado nights.',
     items: [
       {
         id: 'item-caldo-verde',
@@ -360,7 +362,7 @@ export const VENUES = [
         costEur: 7.5,
         fullnessDelta: 42,
         energyDelta: 24,
-        description: 'Velvety kale and potato soup served with warm corn bread.'
+        description: 'Velvety kale and potato soup topped with chourico, served with warm corn bread.'
       },
       {
         id: 'item-pasteis-bacalhau',
@@ -370,6 +372,24 @@ export const VENUES = [
         fullnessDelta: 48,
         energyDelta: 28,
         description: 'Golden salt-cod fritters paired with fragrant tomato rice.'
+      },
+      {
+        id: 'item-bifana-lisboa',
+        name: 'Bifana a Moda de Lisboa',
+        kind: 'food',
+        costEur: 6.5,
+        fullnessDelta: 40,
+        energyDelta: 22,
+        description: 'Garlic-and-white-wine marinated pork cutlet tucked inside a warm crusty papo-seco roll.'
+      },
+      {
+        id: 'item-arroz-doce',
+        name: 'Arroz Doce com Canela',
+        kind: 'food',
+        costEur: 4.0,
+        fullnessDelta: 22,
+        energyDelta: 18,
+        description: 'Creamy lemon-scented Portuguese rice pudding dusted with lattice cinnamon.'
       }
     ]
   },
@@ -394,8 +414,10 @@ export const VENUES = [
     accentColor: '#a84732',
     proprietor: 'Antonio',
     proprietorRole: 'Master Baker',
+    cashierName: 'Leonor',
+    cashierRole: 'Cashier',
     description: 'A rose-plastered Rua da Rosa neighborhood bakery beneath fluttering balcony laundry, fragrant with wood-oven bread and pastries.',
-    greeting: 'Bom dia! The wood oven just turned out warm pao com chourico and flaky almond travesseiros.',
+    greeting: 'Bom dia! The wood oven just turned out crusty Pao de Mafra, warm pao com chourico, and flaky pasteis de nata.',
     phrase: {
       pt: 'Queria um pao quentinho acabado de sair do forno.',
       pronunciation: 'Keh-ree-ah oom pow ken-tee-nyoo ah-kah-bah-doo deh sah-eer doo fohr-noo.',
@@ -416,8 +438,17 @@ export const VENUES = [
       counter: '#7a4d2d',
       layout: 'bakery'
     },
-    displayNote: 'Wicker bread baskets line the tiled wall behind stone-baked Mafra loaves and custard pastries.',
+    displayNote: 'Wicker bread baskets overflow with wood-fired Pao de Mafra loaves, corn broa, cinnamon queijadas, and warm custard pastries.',
     items: [
+      {
+        id: 'item-pao-mafra',
+        name: 'Pao de Mafra (Country Loaf)',
+        kind: 'food',
+        costEur: 3.0,
+        fullnessDelta: 30,
+        energyDelta: 16,
+        description: 'Crusty flour-dusted wood-oven Portuguese bread with a soft, airy crumb.'
+      },
       {
         id: 'item-pao-chourico',
         name: 'Pao com Chourico',
@@ -426,6 +457,15 @@ export const VENUES = [
         fullnessDelta: 34,
         energyDelta: 18,
         description: 'Warm crusty roll baked around savory smoked Portuguese sausage.'
+      },
+      {
+        id: 'item-padaria-nata',
+        name: 'Pastel de Nata Quentinho',
+        kind: 'food',
+        costEur: 2.2,
+        fullnessDelta: 20,
+        energyDelta: 18,
+        description: 'Flaky blistered custard tart straight from the bakery tray.'
       },
       {
         id: 'item-queijada',
@@ -458,7 +498,7 @@ export const VENUES = [
     awningColor: '#864228',
     accentColor: '#b95c3c',
     proprietor: 'Sofia',
-    proprietorRole: 'Art Curator',
+    proprietorRole: 'Curator & Cashier',
     description: 'An 18th-century ochre townhouse converted into an intimate Bairro Alto gallery of antique Lisbon engravings and porcelain.',
     greeting: 'Bem-vindo ao Palacete! Admire our 18th-century etchings of the Tagus riverfront before and after 1755.',
     phrase: {
@@ -523,7 +563,7 @@ export const VENUES = [
     awningColor: '#523254',
     accentColor: '#6d476c',
     proprietor: 'Beatriz',
-    proprietorRole: 'Record & Print Curator',
+    proprietorRole: 'Curator & Cashier',
     description: 'An independent Bairro Alto print and vinyl gallery with recessed showcase windows and hand-pulled Lisbon streetcar linocuts.',
     greeting: 'Ola! Browse the crates as long as you like. Every record sleeve here holds a piece of Lisbon night air.',
     phrase: {
@@ -590,7 +630,7 @@ export const VENUES = [
     awningColor: '#16385b',
     accentColor: '#1b4d89',
     proprietor: 'Duarte',
-    proprietorRole: 'Master Bookseller',
+    proprietorRole: 'Bookseller & Cashier',
     description: 'Recognized as the oldest operating bookshop in the world (founded 1732), framed in Pombaline blue-and-white azulejos on Rua Garrett.',
     greeting: 'Boa tarde! Step softly through our vaulted bookrooms. Readers have traded stories on Rua Garrett since 1732.',
     phrase: {
@@ -655,7 +695,7 @@ export const VENUES = [
     awningColor: '#244b7a',
     accentColor: '#1b4d89',
     proprietor: 'Miguel',
-    proprietorRole: 'Architecture Curator',
+    proprietorRole: 'Curator & Cashier',
     description: 'A blue-and-white tiled Chiado exhibition hall celebrating Lisbon Pombaline earthquake-resistant wooden cage architecture.',
     greeting: 'Boa tarde! Here we preserve scale models of the wooden gaiola pombalina frames that rebuilt Chiado after 1755.',
     phrase: {
@@ -720,7 +760,7 @@ export const VENUES = [
     awningColor: '#1f4d3a',
     accentColor: '#a6701e',
     proprietor: 'Clara',
-    proprietorRole: 'Head Barista',
+    proprietorRole: 'Head Barista & Cashier',
     description: 'Chiado landmark opened in 1905 with dark mahogany Art Nouveau paneling, gilded brass lettering, and Fernando Pessoa bronze statue outside.',
     greeting: 'Bom dia! Fresh pasteis de nata just came out of the oven, and Fernando Pessoa has saved a seat on the terrace.',
     phrase: {
@@ -762,6 +802,15 @@ export const VENUES = [
         fullnessDelta: 32,
         energyDelta: 25,
         description: 'Tall glass of milky coffee with a lemon-scented Portuguese rice muffin.'
+      },
+      {
+        id: 'item-brasileira-tosta',
+        name: 'Tosta Mista na Chapa',
+        kind: 'food',
+        costEur: 5.5,
+        fullnessDelta: 36,
+        energyDelta: 20,
+        description: 'Pressed country-bread sandwich toasted golden with melted cheese and ham.'
       }
     ]
   },
@@ -786,8 +835,10 @@ export const VENUES = [
     accentColor: '#1b4d89',
     proprietor: 'Mariana',
     proprietorRole: 'Pastry Chef',
+    cashierName: 'Rui',
+    cashierRole: 'Cashier',
     description: 'An arched-stone Chiado tea salon and traditional confectioner beneath cobalt diamond azulejos, serving convent sweets and Azores tea.',
-    greeting: 'Boa tarde! Step beneath our stone arcades for fragrant Azores Gorreana tea and handmade convent almond sweets.',
+    greeting: 'Boa tarde! Step beneath our stone arcades for fragrant Azores Gorreana tea, almond travesseiros, and handmade convent sweets.',
     phrase: {
       pt: 'Queria um cha dos Acores e dois doces conventuais.',
       pronunciation: 'Keh-ree-ah oom shah doosh Ah-soh-resh ee doysh doh-sesh kohn-vehn-twah-eesh.',
@@ -806,7 +857,7 @@ export const VENUES = [
       wall: '#f6f9fc',
       trim: '#1b4d89',
       counter: '#5e432c',
-      layout: 'cafe'
+      layout: 'bakery'
     },
     displayNote: 'Portuguese docaria conventual recipes trace back to historic monasteries using egg yolk, sugar, and toasted almonds.',
     items: [
@@ -818,6 +869,15 @@ export const VENUES = [
         fullnessDelta: 24,
         energyDelta: 26,
         description: 'Aromatic black tea from the Azores paired with a caramelized bean-almond tart.'
+      },
+      {
+        id: 'item-travesseiro',
+        name: 'Travesseiro de Amendoa',
+        kind: 'food',
+        costEur: 3.2,
+        fullnessDelta: 26,
+        energyDelta: 20,
+        description: 'Crisp puff-pastry pillow filled with sweet almond-and-egg-yolk cream.'
       },
       {
         id: 'item-convent-box',
@@ -850,7 +910,7 @@ export const VENUES = [
     awningColor: '#7a4526',
     accentColor: '#1f7062',
     proprietor: 'Helena',
-    proprietorRole: 'Artisan Maker',
+    proprietorRole: 'Artisan & Cashier',
     description: 'A Pombaline arcaded Chiado craft boutique inspired by historic glove and cork ateliers, with stone arches and emerald tiles.',
     greeting: 'Entre, por favor! Feel how light Portuguese cork is. Every oak bark harvest heals naturally without felling a tree.',
     phrase: {
@@ -982,7 +1042,7 @@ export const VENUES = [
     awningColor: '#15406a',
     accentColor: '#1d568a',
     proprietor: 'Tiago',
-    proprietorRole: 'Tile Painter',
+    proprietorRole: 'Tile Painter & Cashier',
     description: 'An 18th-century style Alfama ceramic workshop clad in cobalt-and-white diamond rosette tiles with a carved stone pediment.',
     greeting: 'Ola! Mind the fresh cobalt glaze on the kiln table. Look closely and you will spot the Santa Luzia pattern.',
     phrase: {
@@ -1047,9 +1107,11 @@ export const VENUES = [
     awningColor: '#1b558a',
     accentColor: '#bf5530',
     proprietor: 'Dona Rosa',
-    proprietorRole: 'Chef & Host',
+    proprietorRole: 'Head Chef',
+    cashierName: 'Pedro',
+    cashierRole: 'Cashier & Host',
     description: 'A whitewashed Alfama hillside taberna adorned with festive Santos Populares garlands, cobalt doorway trim, and glowing charcoal grill.',
-    greeting: 'Boa tarde, querido! The charcoal grill is hot and the sardines arrived from the river quay this morning.',
+    greeting: 'Boa tarde, querido! The charcoal grill is hot, the sardines arrived this morning, and Pedro will take care of your table.',
     phrase: {
       pt: 'Queria sardinhas assadas com pimentos, por favor.',
       pronunciation: 'Keh-ree-ah sahr-dee-nyash ah-sah-dash koom pee-men-toosh, poor fah-vohr.',
@@ -1070,7 +1132,7 @@ export const VENUES = [
       counter: '#7a492c',
       layout: 'restaurant'
     },
-    displayNote: 'Ceramic platters painted with silver sardines line the kitchen pass above baskets of crusty bread.',
+    displayNote: 'Ceramic platters of grilled sardines, bacalhau a Bras, roasted peppers, and crusty bread line the warm kitchen pass.',
     items: [
       {
         id: 'item-sardinhas',
@@ -1089,6 +1151,24 @@ export const VENUES = [
         fullnessDelta: 60,
         energyDelta: 35,
         description: 'Shredded cod folded with golden straw potatoes, egg, and black olives.'
+      },
+      {
+        id: 'item-polvo-lagareiro',
+        name: 'Polvo a Lagareiro',
+        kind: 'food',
+        costEur: 15.5,
+        fullnessDelta: 64,
+        energyDelta: 36,
+        description: 'Tender olive-oil roasted octopus with garlic and oven-punched potatoes.'
+      },
+      {
+        id: 'item-salada-broa',
+        name: 'Salada de Tomate & Broa',
+        kind: 'food',
+        costEur: 5.5,
+        fullnessDelta: 28,
+        energyDelta: 20,
+        description: 'Sun-ripened tomato and oregano salad dressed in Alentejo olive oil with corn bread.'
       }
     ]
   },
@@ -1112,7 +1192,7 @@ export const VENUES = [
     awningColor: '#15544a',
     accentColor: '#1f7063',
     proprietor: 'Joao',
-    proprietorRole: 'Grocer',
+    proprietorRole: 'Grocer & Cashier',
     description: 'An old-world tiled Alfama corner grocer with arched display bays packed with colorful lithograph fish tins and fig sweets.',
     greeting: 'Ora boas! Every shelf here is wrapped by hand in illustrated paper. Taste a fig sweet or pick a tin for home.',
     phrase: {
