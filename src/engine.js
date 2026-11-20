@@ -395,11 +395,13 @@ export class MemoriesGameEngine {
   constructor() {
     this.state = createInitialState();
     this.timeAccumulator = 0;
+    this.doorEntryCooldown = 0;
   }
 
   reset() {
     this.state = createInitialState();
     this.timeAccumulator = 0;
+    this.doorEntryCooldown = 0;
     return this.state;
   }
 
@@ -689,6 +691,21 @@ export class MemoriesGameEngine {
       player.facing = vy > 0 ? 'down' : 'up';
     }
 
+    // Directional walk-in doorway entry: pressing Up/Down/Left/Right into a building or Metro doorway enters it naturally
+    if (this.state.mode === 'overworld' && this.doorEntryCooldown <= 0 && !player.walkTarget) {
+      const doorMatch = this.findDoorwayAhead(player.x, player.y, vx, vy);
+      if (doorMatch) {
+        if (doorMatch.type === 'venue') {
+          this.enterVenue(doorMatch.id);
+          return;
+        }
+        if (doorMatch.type === 'metro') {
+          this.openMetroStation(doorMatch.id);
+          return;
+        }
+      }
+    }
+
     const fatigueFactor =
       this.state.energy < 15 || this.state.fullness < 15 ? 0.68 : 1.0;
     const speed =
@@ -768,6 +785,63 @@ export class MemoriesGameEngine {
         }
       }
     }
+  }
+
+  findDoorwayAhead(px, py, vx, vy) {
+    const doorwayHalfW = 24;
+    const approachReach = 28;
+
+    for (const venue of VENUES) {
+      if (
+        venue.doorSide === 'south' &&
+        vy < -0.25 &&
+        Math.abs(px - venue.doorX) <= doorwayHalfW &&
+        py >= venue.doorY - 2 &&
+        py <= venue.doorY + approachReach
+      ) {
+        return { type: 'venue', id: venue.id };
+      }
+      if (
+        venue.doorSide === 'north' &&
+        vy > 0.25 &&
+        Math.abs(px - venue.doorX) <= doorwayHalfW &&
+        py <= venue.doorY + 2 &&
+        py >= venue.doorY - approachReach
+      ) {
+        return { type: 'venue', id: venue.id };
+      }
+      if (
+        venue.doorSide === 'west' &&
+        vx > 0.25 &&
+        Math.abs(py - venue.doorY) <= doorwayHalfW &&
+        px <= venue.doorX + 2 &&
+        px >= venue.doorX - approachReach
+      ) {
+        return { type: 'venue', id: venue.id };
+      }
+      if (
+        venue.doorSide === 'east' &&
+        vx < -0.25 &&
+        Math.abs(py - venue.doorY) <= doorwayHalfW &&
+        px >= venue.doorX - 2 &&
+        px <= venue.doorX + approachReach
+      ) {
+        return { type: 'venue', id: venue.id };
+      }
+    }
+
+    for (const station of METRO_STATIONS) {
+      if (
+        vy < -0.25 &&
+        Math.abs(px - station.doorX) <= doorwayHalfW &&
+        py >= station.doorY - 2 &&
+        py <= station.doorY + approachReach
+      ) {
+        return { type: 'metro', id: station.id };
+      }
+    }
+
+    return null;
   }
 
   executeArriveAction(action) {
@@ -892,6 +966,7 @@ export class MemoriesGameEngine {
         const station = getMetroStationById(m.stationId);
         this.state.mode = 'overworld';
         this.state.activeMetroStationId = null;
+        this.doorEntryCooldown = 0.55;
         m.phase = null;
         m.phaseProgress = 0;
         m.stationId = null;
@@ -917,6 +992,10 @@ export class MemoriesGameEngine {
   tick(dtSeconds, input = { x: 0, y: 0 }) {
     const dt = clamp(Number(dtSeconds) || 0, 0, 0.25);
     if (dt <= 0) return this.state;
+
+    if (this.doorEntryCooldown > 0) {
+      this.doorEntryCooldown = Math.max(0, this.doorEntryCooldown - dt);
+    }
 
     this.updateVehicles(dt);
     this.updateNpcs(dt);
@@ -1075,7 +1154,7 @@ export class MemoriesGameEngine {
           id: station.id,
           station,
           label: `Enter ${station.name} (${METRO_LINE.fareEur.toFixed(2)} EUR)`,
-          sublabel: `${station.lines.join(' & ')} - Press [E] to choose destination`
+          sublabel: `${station.lines.join(' & ')} - Walk UP into entrance or press [E]`
         };
       }
     }
@@ -1084,12 +1163,20 @@ export class MemoriesGameEngine {
       const d = distance(px, py, venue.doorX, venue.doorY);
       if (d <= INTERACT_DISTANCE && d < bestDist) {
         bestDist = d;
+        const dirHint =
+          venue.doorSide === 'south'
+            ? 'Walk UP into door'
+            : venue.doorSide === 'north'
+              ? 'Walk DOWN into door'
+              : venue.doorSide === 'west'
+                ? 'Walk RIGHT into door'
+                : 'Walk LEFT into door';
         best = {
           type: 'venue',
           id: venue.id,
           venue,
           label: `Enter ${venue.name} ${venue.badge}`,
-          sublabel: 'Press [E] or click Enter to step inside'
+          sublabel: `${dirHint} or press [E] to step inside`
         };
       }
     }
@@ -1388,6 +1475,7 @@ export class MemoriesGameEngine {
     const venue = this.getCurrentVenue();
     this.state.mode = 'overworld';
     this.state.currentVenueId = null;
+    this.doorEntryCooldown = 0.55;
     if (venue) {
       this.state.player.x = venue.spawnOutside.x;
       this.state.player.y = venue.spawnOutside.y;

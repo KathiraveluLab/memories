@@ -1,6 +1,6 @@
 # memories: Ground-Level Lisboa Exploration
 
-**memories** is a ground-level 2D RPG canvas exploration game set across three historic neighborhoods of Lisboa: **Bairro Alto**, **Chiado**, and **Alfama**. Walk the cobblestone sidewalks on foot, board live-moving **Carris Eletrico 28E** streetcars, **Carris Bus 737 / 758** coaches, and real **Metropolitano de Lisboa** underground stations, step inside iconic local shops, cafes, restaurants, and **Se de Lisboa**, taste regional food, collect keepsakes, learn European Portuguese phrases, and fill your 18-entry **Lisboa Memory Album**.
+**memories** is a ground-level 2D RPG canvas exploration game set across three historic neighborhoods of Lisboa: **Bairro Alto**, **Chiado**, and **Alfama**. Walk the cobblestone sidewalks on foot, board live-moving **Carris Eletrico 28E** streetcars, **Carris Bus 737 / 758** coaches, and real **Metropolitano de Lisboa** underground stations, step inside every building across the map (all 15 local shops, cafes, bakeries, galleries, restaurants, and **Se de Lisboa**), taste regional food, collect keepsakes, learn European Portuguese phrases, and fill your 23-entry **Lisboa Memory Album**.
 
 ## Screenshot
 
@@ -14,15 +14,15 @@
   - **Carris Bus 737 / 758**: Loops past Miradouro de Sao Pedro de Alcantara, Rua Garrett, Miradouro de Santa Luzia, and the Tagus waterfront (`2.10 EUR`).
   - **Metropolitano de Lisboa (`Linha Azul` & `Linha Verde`)**: Placed accurately where Metro stations exist in Lisbon (**Metro Baixa-Chiado** beside Cafe A Brasileira, **Metro Terreiro do Paco**, and **Metro Santa Apolonia** along the Alfama waterfront; `1.80 EUR`), reflecting that hilltop Bairro Alto and upper Alfama rely on trams, buses, and footwalks. Entering a station rides the escalators down to a tiled underground platform, boards the silver-and-crimson Lisbon Metro train for an animated underground tunnel ride with live station progress, and ascends the escalators back to the destination sidewalk.
   - **Sidewalk & Pedestrian Safety**: Pedestrians walk on sidewalks and cross at crosswalks, cannot walk into passing vehicles or clip through other people, and trams and buses automatically brake and yield rather than crashing into pedestrians.
-- **10 Enterable Shops, Cafes, Restaurants & Landmarks**:
-  - **Bairro Alto**: *Quiosque de Sao Pedro*, *Tasca do Fado*, *Vinil & Gravuras do Alto*.
-  - **Chiado**: *Livraria Bertrand (1732)*, *Cafe A Brasileira*, *Atelier de Cortica & Luvas*.
-  - **Alfama**: *Se de Lisboa (1147 Cathedral)*, *Oficina de Azulejos*, *Taberna da Sardinha*, *Mercearia & Conservas de Alfama*.
-  - Step through any glowing storefront or cathedral portal to explore its custom interior room, walk up to the host or docent counter and local display, order traditional Lisbon dishes or coffee, buy handcrafted souvenirs or cloister passes, and return seamlessly to the sidewalk.
+- **All 15 Buildings Fully Enterable & Explorable**:
+  - **Bairro Alto (6)**: *Quiosque de Sao Pedro*, *Pensao Residencial do Alto*, *Tasca do Fado*, *Casa da Rosa - Padaria*, *Palacete do Loreto*, *Vinil & Gravuras do Alto*.
+  - **Chiado (5)**: *Livraria Bertrand (1732)*, *Galeria Pombalina*, *Cafe A Brasileira*, *Arcadas do Chiado*, *Atelier de Cortica & Luvas*.
+  - **Alfama (4)**: *Se de Lisboa (1147 Cathedral)*, *Oficina de Azulejos*, *Taberna da Sardinha*, *Mercearia & Conservas de Alfama*.
+  - Walk directly into any building doorway or Metro entrance using the Arrow / `WASD` keys facing the door (or press `E` / click) to step inside its custom interior room, chat with the host, order traditional dishes or browse keepsakes, and walk back out onto the sidewalk.
 - **Gentle Memories Collection Loop**:
   - Manage **Wallet (EUR)**, **Energy**, and **Fullness** as Lisbon shifts from Morning through Afternoon, Golden Hour, and Lantern Evening.
   - Rest free at three scenic **Miradouro Benches** or take a gentle overnight stay at a neighborhood pensao without harsh game-over lockouts.
-  - Capture **18 Memories** and unlock contextual **European Portuguese phrases** with phonetic pronunciation guides.
+  - Capture **23 Memories** and unlock contextual **European Portuguese phrases** with phonetic pronunciation guides.
 
 ## Project Structure
 

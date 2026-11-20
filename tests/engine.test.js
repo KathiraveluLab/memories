@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   NEIGHBORHOODS,
+  DECORATIVE_STRUCTURES,
   METRO_LINE,
   METRO_STATIONS,
   VENUES,
@@ -39,17 +40,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-test('dataset & spatial integrity: 3 neighborhoods, 10 venues (including Se de Lisboa), 3 real Metro stations, valid sidewalk spawns, and 18 memories', () => {
+test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stations, valid sidewalk spawns, and 23 memories', () => {
   assert.deepEqual(
     NEIGHBORHOODS.map((n) => n.id),
     ['bairro-alto', 'chiado', 'alfama']
   );
-  assert.equal(VENUES.length, 10);
+  // Every single building on the map is enterable; only the outdoor Camoes bronze monument is non-enterable
+  assert.equal(
+    DECORATIVE_STRUCTURES.every((s) => s.style === 'monument'),
+    true,
+    'Every building on the map must be in VENUES so players can enter and explore it'
+  );
+  assert.equal(VENUES.length, 15);
   assert.ok(VENUES.some((v) => v.id === 'se-de-lisboa'), 'Se de Lisboa must be an enterable venue');
   assert.equal(METRO_STATIONS.length, 3);
   assert.equal(REST_SPOTS.length, 3);
   assert.equal(TRANSIT_LINES.length, 2);
-  assert.equal(getAllMemoryCatalog().length, 18);
+  assert.equal(getAllMemoryCatalog().length, 23);
 
   // Authentic Lisbon geography: no Metro station inside hilltop Bairro Alto
   assert.equal(
@@ -329,7 +336,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(paidNight.paidEur, OVERNIGHT_COST_EUR);
   assert.equal(state.euros, 80.0 - OVERNIGHT_COST_EUR);
 
-  // Collecting all 18 memories marks albumCompleted = true
+  // Collecting all 23 memories marks albumCompleted = true
   for (const venue of VENUES) {
     engine.enterVenue(venue.id);
     if (venue.id === 'cafe-do-poeta') engine.purchaseVenueItem('item-bica-nata');
@@ -344,8 +351,50 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   engine.boardTransitAtStop('stop-bus-garrett', { waitIfApproaching: true });
   engine.disembarkTransit({ immediateToNextStop: true });
 
-  assert.equal(state.memories.length, 18);
+  assert.equal(state.memories.length, 23);
   assert.equal(state.albumCompleted, true);
+});
+
+test('AC-08: directional arrow-key doorway entry for south/north buildings and Metro entrances, plus exit cooldown', () => {
+  const engine = new MemoriesGameEngine();
+  const state = engine.getState();
+
+  // 1. Walk UP into south-facing Cafe A Brasileira doorway
+  const brasileira = VENUES.find((v) => v.id === 'cafe-do-poeta');
+  state.player.x = brasileira.doorX;
+  state.player.y = brasileira.doorY + 20;
+  engine.tick(0.05, { x: 0, y: -1 });
+  assert.equal(state.mode, 'interior');
+  assert.equal(state.currentVenueId, 'cafe-do-poeta');
+  engine.exitVenue();
+  assert.equal(state.mode, 'overworld');
+
+  // Advance past exit cooldown
+  for (let i = 0; i < 8; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+
+  // 2. Walk DOWN into north-facing Arcadas do Chiado doorway
+  const arcadas = VENUES.find((v) => v.id === 'arcadas-chiado');
+  state.player.x = arcadas.doorX;
+  state.player.y = arcadas.doorY - 20;
+  engine.tick(0.05, { x: 0, y: 1 });
+  assert.equal(state.mode, 'interior');
+  assert.equal(state.currentVenueId, 'arcadas-chiado');
+
+  // Exiting north-facing building sets cooldown so holding Down briefly does NOT bounce player right back inside
+  engine.exitVenue();
+  assert.equal(state.mode, 'overworld');
+  engine.tick(0.05, { x: 0, y: 1 });
+  assert.equal(state.mode, 'overworld');
+
+  // Advance past cooldown, then walk UP into Metro Baixa-Chiado entrance
+  for (let i = 0; i < 8; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  const metro = METRO_STATIONS.find((s) => s.id === 'metro-baixa-chiado');
+  state.player.x = metro.doorX;
+  state.player.y = metro.doorY + 20;
+  engine.tick(0.05, { x: 0, y: -1 });
+  assert.equal(state.mode, 'metro');
+  assert.equal(state.metro.phase, 'descending');
+  assert.equal(state.metro.stationId, 'metro-baixa-chiado');
 });
 
 test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, vehicles yield without crashing, no person overlap)', () => {

@@ -70,71 +70,6 @@ export const CROSSWALKS = [
 
 export const DECORATIVE_STRUCTURES = [
   {
-    id: 'house-ba-north',
-    neighborhood: 'bairro-alto',
-    label: 'Residencias do Alto',
-    x: 590,
-    y: 55,
-    w: 220,
-    h: 140,
-    wallColor: '#e7c6a5',
-    roofColor: '#b5543c',
-    trimColor: '#7a3324',
-    style: 'townhouse'
-  },
-  {
-    id: 'house-ba-mid',
-    neighborhood: 'bairro-alto',
-    label: 'Casas da Rosa',
-    x: 590,
-    y: 380,
-    w: 220,
-    h: 145,
-    wallColor: '#dfbe9f',
-    roofColor: '#a84732',
-    trimColor: '#6f3224',
-    style: 'townhouse'
-  },
-  {
-    id: 'house-ba-south',
-    neighborhood: 'bairro-alto',
-    label: 'Palacete do Loreto',
-    x: 245,
-    y: 695,
-    w: 195,
-    h: 145,
-    wallColor: '#ead3ad',
-    roofColor: '#b95c3c',
-    trimColor: '#864228',
-    style: 'townhouse'
-  },
-  {
-    id: 'house-chiado-north',
-    neighborhood: 'chiado',
-    label: 'Galeria Pombalina',
-    x: 1445,
-    y: 55,
-    w: 200,
-    h: 140,
-    wallColor: '#d9e3ee',
-    roofColor: '#9e4736',
-    trimColor: '#244b7a',
-    style: 'azulejo'
-  },
-  {
-    id: 'house-chiado-south',
-    neighborhood: 'chiado',
-    label: 'Arcadas do Chiado',
-    x: 1070,
-    y: 695,
-    w: 210,
-    h: 145,
-    wallColor: '#dce5df',
-    roofColor: '#ad4f3a',
-    trimColor: '#1b4d89',
-    style: 'arcaded-azulejo'
-  },
-  {
     id: 'monument-camoes',
     neighborhood: 'chiado',
     label: 'Estatua de Luis de Camoes',
@@ -309,6 +244,71 @@ export const VENUES = [
     ]
   },
   {
+    id: 'residencial-alto',
+    name: 'Pensao Residencial do Alto',
+    neighborhood: 'bairro-alto',
+    type: 'cafe',
+    badge: '[PENSAO]',
+    archStyle: 'townhouse-ochre',
+    x: 590,
+    y: 55,
+    w: 220,
+    h: 140,
+    doorSide: 'south',
+    doorX: 700,
+    doorY: 195,
+    spawnOutside: { x: 700, y: 220 },
+    wallColor: '#f1dec4',
+    roofColor: '#b5543c',
+    awningColor: '#7a3324',
+    accentColor: '#b5543c',
+    proprietor: 'Dona Teresa',
+    proprietorRole: 'Guesthouse Host',
+    description: 'A welcoming ochre-plaster Bairro Alto guesthouse parlor with wrought-iron balconies, herbal tea, and neighborhood walking tips.',
+    greeting: 'Entre, por favor! Rest your legs in our courtyard parlor and enjoy a warm cup of lemon-verbena tea.',
+    phrase: {
+      pt: 'Posso deixar a minha mochila na rececao?',
+      pronunciation: 'Poh-soo day-shahr ah mee-nyah moh-shee-lah nah heh-seh-sow?',
+      en: 'May I leave my backpack at reception?'
+    },
+    memory: {
+      id: 'mem-residencial-alto',
+      title: 'Parlor Tea at Residencial do Alto',
+      category: 'venue',
+      neighborhood: 'Bairro Alto',
+      caption: 'Lace curtains swaying in the hillside breeze inside an old family-run Bairro Alto pensao.'
+    },
+    interiorTheme: {
+      floorPrimary: '#e6d8c3',
+      floorSecondary: '#d8c7ad',
+      wall: '#f7efe3',
+      trim: '#7a3324',
+      counter: '#6b452c',
+      layout: 'cafe'
+    },
+    displayNote: 'Framed keys and sepia postcards from 1950s Lisbon guests hang beside the reception desk.',
+    items: [
+      {
+        id: 'item-cha-cidreira',
+        name: 'Cha de Cidreira & Bolo',
+        kind: 'food',
+        costEur: 3.5,
+        fullnessDelta: 18,
+        energyDelta: 26,
+        description: 'Fragrant Portuguese lemon-verbena herbal tea with a slice of homemade sponge cake.'
+      },
+      {
+        id: 'item-ba-map',
+        name: 'Bairro Alto Illustrated Map',
+        kind: 'souvenir',
+        costEur: 6.0,
+        fullnessDelta: 0,
+        energyDelta: 4,
+        description: 'Folded watercolor map marking hidden viewpoints and fado doorways.'
+      }
+    ]
+  },
+  {
     id: 'tasca-do-fado',
     name: 'Tasca do Fado',
     neighborhood: 'bairro-alto',
@@ -370,6 +370,136 @@ export const VENUES = [
         fullnessDelta: 48,
         energyDelta: 28,
         description: 'Golden salt-cod fritters paired with fragrant tomato rice.'
+      }
+    ]
+  },
+  {
+    id: 'casa-da-rosa',
+    name: 'Casa da Rosa - Padaria',
+    neighborhood: 'bairro-alto',
+    type: 'cafe',
+    badge: '[BAKERY]',
+    archStyle: 'casas-rosa',
+    x: 590,
+    y: 380,
+    w: 220,
+    h: 145,
+    doorSide: 'south',
+    doorX: 700,
+    doorY: 525,
+    spawnOutside: { x: 700, y: 546 },
+    wallColor: '#ebd4da',
+    roofColor: '#a84732',
+    awningColor: '#6f3224',
+    accentColor: '#a84732',
+    proprietor: 'Antonio',
+    proprietorRole: 'Master Baker',
+    description: 'A rose-plastered Rua da Rosa neighborhood bakery beneath fluttering balcony laundry, fragrant with wood-oven bread and pastries.',
+    greeting: 'Bom dia! The wood oven just turned out warm pao com chourico and flaky almond travesseiros.',
+    phrase: {
+      pt: 'Queria um pao quentinho acabado de sair do forno.',
+      pronunciation: 'Keh-ree-ah oom pow ken-tee-nyoo ah-kah-bah-doo deh sah-eer doo fohr-noo.',
+      en: 'I would like a warm loaf fresh out of the oven.'
+    },
+    memory: {
+      id: 'mem-casa-da-rosa',
+      title: 'Warm Ovens of Casa da Rosa',
+      category: 'venue',
+      neighborhood: 'Bairro Alto',
+      caption: 'Flour-dusted timber counters and fresh-baked crust scent drifting onto Rua da Rosa.'
+    },
+    interiorTheme: {
+      floorPrimary: '#ead8c5',
+      floorSecondary: '#dbc4ab',
+      wall: '#f8eff0',
+      trim: '#6f3224',
+      counter: '#7a4d2d',
+      layout: 'cafe'
+    },
+    displayNote: 'Wicker bread baskets line the tiled wall behind stone-baked Mafra loaves and custard pastries.',
+    items: [
+      {
+        id: 'item-pao-chourico',
+        name: 'Pao com Chourico',
+        kind: 'food',
+        costEur: 4.0,
+        fullnessDelta: 34,
+        energyDelta: 18,
+        description: 'Warm crusty roll baked around savory smoked Portuguese sausage.'
+      },
+      {
+        id: 'item-queijada',
+        name: 'Queijada de Canela',
+        kind: 'food',
+        costEur: 2.5,
+        fullnessDelta: 20,
+        energyDelta: 16,
+        description: 'Sweet cinnamon-spiced Portuguese cheese tart dusted in sugar.'
+      }
+    ]
+  },
+  {
+    id: 'palacete-loreto',
+    name: 'Palacete do Loreto',
+    neighborhood: 'bairro-alto',
+    type: 'shop',
+    badge: '[GALLERY]',
+    archStyle: 'townhouse-ochre',
+    x: 245,
+    y: 695,
+    w: 195,
+    h: 145,
+    doorSide: 'north',
+    doorX: 342,
+    doorY: 695,
+    spawnOutside: { x: 342, y: 676 },
+    wallColor: '#f1dec4',
+    roofColor: '#b95c3c',
+    awningColor: '#864228',
+    accentColor: '#b95c3c',
+    proprietor: 'Sofia',
+    proprietorRole: 'Art Curator',
+    description: 'An 18th-century ochre townhouse converted into an intimate Bairro Alto gallery of antique Lisbon engravings and porcelain.',
+    greeting: 'Bem-vindo ao Palacete! Admire our 18th-century etchings of the Tagus riverfront before and after 1755.',
+    phrase: {
+      pt: 'Que gravuras historicas interessantes!',
+      pronunciation: 'Keh grah-voo-rash eesh-toh-ree-kash een-teh-reh-sahn-tesh!',
+      en: 'What interesting historical engravings!'
+    },
+    memory: {
+      id: 'mem-palacete-loreto',
+      title: 'Engravings Inside Palacete do Loreto',
+      category: 'venue',
+      neighborhood: 'Bairro Alto',
+      caption: 'High stucco ceilings and copperplate views of old Lisbon caravels along Rua do Loreto.'
+    },
+    interiorTheme: {
+      floorPrimary: '#d7c5aa',
+      floorSecondary: '#cab494',
+      wall: '#f7f0e4',
+      trim: '#864228',
+      counter: '#6d442b',
+      layout: 'gallery'
+    },
+    displayNote: 'Restored copperplate maps trace how Lisbon rebuilt its grand avenues above the river.',
+    items: [
+      {
+        id: 'item-lisbon-etching',
+        name: '1755 Lisbon Etching Print',
+        kind: 'souvenir',
+        costEur: 13.0,
+        fullnessDelta: 0,
+        energyDelta: 5,
+        description: 'Archival cream-paper reproduction of an antique Tagus panorama.'
+      },
+      {
+        id: 'item-porcelain-swallow',
+        name: 'Ceramic Andorinha Swallow',
+        kind: 'souvenir',
+        costEur: 9.5,
+        fullnessDelta: 0,
+        energyDelta: 5,
+        description: 'Traditional Portuguese glazed ceramic swallow symbolizing home and safe return.'
       }
     ]
   },
@@ -506,6 +636,71 @@ export const VENUES = [
     ]
   },
   {
+    id: 'galeria-pombalina',
+    name: 'Galeria Pombalina',
+    neighborhood: 'chiado',
+    type: 'shop',
+    badge: '[GALLERY]',
+    archStyle: 'azulejo-gallery',
+    x: 1445,
+    y: 55,
+    w: 200,
+    h: 140,
+    doorSide: 'south',
+    doorX: 1545,
+    doorY: 195,
+    spawnOutside: { x: 1545, y: 220 },
+    wallColor: '#f2f6fb',
+    roofColor: '#9e4736',
+    awningColor: '#244b7a',
+    accentColor: '#1b4d89',
+    proprietor: 'Miguel',
+    proprietorRole: 'Architecture Curator',
+    description: 'A blue-and-white tiled Chiado exhibition hall celebrating Lisbon Pombaline earthquake-resistant wooden cage architecture.',
+    greeting: 'Boa tarde! Here we preserve scale models of the wooden gaiola pombalina frames that rebuilt Chiado after 1755.',
+    phrase: {
+      pt: 'A arquitetura pombalina de Lisboa e fascinante.',
+      pronunciation: 'Ah ahr-kee-teh-too-rah pohm-bah-lee-nah deh Leesh-boh-ah eh fahsh-see-nahn-teh.',
+      en: 'Lisbon Pombaline architecture is fascinating.'
+    },
+    memory: {
+      id: 'mem-galeria-pombalina',
+      title: 'Blueprints at Galeria Pombalina',
+      category: 'venue',
+      neighborhood: 'Chiado',
+      caption: 'Hand-drawn 18th-century facade elevations beneath cobalt glazed tilework on Rua Garrett.'
+    },
+    interiorTheme: {
+      floorPrimary: '#e2e8f0',
+      floorSecondary: '#cbd5e1',
+      wall: '#f5f8fc',
+      trim: '#244b7a',
+      counter: '#365578',
+      layout: 'gallery'
+    },
+    displayNote: 'Cross-braced timber gaiola structures allowed post-1755 Chiado buildings to flex safely during tremors.',
+    items: [
+      {
+        id: 'item-pombaline-folio',
+        name: 'Pombaline Architecture Folio',
+        kind: 'souvenir',
+        costEur: 12.5,
+        fullnessDelta: 0,
+        energyDelta: 5,
+        description: 'Set of three architectural elevation prints of Chiado plazas.'
+      },
+      {
+        id: 'item-calcada-coaster',
+        name: 'Calcada Wave Stone Coaster',
+        kind: 'souvenir',
+        costEur: 7.5,
+        fullnessDelta: 0,
+        energyDelta: 4,
+        description: 'Miniature black basalt and white limestone Mar Largo mosaic tile.'
+      }
+    ]
+  },
+  {
     id: 'cafe-do-poeta',
     name: 'Cafe A Brasileira',
     neighborhood: 'chiado',
@@ -567,6 +762,71 @@ export const VENUES = [
         fullnessDelta: 32,
         energyDelta: 25,
         description: 'Tall glass of milky coffee with a lemon-scented Portuguese rice muffin.'
+      }
+    ]
+  },
+  {
+    id: 'arcadas-chiado',
+    name: 'Arcadas do Chiado',
+    neighborhood: 'chiado',
+    type: 'cafe',
+    badge: '[CONFEITARIA]',
+    archStyle: 'arcaded-azulejo',
+    x: 1070,
+    y: 695,
+    w: 210,
+    h: 145,
+    doorSide: 'north',
+    doorX: 1175,
+    doorY: 695,
+    spawnOutside: { x: 1175, y: 676 },
+    wallColor: '#f2f6fb',
+    roofColor: '#ad4f3a',
+    awningColor: '#1b4d89',
+    accentColor: '#1b4d89',
+    proprietor: 'Mariana',
+    proprietorRole: 'Pastry Chef',
+    description: 'An arched-stone Chiado tea salon and traditional confectioner beneath cobalt diamond azulejos, serving convent sweets and Azores tea.',
+    greeting: 'Boa tarde! Step beneath our stone arcades for fragrant Azores Gorreana tea and handmade convent almond sweets.',
+    phrase: {
+      pt: 'Queria um cha dos Acores e dois doces conventuais.',
+      pronunciation: 'Keh-ree-ah oom shah doosh Ah-soh-resh ee doysh doh-sesh kohn-vehn-twah-eesh.',
+      en: 'I would like an Azores tea and two convent pastries.'
+    },
+    memory: {
+      id: 'mem-arcadas-chiado',
+      title: 'Tea Beneath Arcadas do Chiado',
+      category: 'venue',
+      neighborhood: 'Chiado',
+      caption: 'Porcelain teacups and golden almond sweets tucked behind Chiado stone arches and blue tiles.'
+    },
+    interiorTheme: {
+      floorPrimary: '#ebf1f7',
+      floorSecondary: '#d4e2f0',
+      wall: '#f6f9fc',
+      trim: '#1b4d89',
+      counter: '#5e432c',
+      layout: 'cafe'
+    },
+    displayNote: 'Portuguese docaria conventual recipes trace back to historic monasteries using egg yolk, sugar, and toasted almonds.',
+    items: [
+      {
+        id: 'item-cha-acores',
+        name: 'Cha Gorreana & Pastel de Feijao',
+        kind: 'food',
+        costEur: 4.5,
+        fullnessDelta: 24,
+        energyDelta: 26,
+        description: 'Aromatic black tea from the Azores paired with a caramelized bean-almond tart.'
+      },
+      {
+        id: 'item-convent-box',
+        name: 'Tin of Convent Almond Sweets',
+        kind: 'souvenir',
+        costEur: 10.5,
+        fullnessDelta: 12,
+        energyDelta: 10,
+        description: 'Ribbon-tied blue-and-white tin of traditional Portuguese marzipan and almond bites.'
       }
     ]
   },
@@ -1053,11 +1313,11 @@ export const MILESTONE_MEMORIES = {
 // All ambient Lisbon locals patrol strictly on sidewalks, plazas, and pedestrian steps (never inside vehicle lanes)
 export const AMBIENT_NPCS = [
   { id: 'npc-1', name: 'Local Artist', x: 526, y: 420, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#3b6ea5', hair: '#3b2b20' },
-  { id: 'npc-2', name: 'Chiado Musician', x: 1120, y: 676, patrolAxis: 'x', min: 1060, max: 1340, speed: 20, shirt: '#9f4438', hair: '#2a221e' },
+  { id: 'npc-2', name: 'Chiado Musician', x: 1120, y: 660, patrolAxis: 'x', min: 1060, max: 1340, speed: 20, shirt: '#9f4438', hair: '#2a221e' },
   { id: 'npc-3', name: 'Rua Garrett Reader', x: 1120, y: 218, patrolAxis: 'x', min: 1040, max: 1320, speed: 22, shirt: '#2b6e59', hair: '#5a3d28' },
   { id: 'npc-4', name: 'Alfama Neighbor', x: 1730, y: 440, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#c68a1e', hair: '#2c2521' },
   { id: 'npc-5', name: 'Tagus Stroller', x: 1420, y: 996, patrolAxis: 'x', min: 1050, max: 1860, speed: 28, shirt: '#6a4c7a', hair: '#40312a' },
-  { id: 'npc-6', name: 'Bairro Alto Stroller', x: 380, y: 676, patrolAxis: 'x', min: 240, max: 560, speed: 22, shirt: '#2c5f8a', hair: '#3b2e26' }
+  { id: 'npc-6', name: 'Bairro Alto Stroller', x: 380, y: 660, patrolAxis: 'x', min: 240, max: 560, speed: 22, shirt: '#2c5f8a', hair: '#3b2e26' }
 ];
 
 export function getAllTransitStops() {

@@ -1186,8 +1186,12 @@ export class LisboaCanvasRenderer {
 
     const wallStyleMap = {
       tasca: 'ochre-plaster',
+      'townhouse-ochre': 'ochre-plaster',
+      'casas-rosa': 'rose-plaster',
       'bohemian-shop': 'rose-plaster',
       bertrand: 'cobalt-azulejo',
+      'azulejo-gallery': 'cobalt-azulejo',
+      'arcaded-azulejo': 'cobalt-azulejo',
       'chiado-arcade': 'pombaline-teal',
       'azulejo-atelier': 'cobalt-azulejo',
       'alfama-taberna': 'whitewash-alfama',
@@ -1200,7 +1204,11 @@ export class LisboaCanvasRenderer {
     if (venue.doorSide === 'south') {
       this.drawTerracottaRoof(ctx, venue.x - 3, venue.y - 3, venue.w + 6, roofH, venue.roofColor, {
         hasChimney: venue.archStyle !== 'bertrand',
-        hasDormers: venue.archStyle === 'bertrand' || venue.archStyle === 'azulejo-atelier'
+        hasDormers:
+          venue.archStyle === 'bertrand' ||
+          venue.archStyle === 'azulejo-atelier' ||
+          venue.archStyle === 'townhouse-ochre' ||
+          venue.archStyle === 'azulejo-gallery'
       });
     } else {
       this.drawTerracottaRoof(
@@ -1210,7 +1218,10 @@ export class LisboaCanvasRenderer {
         venue.w + 6,
         roofH,
         venue.roofColor,
-        { hasChimney: venue.archStyle === 'bohemian-shop', hasDormers: venue.archStyle === 'chiado-arcade' }
+        {
+          hasChimney: venue.archStyle === 'bohemian-shop' || venue.archStyle === 'townhouse-ochre',
+          hasDormers: venue.archStyle === 'chiado-arcade' || venue.archStyle === 'arcaded-azulejo'
+        }
       );
     }
 
@@ -1258,6 +1269,25 @@ export class LisboaCanvasRenderer {
           }
         }
       }
+    } else if (venue.archStyle === 'arcaded-azulejo') {
+      // Iconic Arcadas do Chiado stone side arches flanking the central doorway
+      for (const ax of [venue.x + 36, venue.x + venue.w - 36]) {
+        const ay = venue.y + 24;
+        ctx.fillStyle = '#e5ded0';
+        ctx.beginPath();
+        ctx.arc(ax, ay, 18, Math.PI, 0);
+        ctx.lineTo(ax + 18, venue.y + facadeH - 6);
+        ctx.lineTo(ax - 18, venue.y + facadeH - 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = isEvening ? '#ffe28a' : '#3d5a78';
+        ctx.beginPath();
+        ctx.arc(ax, ay + 2, 12, Math.PI, 0);
+        ctx.lineTo(ax + 12, venue.y + facadeH - 8);
+        ctx.lineTo(ax - 12, venue.y + facadeH - 8);
+        ctx.closePath();
+        ctx.fill();
+      }
     } else if (venue.archStyle === 'chiado-arcade') {
       // Triple limestone Chiado arcade arches on ground floor
       for (const wx of [venue.x + 22, venue.x + venue.w - 46]) {
@@ -1284,6 +1314,21 @@ export class LisboaCanvasRenderer {
         hasBalcony: true,
         arched: venue.archStyle === 'tasca' || venue.archStyle === 'alfama-taberna'
       });
+    }
+
+    // Bairro Alto colorful balcony laundry strung across Casa da Rosa
+    if (venue.archStyle === 'casas-rosa') {
+      ctx.strokeStyle = 'rgba(60, 50, 44, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(venue.x + 24, venue.y + roofH + 46);
+      ctx.quadraticCurveTo(venue.x + venue.w / 2, venue.y + roofH + 54, venue.x + venue.w - 24, venue.y + roofH + 46);
+      ctx.stroke();
+      const flags = ['#f8fafc', '#3b82f6', '#f59e0b', '#ef4444'];
+      for (const [idx, fx] of [[0, venue.x + 34], [1, venue.x + 56], [2, venue.x + venue.w - 66], [3, venue.x + venue.w - 44]]) {
+        ctx.fillStyle = flags[idx];
+        ctx.fillRect(fx, venue.y + roofH + 48, 9, 10);
+      }
     }
 
     // Alfama Santos Populares festive flags & glowing charcoal brazier at Taberna da Sardinha
@@ -2302,6 +2347,21 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#9ca3af';
       ctx.fillRect(442, 158, 22, 6);
       ctx.fillRect(472, 158, 22, 6);
+    } else if (theme.layout === 'gallery') {
+      // Framed Lisbon copperplate engravings & miniature architectural models on counter
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(252, 148, 42, 24);
+      ctx.strokeStyle = '#785a36';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(252, 148, 42, 24);
+      ctx.fillStyle = '#1b4d89';
+      ctx.fillRect(258, 154, 30, 12);
+
+      ctx.fillStyle = '#e5e7eb';
+      ctx.fillRect(452, 148, 48, 24);
+      ctx.strokeRect(452, 148, 48, 24);
+      ctx.fillStyle = '#b84a32';
+      ctx.fillRect(460, 154, 32, 12);
     } else if (theme.layout === 'cathedral') {
       // Flickering brass sanctuary candles & open stone-pedestal visitor guestbook
       for (const cx of [258, 274, 484, 500]) {
