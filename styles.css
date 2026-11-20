@@ -258,6 +258,24 @@ h1, h2, h3, h4, p {
   border: 1px solid #3b82f6;
 }
 
+.badge-audio {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-audio.active {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #d97706;
+}
+
+.badge-audio.water {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #0284c7;
+}
+
 .badge-muted {
   font-size: 0.74rem;
   font-weight: 600;

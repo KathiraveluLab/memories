@@ -23,6 +23,10 @@
   - Run `npm start` on one computer and share the displayed network address (such as `http://192.168.x.x:3000`) with another computer on the same Wi-Fi or LAN.
   - Both players explore Lisboa completely independently across Bairro Alto, Chiado, and Alfama, see each other live on cobblestone sidewalks, inside shared shops, bakeries, restaurants, and underground Metro platforms, appear on the mini-map, and can wave with `[G]`.
   - Every joining player automatically receives a distinct clothing style from 6 unique Lisboa traveler outfits (*Chiado Trench & Scarf*, *Alfama Sundress & Sun Hat*, *Tagus Sailor Knit & Beret*, *Bairro Alto Woven Poncho*, *Azulejo Overalls & Flat Cap*, and *Linen Blazer & Fedora*), customizable anytime.
+- **Atmospheric Lisboa Soundscapes (Web Audio API)**:
+  - Entering the bakeries (*Casa da Rosa - Padaria* and *Arcadas do Chiado*) surrounds you with the warm rumble and crackling embers of a brick wood-fired bread oven.
+  - Stepping into *Tasca do Fado* plays procedural minor-key **Fado music** featuring a shimmering 12-string *Guitarra Portuguesa* melody and warm *Viola de Fado* accompaniment.
+  - Walking south toward the **Tagus Riverfront** smoothly swells the sound of gentle estuary currents and waves lapping against Cais de Alfama, paired with subtle shop-door chimes, cash-register bells, and Tram 28E bells (toggle anytime with `Sound: ON / OFF` or `[M]`).
 - **Gentle Memories Collection Loop**:
   - Manage **Wallet (EUR)**, **Energy**, and **Fullness** as Lisbon shifts from Morning through Afternoon, Golden Hour, and Lantern Evening.
   - Rest free at three scenic **Miradouro Benches** or take a gentle overnight stay at a neighborhood pensao without harsh game-over lockouts.
@@ -36,6 +40,7 @@
 - `src/data.js`: Overworld street, crosswalk, and neighborhood layout, 15 enterable venues with menus, staff, cashiers, and keepsakes, 6 distinct traveler cloth styles, 3 authentic Metro de Lisboa stations, 3 miradouro rest benches, Carris Tram 28E and Bus 737/758 routes, sidewalk pedestrians, phrases, and Memory Album catalog.
 - `src/engine.js`: Pure ES module simulation engine (`MemoriesGameEngine`) managing sidewalk movement, multiplayer peer interpolation and separation, pedestrian and vehicle collision safety, yielding transit vehicles, Metro rides, interior transitions, resource loops, and memory unlocking.
 - `src/multiplayer.js`: Browser LAN multiplayer client with automatic solo fallback on static hosts (such as GitHub Pages).
+- `src/audio.js`: Zero-dependency Web Audio API procedural sound engine generating bakery wood-fired oven crackle, Portuguese Fado guitar music, spatial Tagus riverfront water sounds, and interactive bells.
 - `src/renderer.js`: HTML5 2D Canvas RPG renderer for cobblestone streets, bespoke Portuguese architecture, azulejo tilework, Metro station entrances, 6 distinct character clothing styles, animated vehicles, mini-map, time-of-day lighting, and detailed interior rooms.
 - `src/app.js`: Browser controller handling keyboard and sidewalk-first click-to-walk input, LAN sync, animation frame updates, and interactive DOM panels.
 - `tests/engine.test.js` & `tests/multiplayer.test.js`: Automated unit, integration, LAN multi-client SSE, collision-safety, renderer, and compliance test suites using `node --test`.

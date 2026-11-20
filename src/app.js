@@ -20,6 +20,7 @@ import {
 } from './engine.js';
 import { LisboaCanvasRenderer } from './renderer.js';
 import { LanMultiplayerClient } from './multiplayer.js';
+import { LisboaSoundEngine } from './audio.js';
 
 const ALL_STOPS = getAllTransitStops();
 const ALL_MEMORIES = getAllMemoryCatalog();
@@ -110,6 +111,10 @@ export function buildOverworldPath(sx, sy, tx, ty, finalAction = null) {
 const engine = new MemoriesGameEngine();
 const canvas = document.getElementById('lisboa-canvas');
 const renderer = new LisboaCanvasRenderer(canvas);
+const soundEngine = new LisboaSoundEngine();
+let prevAudioMode = 'overworld';
+let prevAudioVenueId = null;
+let prevAudioRidingId = null;
 
 const pressedKeys = new Set();
 let activeTab = 'guide';
@@ -132,9 +137,11 @@ const dom = {
   memories: document.getElementById('hud-memories'),
   sceneTitle: document.getElementById('scene-title'),
   sceneSubtitle: document.getElementById('scene-subtitle'),
+  liveAudioStatus: document.getElementById('live-audio-status'),
   liveLanStatus: document.getElementById('live-lan-status'),
   liveTramStatus: document.getElementById('live-tram-status'),
   liveBusStatus: document.getElementById('live-bus-status'),
+  btnSound: document.getElementById('btn-sound'),
   lanConnectionBadge: document.getElementById('lan-connection-badge'),
   lanJoinRow: document.getElementById('lan-join-row'),
   lanJoinUrl: document.getElementById('lan-join-url'),
@@ -745,6 +752,46 @@ function refreshUi(force = false) {
   renderActiveContextPanel(state);
   renderLists(state);
   renderMultiplayerPanel(state);
+  updateAudioIndicator();
+}
+
+function updateAudioIndicator() {
+  const profile = soundEngine.getProfile();
+  const muted = soundEngine.isMuted();
+  const unlocked = soundEngine.isUnlocked();
+
+  if (dom.btnSound) {
+    dom.btnSound.textContent = muted ? 'Sound: OFF' : 'Sound: ON';
+    dom.btnSound.setAttribute('aria-pressed', String(!muted));
+  }
+
+  if (dom.liveAudioStatus) {
+    dom.liveAudioStatus.classList.remove('active', 'water');
+    if (muted) {
+      dom.liveAudioStatus.textContent = '[AUDIO] Muted';
+    } else if (!unlocked) {
+      dom.liveAudioStatus.textContent = '[AUDIO] Click or Move';
+    } else if (profile.fadoMusic > 0.05) {
+      dom.liveAudioStatus.textContent = '[AUDIO] Fado Music';
+      dom.liveAudioStatus.classList.add('active');
+    } else if (profile.bakeryFire > 0.05) {
+      dom.liveAudioStatus.textContent = '[AUDIO] Bakery Oven Fire';
+      dom.liveAudioStatus.classList.add('active');
+    } else if (profile.riverWater >= 0.12) {
+      dom.liveAudioStatus.textContent = '[AUDIO] Tagus Riverfront';
+      dom.liveAudioStatus.classList.add('water');
+    } else {
+      dom.liveAudioStatus.textContent = '[AUDIO] On';
+    }
+  }
+}
+
+function ensureAudioUnlocked() {
+  if (!soundEngine.isUnlocked()) {
+    soundEngine.unlock();
+    soundEngine.update(engine.getState());
+    updateAudioIndicator();
+  }
 }
 
 function describeTravelerLocation(traveler) {
@@ -912,13 +959,24 @@ const mpClient = new LanMultiplayerClient({
 });
 
 // Event listeners
+window.addEventListener('pointerdown', ensureAudioUnlocked, { passive: true });
+
 window.addEventListener('keydown', (event) => {
+  ensureAudioUnlocked();
   const tag = event.target?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
     return;
   }
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
     event.preventDefault();
+  }
+  if (event.code === 'KeyM') {
+    if (!event.repeat) {
+      const nowMuted = soundEngine.toggleMute();
+      updateAudioIndicator();
+      setStatusBanner(nowMuted ? 'Lisboa soundscapes muted.' : 'Lisboa soundscapes enabled.');
+    }
+    return;
   }
   if (event.code === 'KeyG') {
     if (!event.repeat) {
@@ -983,6 +1041,15 @@ dom.btnSecondaryAction.addEventListener('click', () => {
   refreshUi(true);
 });
 
+if (dom.btnSound) {
+  dom.btnSound.addEventListener('click', () => {
+    const nowMuted = soundEngine.toggleMute();
+    soundEngine.update(engine.getState());
+    updateAudioIndicator();
+    setStatusBanner(nowMuted ? 'Lisboa soundscapes muted.' : 'Lisboa soundscapes enabled.');
+  });
+}
+
 dom.btnOvernight.addEventListener('click', () => {
   engine.restOvernight();
   refreshUi(true);
@@ -1018,6 +1085,7 @@ dom.activeContextPanel.addEventListener('click', (event) => {
   const buyBtn = event.target.closest('[data-buy-item]');
   if (buyBtn) {
     const res = engine.purchaseVenueItem(buyBtn.dataset.buyItem);
+    if (res.ok) soundEngine.playEffect('register');
     if (!res.ok && res.error) setStatusBanner(res.error, true);
     refreshUi(true);
     return;
@@ -1228,6 +1296,19 @@ function frame(now) {
 
   engine.tick(dt, getKeyboardVector());
   const state = engine.getState();
+
+  // Trigger subtle audio transition effects & update continuous ambient soundscapes
+  if (state.mode === 'interior' && (prevAudioMode !== 'interior' || prevAudioVenueId !== state.currentVenueId)) {
+    soundEngine.playEffect('door');
+  }
+  if (state.ridingVehicleId === 'tram-28e' && prevAudioRidingId !== 'tram-28e') {
+    soundEngine.playEffect('tram-bell');
+  }
+  prevAudioMode = state.mode;
+  prevAudioVenueId = state.currentVenueId;
+  prevAudioRidingId = state.ridingVehicleId;
+  soundEngine.update(state);
+
   mpClient.syncState(engine.getNetworkSnapshot());
   const nearby = engine.getNearbyInteraction();
   renderer.render(state, nearby, dt);

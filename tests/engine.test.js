@@ -37,6 +37,7 @@ import {
   getDayPhase
 } from '../src/engine.js';
 import { LisboaCanvasRenderer } from '../src/renderer.js';
+import { computeSoundscapeProfile, LisboaSoundEngine } from '../src/audio.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -703,6 +704,127 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   assert.ok(drawCalls > 600, `Expected substantial canvas draw calls, got ${drawCalls}`);
 });
 
+test('AC-09: ambient soundscapes for bakery wood oven fire, Fado restaurant music, and Tagus riverfront water', () => {
+  const engine = new MemoriesGameEngine();
+  const state = engine.getState();
+
+  // 1. Mid-town Chiado overworld (far from riverfront): quiet streets
+  const midtown = computeSoundscapeProfile(state);
+  assert.equal(midtown.bakeryFire, 0);
+  assert.equal(midtown.fadoMusic, 0);
+  assert.equal(midtown.riverWater, 0);
+
+  // 2. Approaching Avenida Ribeira and arriving at the Tagus Riverfront: smooth water swell
+  engine.setPlayerPosition(1420, 900);
+  const approachingRiver = computeSoundscapeProfile(state);
+  assert.ok(approachingRiver.riverWater > 0.25 && approachingRiver.riverWater < 0.8);
+  assert.equal(approachingRiver.bakeryFire, 0);
+  assert.equal(approachingRiver.fadoMusic, 0);
+
+  engine.setPlayerPosition(1420, 1002);
+  const atRiverfront = computeSoundscapeProfile(state);
+  assert.equal(atRiverfront.riverWater, 1);
+  assert.equal(atRiverfront.activeLabel, 'Tagus Riverfront');
+
+  // 3. Entering Casa da Rosa - Padaria bakery: oven fire & crackle active, river silent
+  engine.enterVenue('casa-da-rosa');
+  const inBakery = computeSoundscapeProfile(state);
+  assert.equal(inBakery.bakeryFire, 1);
+  assert.equal(inBakery.fadoMusic, 0);
+  assert.equal(inBakery.riverWater, 0);
+  assert.equal(inBakery.activeLabel, 'Bakery Wood Oven');
+  engine.exitVenue();
+
+  // Also Arcadas do Chiado confeitaria has warm bakery oven sound
+  engine.enterVenue('arcadas-chiado');
+  const inConfeitaria = computeSoundscapeProfile(state);
+  assert.ok(inConfeitaria.bakeryFire >= 0.7);
+  assert.equal(inConfeitaria.fadoMusic, 0);
+  engine.exitVenue();
+
+  // 4. Entering Tasca do Fado: Portuguese Fado music active, bakery oven & river silent
+  engine.enterVenue('tasca-do-fado');
+  const inFado = computeSoundscapeProfile(state);
+  assert.equal(inFado.fadoMusic, 1);
+  assert.equal(inFado.bakeryFire, 0);
+  assert.equal(inFado.riverWater, 0);
+  assert.equal(inFado.activeLabel, 'Fado Music');
+
+  // 5. LisboaSoundEngine Web Audio graph & scheduler smoke test with mock AudioContext
+  const createMockParam = (initial = 0) => ({
+    value: initial,
+    setValueAtTime: () => {},
+    linearRampToValueAtTime: () => {},
+    exponentialRampToValueAtTime: () => {},
+    setTargetAtTime(v) { this.value = v; }
+  });
+  let startedNodes = 0;
+  let closed = false;
+  const mockAudioCtx = {
+    sampleRate: 22050,
+    currentTime: 0,
+    state: 'running',
+    destination: {},
+    resume: () => Promise.resolve(),
+    close: () => { closed = true; },
+    createBuffer: (ch, len) => ({ getChannelData: () => new Float32Array(len) }),
+    createGain: () => ({ gain: createMockParam(1), connect: () => {} }),
+    createBiquadFilter: () => ({
+      type: 'lowpass',
+      frequency: createMockParam(440),
+      Q: createMockParam(1),
+      connect: () => {}
+    }),
+    createOscillator: () => ({
+      type: 'sine',
+      frequency: createMockParam(440),
+      detune: createMockParam(0),
+      connect: () => {},
+      start: () => { startedNodes += 1; },
+      stop: () => {}
+    }),
+    createBufferSource: () => ({
+      buffer: null,
+      loop: false,
+      connect: () => {},
+      start: () => { startedNodes += 1; },
+      stop: () => {}
+    })
+  };
+
+  const sound = new LisboaSoundEngine({ audioContextFactory: () => mockAudioCtx });
+  assert.equal(sound.unlock(), true);
+  assert.equal(sound.isUnlocked(), true);
+
+  sound.update(state); // Inside Tasca do Fado -> Fado music + immediate opening note
+  assert.ok(sound.fadoBus.gain.value > 0.5);
+  assert.equal(sound.bakeryBus.gain.value, 0);
+
+  engine.exitVenue();
+  engine.enterVenue('casa-da-rosa');
+  sound.update(state); // Inside bakery -> fire oven bed + crackle
+  assert.ok(sound.bakeryBus.gain.value > 0.4);
+  sound.triggerOvenCrackle();
+
+  engine.exitVenue();
+  engine.setPlayerPosition(1420, 1002);
+  sound.update(state); // Tagus Riverfront -> lapping water bed
+  assert.ok(sound.riverBus.gain.value > 0.35);
+
+  sound.playEffect('door');
+  sound.playEffect('register');
+  sound.playEffect('tram-bell');
+
+  assert.equal(sound.toggleMute(), true);
+  assert.equal(sound.masterGain.gain.value, 0);
+  assert.equal(sound.toggleMute(), false);
+  assert.ok(sound.masterGain.gain.value > 0.5);
+
+  sound.dispose();
+  assert.equal(closed, true);
+  assert.ok(startedNodes >= 10, `Expected multiple audio nodes started, got ${startedNodes}`);
+});
+
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {
   const filesToCheck = [
     'package.json',
@@ -713,6 +835,7 @@ test('compliance check: no emojis, no license mentions, and no prohibited intern
     path.join('src', 'data.js'),
     path.join('src', 'engine.js'),
     path.join('src', 'multiplayer.js'),
+    path.join('src', 'audio.js'),
     path.join('src', 'renderer.js'),
     path.join('src', 'app.js'),
     path.join('tests', 'engine.test.js'),
