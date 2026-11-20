@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>memories - Lisboa Ground-Level Exploration</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
+
 <body>
   <div class="app-shell">
     <header class="hud-bar">
@@ -23,7 +25,9 @@
         <div class="metric-card">
           <span class="metric-label">ENERGY</span>
           <div class="meter-row">
-            <div class="meter-track"><div class="meter-fill meter-energy" id="hud-energy-bar"></div></div>
+            <div class="meter-track">
+              <div class="meter-fill meter-energy" id="hud-energy-bar"></div>
+            </div>
             <strong class="metric-value compact" id="hud-energy">100</strong>
           </div>
         </div>
@@ -31,7 +35,9 @@
         <div class="metric-card">
           <span class="metric-label">FULLNESS</span>
           <div class="meter-row">
-            <div class="meter-track"><div class="meter-fill meter-fullness" id="hud-fullness-bar"></div></div>
+            <div class="meter-track">
+              <div class="meter-fill meter-fullness" id="hud-fullness-bar"></div>
+            </div>
             <strong class="metric-value compact" id="hud-fullness">85</strong>
           </div>
         </div>
@@ -62,7 +68,8 @@
           <div class="panel-header">
             <div>
               <h2 id="scene-title">Chiado - Praca Luis de Camoes</h2>
-              <p class="panel-subtitle" id="scene-subtitle">Walk with WASD / Arrows or click on the streets. Press [E] to enter shops, board Tram 28E or Carris Bus, or rest.</p>
+              <p class="panel-subtitle" id="scene-subtitle">Walk with WASD / Arrows or click on the streets. Press [E]
+                to enter shops, board Tram 28E or Carris Bus, or rest.</p>
             </div>
             <div class="scene-badges">
               <span class="badge badge-tram" id="live-tram-status">[TRAM 28E] En route</span>
@@ -71,12 +78,8 @@
           </div>
 
           <div class="canvas-wrapper">
-            <canvas
-              id="lisboa-canvas"
-              width="920"
-              height="560"
-              aria-label="Interactive RPG street map of Bairro Alto, Chiado, and Alfama in Lisbon"
-            ></canvas>
+            <canvas id="lisboa-canvas" width="920" height="560"
+              aria-label="Interactive RPG street map of Bairro Alto, Chiado, and Alfama in Lisbon"></canvas>
           </div>
 
           <div class="controls-bar">
@@ -108,7 +111,8 @@
 
       <aside class="right-column">
         <div class="status-banner" id="status-banner" aria-live="polite">
-          Welcome to Lisboa! Walk around Bairro Alto, Chiado, and Alfama, board Tram 28E or Carris Bus, and step inside local shops and restaurants.
+          Welcome to Lisboa! Walk around Bairro Alto, Chiado, and Alfama, board Tram 28E or Carris Bus, and step inside
+          local shops and restaurants.
         </div>
 
         <section class="panel context-panel hidden" id="active-context-panel">
@@ -128,7 +132,8 @@
             <span class="badge-muted" id="visited-venues-badge">0 / 15 venues</span>
           </div>
           <p class="helper-text">
-            Click <strong>Walk Here</strong> on any shop, restaurant, bench, or transit stop to guide your character along the streets, or stroll freely with the keyboard.
+            Click <strong>Walk Here</strong> on any shop, restaurant, bench, or transit stop to guide your character
+            along the streets, or stroll freely with the keyboard.
           </p>
           <div id="guide-list" class="stack-list"></div>
         </section>
@@ -139,7 +144,8 @@
             <span class="badge-muted" id="album-count-badge">0 / 23 captured</span>
           </div>
           <div id="album-complete-banner" class="album-complete hidden">
-            <strong>Album Complete!</strong> You captured all 23 neighborhood, landmark, transit, metro, and culinary memories across Bairro Alto, Chiado, and Alfama. Keep wandering Lisboa as long as you wish.
+            <strong>Album Complete!</strong> You captured all 23 neighborhood, landmark, transit, metro, and culinary
+            memories across Bairro Alto, Chiado, and Alfama. Keep wandering Lisboa as long as you wish.
           </div>
           <div id="memories-list" class="memory-grid"></div>
         </section>
@@ -176,4 +182,5 @@
 
   <script type="module" src="./src/app.js"></script>
 </body>
+
 </html>

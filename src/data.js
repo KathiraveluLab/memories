@@ -249,7 +249,7 @@ export const VENUES = [
     neighborhood: 'bairro-alto',
     type: 'cafe',
     badge: '[PENSAO]',
-    archStyle: 'townhouse-ochre',
+    archStyle: 'pensao',
     x: 590,
     y: 55,
     w: 220,
@@ -284,7 +284,7 @@ export const VENUES = [
       wall: '#f7efe3',
       trim: '#7a3324',
       counter: '#6b452c',
-      layout: 'cafe'
+      layout: 'pensao'
     },
     displayNote: 'Framed keys and sepia postcards from 1950s Lisbon guests hang beside the reception desk.',
     items: [
@@ -414,7 +414,7 @@ export const VENUES = [
       wall: '#f8eff0',
       trim: '#6f3224',
       counter: '#7a4d2d',
-      layout: 'cafe'
+      layout: 'bakery'
     },
     displayNote: 'Wicker bread baskets line the tiled wall behind stone-baked Mafra loaves and custard pastries.',
     items: [
@@ -444,7 +444,7 @@ export const VENUES = [
     neighborhood: 'bairro-alto',
     type: 'shop',
     badge: '[GALLERY]',
-    archStyle: 'townhouse-ochre',
+    archStyle: 'palacete-gallery',
     x: 245,
     y: 695,
     w: 195,
@@ -544,7 +544,7 @@ export const VENUES = [
       wall: '#f1eaf4',
       trim: '#583758',
       counter: '#5d4234',
-      layout: 'shop'
+      layout: 'vinyl'
     },
     displayNote: 'Hand-numbered linocut posters depict Tram 28E climbing the steep bends past iron balconies.',
     items: [
@@ -611,7 +611,7 @@ export const VENUES = [
       wall: '#efe8dc',
       trim: '#16385b',
       counter: '#6c492e',
-      layout: 'shop'
+      layout: 'bookshop'
     },
     displayNote: 'Founded in 1732 and relocated to Rua Garrett after the 1755 earthquake, Bertrand stamps every book with its historic seal.',
     items: [
@@ -871,7 +871,7 @@ export const VENUES = [
       wall: '#f6eee4',
       trim: '#7a4526',
       counter: '#7e5536',
-      layout: 'shop'
+      layout: 'atelier'
     },
     displayNote: 'Cork oak bark samples trace how traditional workshops turn raw bark into soft, rain-resistant travel goods.',
     items: [
@@ -1003,7 +1003,7 @@ export const VENUES = [
       wall: '#f4f8fc',
       trim: '#15406a',
       counter: '#345a82',
-      layout: 'shop'
+      layout: 'azulejo'
     },
     displayNote: 'Hand-stenciled azulejo patterns combine Moorish star geometry with 18th-century Tagus caravels.',
     items: [
@@ -1133,7 +1133,7 @@ export const VENUES = [
       wall: '#f5f0e2',
       trim: '#15544a',
       counter: '#694a31',
-      layout: 'shop'
+      layout: 'mercearia'
     },
     displayNote: 'Colorful retro lithograph labels celebrate century-old Portuguese coastal canneries.',
     items: [

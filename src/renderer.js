@@ -1180,13 +1180,14 @@ export class LisboaCanvasRenderer {
       ctx.strokeRect(venue.x - 4, venue.y - 4, venue.w + 8, venue.h + 8);
     }
 
-    const roofH = Math.round(venue.h * 0.41);
+    const roofH = Math.round(venue.h * 0.39);
     const facadeY = venue.doorSide === 'south' ? venue.y + roofH - 2 : venue.y;
     const facadeH = venue.h - roofH + 2;
 
     const wallStyleMap = {
       tasca: 'ochre-plaster',
-      'townhouse-ochre': 'ochre-plaster',
+      pensao: 'ochre-plaster',
+      'palacete-gallery': 'ochre-plaster',
       'casas-rosa': 'rose-plaster',
       'bohemian-shop': 'rose-plaster',
       bertrand: 'cobalt-azulejo',
@@ -1201,76 +1202,363 @@ export class LisboaCanvasRenderer {
 
     this.drawAzulejoWall(ctx, venue.x, facadeY, venue.w, facadeH, wallStyle);
 
-    if (venue.doorSide === 'south') {
-      this.drawTerracottaRoof(ctx, venue.x - 3, venue.y - 3, venue.w + 6, roofH, venue.roofColor, {
-        hasChimney: venue.archStyle !== 'bertrand',
-        hasDormers:
-          venue.archStyle === 'bertrand' ||
-          venue.archStyle === 'azulejo-atelier' ||
-          venue.archStyle === 'townhouse-ochre' ||
-          venue.archStyle === 'azulejo-gallery'
-      });
-    } else {
-      this.drawTerracottaRoof(
-        ctx,
-        venue.x - 3,
-        venue.y + venue.h - roofH + 3,
-        venue.w + 6,
-        roofH,
-        venue.roofColor,
-        {
-          hasChimney: venue.archStyle === 'bohemian-shop' || venue.archStyle === 'townhouse-ochre',
-          hasDormers: venue.archStyle === 'chiado-arcade' || venue.archStyle === 'arcaded-azulejo'
-        }
-      );
+    // Distinct roof silhouettes per architectural archetype
+    const roofY = venue.doorSide === 'south' ? venue.y - 3 : venue.y + venue.h - roofH + 3;
+    const isGallery = venue.archStyle === 'palacete-gallery' || venue.archStyle === 'azulejo-gallery';
+    this.drawTerracottaRoof(ctx, venue.x - 3, roofY, venue.w + 6, roofH, venue.roofColor, {
+      hasChimney:
+        venue.archStyle === 'casas-rosa' ||
+        venue.archStyle === 'tasca' ||
+        venue.archStyle === 'alfama-taberna' ||
+        venue.archStyle === 'azulejo-atelier',
+      hasDormers:
+        venue.archStyle === 'pensao' ||
+        venue.archStyle === 'bertrand' ||
+        venue.archStyle === 'chiado-arcade' ||
+        venue.archStyle === 'arcaded-azulejo'
+    });
+
+    // Neoclassical triangular museum pediment crowning Art & Architecture Galleries
+    if (isGallery) {
+      const pedBaseY = venue.doorSide === 'south' ? venue.y + roofH : venue.y + venue.h - roofH;
+      const pedDir = venue.doorSide === 'south' ? -1 : 1;
+      ctx.fillStyle = '#ece6d8';
+      ctx.beginPath();
+      ctx.moveTo(venue.x + 18, pedBaseY);
+      ctx.lineTo(venue.x + venue.w / 2, pedBaseY + pedDir * 22);
+      ctx.lineTo(venue.x + venue.w - 18, pedBaseY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#7c7160';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      // Fluted lioz limestone gallery columns flanking facade
+      for (const colX of [venue.x + 12, venue.x + venue.w - 22]) {
+        ctx.fillStyle = '#ede7da';
+        ctx.fillRect(colX, facadeY + 4, 10, facadeH - 8);
+        ctx.strokeStyle = '#8b8070';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(colX, facadeY + 4, 10, facadeH - 8);
+      }
     }
 
-    const winY = venue.doorSide === 'south' ? venue.y + roofH + 14 : venue.y + 20;
+    const winY = venue.doorSide === 'south' ? venue.y + roofH + 12 : venue.y + 18;
+    const curbY = venue.doorSide === 'south' ? venue.y + venue.h + 11 : venue.y - 11;
 
-    // Bespoke display windows per iconic venue
+    // 1. BOOKSHOP (Livraria Bertrand 1732): Multi-pane oak book bow windows, open-book crest, sidewalk book cart
     if (venue.archStyle === 'bertrand') {
-      // Livraria Bertrand (1732) oak-framed arched book display bays + 1732 ceramic badge
-      for (const wx of [venue.x + 16, venue.x + venue.w - 58]) {
-        ctx.fillStyle = '#5a3a21';
-        drawRoundedRect(ctx, wx - 3, winY - 2, 46, 36, 5);
+      for (const wx of [venue.x + 14, venue.x + venue.w - 64]) {
+        ctx.fillStyle = '#4e311c';
+        drawRoundedRect(ctx, wx - 3, winY - 2, 52, 42, 4);
         ctx.fill();
-        ctx.fillStyle = isEvening ? '#fce19a' : '#f4ece0';
-        ctx.fillRect(wx, winY + 2, 40, 29);
-        // Tiny colorful book spines in window bay
-        const books = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18', '#5b3a63'];
-        for (let bi = 0; bi < 5; bi += 1) {
-          ctx.fillStyle = books[bi];
-          ctx.fillRect(wx + 3 + bi * 7, winY + 14, 5, 14);
+        ctx.fillStyle = isEvening ? '#fce19a' : '#f7f1e3';
+        ctx.fillRect(wx, winY + 1, 46, 36);
+        const books = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18', '#5b3a63', '#2563eb'];
+        // Two packed rows of colorful upright books
+        for (let row = 0; row < 2; row += 1) {
+          for (let bi = 0; bi < 6; bi += 1) {
+            ctx.fillStyle = books[(bi + row * 2) % books.length];
+            ctx.fillRect(wx + 3 + bi * 7, winY + 4 + row * 17, 5, 13);
+          }
+          ctx.fillStyle = '#7c5332';
+          ctx.fillRect(wx, winY + 17 + row * 17, 46, 2.5);
         }
-        ctx.fillStyle = '#7c5332';
-        ctx.fillRect(wx, winY + 27, 40, 3);
       }
-      // 1732 heritage badge above door
+      // Gilded open-book crest + 1732 badge above doorway
       ctx.fillStyle = '#1b4d89';
-      drawRoundedRect(ctx, venue.doorX - 18, venue.y + roofH + 6, 36, 13, 3);
+      drawRoundedRect(ctx, venue.doorX - 22, venue.y + roofH + 5, 44, 15, 3);
       ctx.fill();
-      ctx.fillStyle = '#fef3c7';
-      ctx.font = '700 8.5px Georgia, serif';
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '700 8px Georgia, serif';
       ctx.textAlign = 'center';
       ctx.fillText('1732', venue.doorX, venue.y + roofH + 15.5);
       ctx.textAlign = 'left';
-    } else if (venue.archStyle === 'mercearia') {
-      // Colorful lithograph sardine conservas pyramids inside arched grocer windows
-      for (const wx of [venue.x + 16, venue.x + venue.w - 58]) {
-        ctx.fillStyle = '#15544a';
-        ctx.fillRect(wx - 2, winY - 2, 44, 34);
-        ctx.fillStyle = isEvening ? '#fde69e' : '#faf5e8';
-        ctx.fillRect(wx, winY, 40, 30);
-        const tins = ['#e11d48', '#f59e0b', '#0284c7', '#10b981'];
-        for (let r = 0; r < 2; r += 1) {
-          for (let c = 0; c < 4; c += 1) {
-            ctx.fillStyle = tins[(r + c) % tins.length];
-            ctx.fillRect(wx + 3 + c * 9, winY + 6 + r * 11, 7, 8);
-          }
+
+      // Outdoor wooden book-browsing cart on the sidewalk
+      const cartX = venue.x + 28;
+      ctx.fillStyle = '#7c4f2b';
+      ctx.fillRect(cartX, curbY - 7, 28, 12);
+      ctx.strokeStyle = '#3d2514';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cartX, curbY - 7, 28, 12);
+      const cartBooks = ['#1d4ed8', '#dc2626', '#d97706', '#059669'];
+      cartBooks.forEach((cb, i) => {
+        ctx.fillStyle = cb;
+        ctx.fillRect(cartX + 3 + i * 6, curbY - 5, 4, 8);
+      });
+
+    // 2. BAKERY (Casa da Rosa - Padaria): Glass bread & pastry bow windows, chimney steam, A-frame chalkboard
+    } else if (venue.archStyle === 'casas-rosa') {
+      // Animated warm bread-oven steam rising from chimney
+      const puffY = venue.y - 4 - ((this.animTime * 12) % 14);
+      ctx.fillStyle = 'rgba(255, 250, 242, 0.55)';
+      ctx.beginPath();
+      ctx.arc(venue.x + venue.w - 19, puffY, 5, 0, Math.PI * 2);
+      ctx.arc(venue.x + venue.w - 15, puffY - 6, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Wide glass pastry & bread display windows
+      for (const wx of [venue.x + 14, venue.x + venue.w - 64]) {
+        ctx.fillStyle = '#6f3224';
+        drawRoundedRect(ctx, wx - 3, winY - 2, 52, 40, 5);
+        ctx.fill();
+        ctx.fillStyle = isEvening ? '#ffe8a8' : '#fff6e3';
+        ctx.fillRect(wx, winY + 1, 46, 34);
+        // Golden rustic loaves & pastries on two tiers
+        ctx.fillStyle = '#c8802b';
+        for (let lx = wx + 5; lx <= wx + 32; lx += 13) {
+          ctx.beginPath();
+          ctx.ellipse(lx + 4, winY + 11, 5.5, 3.8, 0, 0, Math.PI * 2);
+          ctx.fill();
         }
+        ctx.fillStyle = '#e09f3e';
+        for (let px = wx + 6; px <= wx + 36; px += 9) {
+          ctx.beginPath();
+          ctx.arc(px + 2, winY + 25, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#8b5a34';
+        ctx.fillRect(wx, winY + 16, 46, 2);
+        ctx.fillRect(wx, winY + 30, 46, 2);
       }
+
+      // Colorful Bairro Alto balcony laundry line
+      ctx.strokeStyle = 'rgba(60, 50, 44, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(venue.x + 18, venue.y + roofH + 5);
+      ctx.quadraticCurveTo(venue.x + venue.w / 2, venue.y + roofH + 12, venue.x + venue.w - 18, venue.y + roofH + 5);
+      ctx.stroke();
+      const flags = ['#f8fafc', '#3b82f6', '#f59e0b', '#ef4444'];
+      for (const [idx, fx] of [[0, venue.x + 28], [1, venue.x + 48], [2, venue.x + venue.w - 58], [3, venue.x + venue.w - 38]]) {
+        ctx.fillStyle = flags[idx];
+        ctx.fillRect(fx, venue.y + roofH + 6, 8, 8);
+      }
+
+      // Sidewalk A-frame bakery chalkboard sign
+      ctx.fillStyle = '#1f2937';
+      ctx.fillRect(venue.x + 36, curbY - 8, 18, 13);
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(venue.x + 36, curbY - 8, 18, 13);
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = '700 6.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('PAO', venue.x + 45, curbY + 1);
+      ctx.textAlign = 'left';
+
+    // 3. FADO RESTAURANT (Tasca do Fado): Checkered sidewalk dining table, wine barrel, Portuguese guitar emblem
+    } else if (venue.archStyle === 'tasca') {
+      for (const wx of [venue.x + 18, venue.x + venue.w - 44]) {
+        this.drawLisbonWindow(ctx, wx, winY, 24, 28, {
+          isEvening,
+          shutterColor: '#6e231c',
+          flowerColor: '#d94854',
+          hasBalcony: false,
+          arched: true
+        });
+      }
+      // Carved Portuguese 12-string guitar emblem beside door
+      const gx = venue.doorX - 32;
+      const gy = venue.y + roofH + 26;
+      ctx.fillStyle = '#c58435';
+      ctx.beginPath();
+      ctx.arc(gx, gy + 5, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#5c3317';
+      ctx.fillRect(gx - 1.5, gy - 8, 3, 9);
+      ctx.fillStyle = '#3b200e';
+      ctx.beginPath();
+      ctx.arc(gx, gy + 5, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ceramic FADO tile plaque
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(venue.doorX + 22, venue.y + roofH + 10, 28, 12);
+      ctx.strokeStyle = '#1b4d89';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(venue.doorX + 22, venue.y + roofH + 10, 28, 12);
+      ctx.fillStyle = '#1b4d89';
+      ctx.font = '700 7.5px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('FADO', venue.doorX + 36, venue.y + roofH + 18.5);
+      ctx.textAlign = 'left';
+
+      // Sidewalk red-checkered dining table & oak wine barrel
+      const tblX = venue.x + 36;
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(tblX - 10, curbY - 7, 20, 14);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(tblX - 10, curbY - 7, 10, 7);
+      ctx.fillRect(tblX, curbY, 10, 7);
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(tblX, curbY, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Wooden wine barrel (pipa) right of door
+      const brlX = venue.x + venue.w - 30;
+      ctx.fillStyle = '#7c4724';
+      ctx.beginPath();
+      ctx.arc(brlX, curbY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+
+    // 4. ALFAMA GRILL RESTAURANT (Taberna da Sardinha): Festive flags, outdoor charcoal grill w/ smoke, dining tables
+    } else if (venue.archStyle === 'alfama-taberna') {
+      for (const wx of [venue.x + 20, venue.x + venue.w - 44]) {
+        this.drawLisbonWindow(ctx, wx, winY + 4, 24, 26, {
+          isEvening,
+          shutterColor: '#1b558a',
+          flowerColor: '#e04f3e',
+          hasBalcony: false,
+          arched: true
+        });
+      }
+      // Santos Populares festive triangular garlands
+      const colors = ['#dc2626', '#facc15', '#16a34a', '#2563eb'];
+      for (let i = 0; i < 8; i += 1) {
+        const fx = venue.x + 12 + i * 25;
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.beginPath();
+        ctx.moveTo(fx, venue.y + roofH + 2);
+        ctx.lineTo(fx + 14, venue.y + roofH + 2);
+        ctx.lineTo(fx + 7, venue.y + roofH + 12);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Outdoor blue-tablecloth sidewalk restaurant tables with plates
+      for (const tx of [venue.x + 36, venue.x + venue.w - 36]) {
+        ctx.fillStyle = '#1d4ed8';
+        drawRoundedRect(ctx, tx - 11, curbY - 7, 22, 14, 3);
+        ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.arc(tx - 4, curbY, 3, 0, Math.PI * 2);
+        ctx.arc(tx + 4, curbY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Glowing charcoal sardine grill + animated grill smoke
+      const gx = venue.doorX + 26;
+      ctx.fillStyle = '#374151';
+      ctx.fillRect(gx, venue.y + venue.h - 14, 20, 12);
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(gx + 3, venue.y + venue.h - 11, 14, 6);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(gx + 4, venue.y + venue.h - 9, 12, 2);
+      const smokeShift = (this.animTime * 14) % 14;
+      ctx.fillStyle = 'rgba(235, 240, 245, 0.45)';
+      ctx.beginPath();
+      ctx.arc(gx + 10, venue.y + venue.h - 16 - smokeShift, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+    // 5. VINYL & PRINT SHOP (Vinil & Gravuras do Alto): Vinyl record emblem, Tram poster showcase, outdoor record crate
+    } else if (venue.archStyle === 'bohemian-shop') {
+      for (const wx of [venue.x + 14, venue.x + venue.w - 64]) {
+        ctx.fillStyle = '#3b2442';
+        ctx.fillRect(wx - 2, winY - 2, 50, 38);
+        ctx.fillStyle = isEvening ? '#fde69e' : '#faf5ef';
+        ctx.fillRect(wx, winY, 46, 34);
+        // Framed yellow Tram 28E poster + black vinyl disc in window
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(wx + 4, winY + 5, 16, 22);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(wx + 7, winY + 12, 10, 6);
+        ctx.fillStyle = '#111827';
+        ctx.beginPath();
+        ctx.arc(wx + 34, winY + 17, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(wx + 34, winY + 17, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Giant vinyl record emblem above doorway
+      const vx = venue.doorX;
+      const vy = venue.y + 42;
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.arc(vx, vy, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#eab308';
+      ctx.beginPath();
+      ctx.arc(vx, vy, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sidewalk vinyl record crate
+      ctx.fillStyle = '#8b5a34';
+      ctx.fillRect(venue.x + 30, curbY - 6, 22, 11);
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(venue.x + 33, curbY - 4, 16, 3);
+      ctx.fillRect(venue.x + 33, curbY, 16, 3);
+
+    // 6. ART & ARCHITECTURE GALLERIES (Palacete do Loreto & Galeria Pombalina): Exhibition banners + illuminated framed art
+    } else if (isGallery) {
+      const bannerColor = venue.archStyle === 'azulejo-gallery' ? '#1b4d89' : '#9c3626';
+      // Hanging vertical museum banners flanking the doorway
+      for (const bx of [venue.x + 28, venue.x + venue.w - 44]) {
+        ctx.fillStyle = bannerColor;
+        ctx.fillRect(bx, winY - 2, 16, 38);
+        ctx.strokeStyle = '#f3c623';
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(bx + 2, winY, 12, 34);
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath();
+        ctx.arc(bx + 8, winY + 14, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Arched illuminated gallery showcase windows displaying gilded framed paintings
+      for (const wx of [venue.x + 50, venue.x + venue.w - 72]) {
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(wx - 1, winY, 22, 30);
+        ctx.fillStyle = isEvening ? '#fef08a' : '#f8f5ec';
+        ctx.fillRect(wx + 1, winY + 2, 18, 26);
+        ctx.fillStyle = bannerColor;
+        ctx.fillRect(wx + 4, winY + 7, 12, 14);
+        ctx.strokeStyle = '#d4a337';
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(wx + 4, winY + 7, 12, 14);
+      }
+
+    // 7. GUESTHOUSE (Pensao Residencial do Alto): 3 upper residential shuttered balconies, olive urns, vertical PENSAO sign
+    } else if (venue.archStyle === 'pensao') {
+      // Three evenly spaced residential guestroom shuttered windows with Juliet balconies
+      for (const wx of [venue.x + 22, venue.x + venue.w / 2 - 10, venue.x + venue.w - 42]) {
+        this.drawLisbonWindow(ctx, wx, winY - 2, 20, 24, {
+          isEvening,
+          shutterColor: '#7a3324',
+          flowerColor: '#d94854',
+          hasBalcony: true,
+          arched: false
+        });
+      }
+      // Vertical brass PENSAO hotel blade sign on left facade edge
+      ctx.fillStyle = '#1e293b';
+      drawRoundedRect(ctx, venue.x + 4, venue.y + roofH + 24, 14, 38, 2);
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#fde68a';
+      ctx.font = '700 7px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('H', venue.x + 11, venue.y + roofH + 45);
+      ctx.textAlign = 'left';
+
+      // Twin potted olive trees in terracotta urns flanking guesthouse steps
+      for (const ux of [venue.doorX - 30, venue.doorX + 30]) {
+        ctx.fillStyle = '#b95534';
+        ctx.fillRect(ux - 5, curbY - 3, 10, 8);
+        ctx.fillStyle = '#3f7d52';
+        ctx.beginPath();
+        ctx.arc(ux, curbY - 7, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+    // 8. CONFEITARIA & TEA SALON (Arcadas do Chiado): Stone arcades with tiered pastry displays + cafe parasol
     } else if (venue.archStyle === 'arcaded-azulejo') {
-      // Iconic Arcadas do Chiado stone side arches flanking the central doorway
       for (const ax of [venue.x + 36, venue.x + venue.w - 36]) {
         const ay = venue.y + 24;
         ctx.fillStyle = '#e5ded0';
@@ -1280,92 +1568,117 @@ export class LisboaCanvasRenderer {
         ctx.lineTo(ax - 18, venue.y + facadeH - 6);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = isEvening ? '#ffe28a' : '#3d5a78';
+        ctx.fillStyle = isEvening ? '#ffe28a' : '#f8f2e4';
         ctx.beginPath();
-        ctx.arc(ax, ay + 2, 12, Math.PI, 0);
-        ctx.lineTo(ax + 12, venue.y + facadeH - 8);
-        ctx.lineTo(ax - 12, venue.y + facadeH - 8);
+        ctx.arc(ax, ay + 2, 13, Math.PI, 0);
+        ctx.lineTo(ax + 13, venue.y + facadeH - 8);
+        ctx.lineTo(ax - 13, venue.y + facadeH - 8);
         ctx.closePath();
         ctx.fill();
+        // Tiered porcelain pastry stand visible inside arcade window
+        ctx.fillStyle = '#1b4d89';
+        ctx.fillRect(ax - 8, ay + 16, 16, 3);
+        ctx.fillRect(ax - 5, ay + 9, 10, 3);
+        ctx.fillStyle = '#d98a1c';
+        ctx.fillRect(ax - 6, ay + 13, 4, 3);
+        ctx.fillRect(ax + 2, ay + 13, 4, 3);
       }
-    } else if (venue.archStyle === 'chiado-arcade') {
-      // Triple limestone Chiado arcade arches on ground floor
-      for (const wx of [venue.x + 22, venue.x + venue.w - 46]) {
-        this.drawLisbonWindow(ctx, wx, winY, 24, 28, {
-          isEvening,
-          shutterColor: '#7a4526',
-          flowerColor: '#cf5636',
-          hasBalcony: true,
-          arched: true
-        });
-      }
-    } else {
-      this.drawLisbonWindow(ctx, venue.x + 22, winY, 24, 28, {
-        isEvening,
-        shutterColor: venue.awningColor,
-        flowerColor: '#d94854',
-        hasBalcony: true,
-        arched: venue.archStyle === 'tasca' || venue.archStyle === 'alfama-taberna'
-      });
-      this.drawLisbonWindow(ctx, venue.x + venue.w - 46, winY, 24, 28, {
-        isEvening,
-        shutterColor: venue.awningColor,
-        flowerColor: '#e07a32',
-        hasBalcony: true,
-        arched: venue.archStyle === 'tasca' || venue.archStyle === 'alfama-taberna'
-      });
-    }
-
-    // Bairro Alto colorful balcony laundry strung across Casa da Rosa
-    if (venue.archStyle === 'casas-rosa') {
-      ctx.strokeStyle = 'rgba(60, 50, 44, 0.45)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(venue.x + 24, venue.y + roofH + 46);
-      ctx.quadraticCurveTo(venue.x + venue.w / 2, venue.y + roofH + 54, venue.x + venue.w - 24, venue.y + roofH + 46);
-      ctx.stroke();
-      const flags = ['#f8fafc', '#3b82f6', '#f59e0b', '#ef4444'];
-      for (const [idx, fx] of [[0, venue.x + 34], [1, venue.x + 56], [2, venue.x + venue.w - 66], [3, venue.x + venue.w - 44]]) {
-        ctx.fillStyle = flags[idx];
-        ctx.fillRect(fx, venue.y + roofH + 48, 9, 10);
-      }
-    }
-
-    // Alfama Santos Populares festive flags & glowing charcoal brazier at Taberna da Sardinha
-    if (venue.archStyle === 'alfama-taberna') {
-      const colors = ['#dc2626', '#facc15', '#16a34a', '#2563eb'];
-      for (let i = 0; i < 8; i += 1) {
-        const fx = venue.x + 14 + i * 25;
-        ctx.fillStyle = colors[i % colors.length];
-        ctx.beginPath();
-        ctx.moveTo(fx, venue.y + roofH + 2);
-        ctx.lineTo(fx + 14, venue.y + roofH + 2);
-        ctx.lineTo(fx + 7, venue.y + roofH + 12);
-        ctx.closePath();
-        ctx.fill();
-      }
-      // Glowing charcoal grill outside doorway
-      ctx.fillStyle = '#374151';
-      ctx.fillRect(venue.doorX + 26, venue.y + venue.h - 14, 18, 12);
-      ctx.fillStyle = '#f97316';
-      ctx.fillRect(venue.doorX + 29, venue.y + venue.h - 12, 12, 5);
-    }
-
-    // Tasca do Fado hanging iron lantern & blue ceramic FADO plaque
-    if (venue.archStyle === 'tasca') {
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(venue.doorX + 24, venue.y + roofH + 10, 26, 12);
-      ctx.strokeStyle = '#1b4d89';
-      ctx.lineWidth = 1.2;
-      ctx.strokeRect(venue.doorX + 24, venue.y + roofH + 10, 26, 12);
+      // Sidewalk cafe parasol table beside Confeitaria
+      const px = venue.x + 36;
       ctx.fillStyle = '#1b4d89';
-      ctx.font = '700 7.5px Georgia, serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('FADO', venue.doorX + 37, venue.y + roofH + 18.5);
-      ctx.textAlign = 'left';
+      ctx.beginPath();
+      ctx.arc(px, curbY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(px, curbY);
+      ctx.arc(px, curbY, 10, 0, Math.PI / 2);
+      ctx.moveTo(px, curbY);
+      ctx.arc(px, curbY, 10, Math.PI, Math.PI * 1.5);
+      ctx.fill();
+
+    // 9. CERAMIC TILE WORKSHOP (Oficina de Azulejos): Framed Tagus caravel tile mural + outdoor tile easels
+    } else if (venue.archStyle === 'azulejo-atelier') {
+      for (const wx of [venue.x + 16, venue.x + venue.w - 60]) {
+        ctx.fillStyle = '#15406a';
+        ctx.fillRect(wx - 2, winY - 2, 46, 36);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(wx, winY, 42, 32);
+        // Painted cobalt diamond tile samples displayed inside studio window
+        ctx.fillStyle = '#1d568a';
+        for (let r = 0; r < 2; r += 1) {
+          for (let c = 0; c < 3; c += 1) {
+            ctx.fillRect(wx + 4 + c * 13, winY + 4 + r * 14, 9, 9);
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(wx + 7 + c * 13, winY + 7 + r * 14, 3, 3);
+            ctx.fillStyle = '#1d568a';
+          }
+        }
+      }
+      // Outdoor tile artist easel on sidewalk
+      const ex = venue.x + 34;
+      ctx.strokeStyle = '#7c4f2b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ex, curbY - 9);
+      ctx.lineTo(ex - 7, curbY + 6);
+      ctx.moveTo(ex, curbY - 9);
+      ctx.lineTo(ex + 7, curbY + 6);
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(ex - 6, curbY - 7, 12, 10);
+      ctx.fillStyle = '#1d568a';
+      ctx.fillRect(ex - 3, curbY - 4, 6, 4);
+
+    // 10. CORK & GLOVE ATELIER (Atelier de Cortica & Luvas): Mahogany luxury boutique vitrines
+    } else if (venue.archStyle === 'chiado-arcade') {
+      for (const wx of [venue.x + 16, venue.x + venue.w - 58]) {
+        ctx.fillStyle = '#5c3317';
+        drawRoundedRect(ctx, wx - 2, winY - 2, 44, 38, 6);
+        ctx.fill();
+        ctx.fillStyle = isEvening ? '#fde69e' : '#f7efe3';
+        ctx.fillRect(wx + 1, winY + 1, 38, 32);
+        // Cork journals & leather gloves resting on velvet display plinths
+        ctx.fillStyle = '#b98552';
+        ctx.fillRect(wx + 6, winY + 10, 12, 16);
+        ctx.fillStyle = '#8b5a34';
+        ctx.fillRect(wx + 22, winY + 14, 11, 12);
+        ctx.fillStyle = '#1f7062';
+        ctx.fillRect(wx + 4, winY + 26, 32, 5);
+      }
+
+    // 11. TRADITIONAL GROCER (Mercearia & Conservas de Alfama): Rainbow fish-tin windows + outdoor wooden market crates
+    } else if (venue.archStyle === 'mercearia') {
+      for (const wx of [venue.x + 14, venue.x + venue.w - 60]) {
+        ctx.fillStyle = '#15544a';
+        ctx.fillRect(wx - 2, winY - 2, 48, 36);
+        ctx.fillStyle = isEvening ? '#fde69e' : '#faf5e8';
+        ctx.fillRect(wx, winY, 44, 32);
+        const tins = ['#e11d48', '#f59e0b', '#0284c7', '#10b981'];
+        for (let r = 0; r < 2; r += 1) {
+          for (let c = 0; c < 4; c += 1) {
+            ctx.fillStyle = tins[(r + c) % tins.length];
+            ctx.fillRect(wx + 3 + c * 10, winY + 5 + r * 12, 8, 9);
+          }
+        }
+      }
+      // Wooden sidewalk market crates filled with figs & colorful tins
+      for (const cx of [venue.x + 26, venue.x + venue.w - 50]) {
+        ctx.fillStyle = '#8e623f';
+        ctx.fillRect(cx, curbY - 6, 24, 11);
+        ctx.strokeStyle = '#472d1b';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx, curbY - 6, 24, 11);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(cx + 3, curbY - 4, 6, 6);
+        ctx.fillStyle = '#e11d48';
+        ctx.fillRect(cx + 11, curbY - 4, 6, 6);
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(cx + 18, curbY - 4, 4, 6);
+      }
     }
 
-    // Arched Portuguese Limestone Doorway + Striped Awning
+    // Arched Portuguese Limestone Doorway + Striped Awning + Enamel Plaque
     this.drawVenueDoorAndPlaque(ctx, venue, visited, isEvening);
   }
 
@@ -1509,14 +1822,23 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // Small round outdoor cafe tables flanking the octagon
+    // Small round outdoor cafe tables with striped sun umbrellas flanking the octagon
     for (const tx of [venue.x + 28, venue.x + venue.w - 28]) {
-      ctx.fillStyle = '#f8f5ef';
+      ctx.fillStyle = '#1f5446';
       ctx.beginPath();
-      ctx.arc(tx, cy + 20, 11, 0, Math.PI * 2);
+      ctx.arc(tx, cy + 20, 14, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#6c7a89';
-      ctx.lineWidth = 1.4;
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath();
+      ctx.moveTo(tx, cy + 20);
+      ctx.arc(tx, cy + 20, 14, 0, Math.PI / 2);
+      ctx.moveTo(tx, cy + 20);
+      ctx.arc(tx, cy + 20, 14, Math.PI, Math.PI * 1.5);
+      ctx.fill();
+      ctx.strokeStyle = '#0f332a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(tx, cy + 20, 14, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -1644,14 +1966,13 @@ export class LisboaCanvasRenderer {
     ctx.fillText('A BRASILEIRA  -  1905', venue.x + venue.w / 2, sfY - 2.5);
     ctx.textAlign = 'left';
 
-    // Famous Bronze Fernando Pessoa seated at a round marble cafe table on the sidewalk outside
+    // Famous Bronze Fernando Pessoa seated at a marble cafe table + second terrace espresso table on right
     const px = venue.x + 34;
     const py = venue.y + venue.h + 13;
     ctx.fillStyle = 'rgba(20, 26, 36, 0.2)';
     ctx.beginPath();
     ctx.ellipse(px, py + 4, 15, 7, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Marble terrace table
     ctx.fillStyle = '#f8f5ef';
     ctx.beginPath();
     ctx.arc(px + 6, py, 6, 0, Math.PI * 2);
@@ -1659,7 +1980,6 @@ export class LisboaCanvasRenderer {
     ctx.strokeStyle = '#5c4b3b';
     ctx.lineWidth = 1;
     ctx.stroke();
-    // Bronze Pessoa silhouette with iconic fedora hat
     ctx.fillStyle = '#4a5d54';
     ctx.beginPath();
     ctx.arc(px - 6, py - 1, 5.5, 0, Math.PI * 2);
@@ -1667,6 +1987,24 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = '#2d3b35';
     ctx.fillRect(px - 11, py - 6, 10, 2.5);
     ctx.fillRect(px - 9, py - 9, 6, 3.5);
+
+    // Second Chiado terrace marble table on the right side of the awning
+    const tx2 = venue.x + venue.w - 32;
+    ctx.fillStyle = '#f8f5ef';
+    ctx.beginPath();
+    ctx.arc(tx2, py, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#5c4b3b';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = '#451a03';
+    ctx.beginPath();
+    ctx.arc(tx2 - 2, py, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#d98a1c';
+    ctx.beginPath();
+    ctx.arc(tx2 + 3, py, 2.2, 0, Math.PI * 2);
+    ctx.fill();
 
     this.drawVenueDoorAndPlaque(ctx, venue, visited, isEvening);
   }
@@ -2224,6 +2562,45 @@ export class LisboaCanvasRenderer {
       ctx.beginPath();
       ctx.arc(380, 96, 56, 0, Math.PI * 2);
       ctx.fill();
+    } else if (theme.layout === 'bookshop') {
+      // Tall floor-to-ceiling oak Bertrand bookcases across the back wall
+      ctx.fillStyle = '#5a3a21';
+      ctx.fillRect(14, 14, INTERIOR_WIDTH - 28, 118);
+      const bookCols = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18', '#5b3a63', '#2563eb'];
+      for (let shelf = 0; shelf < 3; shelf += 1) {
+        const sy = 24 + shelf * 34;
+        for (let bx = 24; bx < INTERIOR_WIDTH - 34; bx += 11) {
+          if (bx > 210 && bx < 548 && shelf < 2) continue;
+          ctx.fillStyle = bookCols[((bx / 11) + shelf * 2) % bookCols.length | 0];
+          ctx.fillRect(bx, sy, 8, 24);
+        }
+        ctx.fillStyle = '#3d2514';
+        ctx.fillRect(18, sy + 24, INTERIOR_WIDTH - 36, 4);
+      }
+    } else if (theme.layout === 'gallery') {
+      // Clean museum wall with illuminated gilded art frames flanking title plaque
+      for (const fx of [56, 148, 566, 658]) {
+        ctx.fillStyle = '#d4a337';
+        ctx.fillRect(fx - 3, 28, 56, 70);
+        ctx.fillStyle = '#faf5ea';
+        ctx.fillRect(fx, 31, 50, 64);
+        ctx.fillStyle = fx % 2 === 0 ? '#1b4d89' : '#b84a32';
+        ctx.fillRect(fx + 6, 40, 38, 46);
+      }
+    } else if (theme.layout === 'pensao') {
+      // Warm residential parlor wallpaper + wooden hotel room-key pigeonhole board
+      this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
+      ctx.fillStyle = '#6c492e';
+      ctx.fillRect(58, 22, 136, 64);
+      ctx.strokeStyle = '#3d2514';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(58, 22, 136, 64);
+      ctx.fillStyle = '#eab308';
+      for (let r = 0; r < 2; r += 1) {
+        for (let c = 0; c < 5; c += 1) {
+          ctx.fillRect(68 + c * 24, 34 + r * 24, 14, 14);
+        }
+      }
     } else {
       this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
     }
@@ -2232,7 +2609,10 @@ export class LisboaCanvasRenderer {
 
     const skyColor =
       phase.id === 'evening' ? '#1c2c4d' : phase.id === 'golden' ? '#e89a54' : '#8ec5e8';
-    const winXs = theme.layout === 'cathedral' ? [] : [78, 578];
+    const winXs =
+      theme.layout === 'cathedral' || theme.layout === 'bookshop' || theme.layout === 'gallery'
+        ? []
+        : [78, 578];
     for (const wx of winXs) {
       ctx.fillStyle = skyColor;
       ctx.beginPath();
@@ -2321,34 +2701,108 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(cx, 174, 14, 7);
     }
 
-    if (theme.layout === 'cafe') {
+    if (theme.layout === 'cafe' || theme.layout === 'bakery') {
+      // Brass espresso machine + glowing pastry / bread showcase
       ctx.fillStyle = '#c5922b';
-      ctx.fillRect(256, 150, 38, 22);
-      ctx.fillStyle = '#fff3d6';
-      ctx.fillRect(435, 150, 68, 22);
-      ctx.fillStyle = '#d98a1c';
-      for (let px = 445; px <= 489; px += 14) {
+      ctx.fillRect(250, 148, 42, 24);
+      ctx.fillStyle = '#fff5dc';
+      ctx.fillRect(426, 148, 82, 24);
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(426, 148, 82, 24);
+      ctx.fillStyle = theme.layout === 'bakery' ? '#c8802b' : '#d98a1c';
+      for (let px = 438; px <= 496; px += 14) {
         ctx.beginPath();
-        ctx.arc(px, 161, 5, 0, Math.PI * 2);
+        ctx.ellipse(px, 160, theme.layout === 'bakery' ? 6 : 4.5, 4.5, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     } else if (theme.layout === 'restaurant') {
+      // Steaming caldo verde soup tureen + grilled sardine platter + wine bottle
       ctx.fillStyle = '#e5e7eb';
       ctx.beginPath();
-      ctx.arc(285, 162, 12, 0, Math.PI * 2);
+      ctx.arc(280, 162, 13, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#3d7a4a';
       ctx.beginPath();
-      ctx.arc(285, 162, 8, 0, Math.PI * 2);
+      ctx.arc(280, 162, 8.5, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = '#14532d';
+      ctx.fillRect(306, 146, 8, 22);
 
       ctx.fillStyle = '#f5f5f4';
-      ctx.fillRect(432, 152, 74, 20);
-      ctx.fillStyle = '#9ca3af';
-      ctx.fillRect(442, 158, 22, 6);
-      ctx.fillRect(472, 158, 22, 6);
+      ctx.fillRect(430, 150, 78, 22);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(438, 155, 24, 5);
+      ctx.fillRect(470, 155, 24, 5);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(444, 163, 44, 4);
+    } else if (theme.layout === 'bookshop') {
+      // Stacked vintage volumes + brass library lamp + Bertrand heritage stamp
+      const spineCols = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18'];
+      spineCols.forEach((sc, i) => {
+        ctx.fillStyle = sc;
+        ctx.fillRect(250 + i * 11, 148, 9, 24);
+      });
+      ctx.fillStyle = '#15803d';
+      ctx.beginPath();
+      ctx.arc(478, 154, 12, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = '#ca8a04';
+      ctx.fillRect(476, 154, 4, 18);
+    } else if (theme.layout === 'vinyl') {
+      // Spinning turntable deck + crate of 7-inch fado vinyl sleeves
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(250, 148, 44, 26);
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(270, 161, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(270, 161, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(446, 148, 26, 24);
+      ctx.fillStyle = '#6d476c';
+      ctx.fillRect(476, 148, 26, 24);
+    } else if (theme.layout === 'azulejo') {
+      // Cobalt glaze paint pots, brushes, and kiln-fired tile samples
+      for (const [idx, col] of ['#1d568a', '#3b82f6', '#eab308', '#f8fafc'].entries()) {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(256 + idx * 14, 160, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      for (let tx = 436; tx <= 484; tx += 24) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(tx, 150, 20, 20);
+        ctx.fillStyle = '#1d568a';
+        ctx.fillRect(tx + 5, 155, 10, 10);
+      }
+    } else if (theme.layout === 'mercearia') {
+      // Brass grocer balance scale + colorful lithograph fish tins
+      ctx.fillStyle = '#ca8a04';
+      ctx.fillRect(272, 148, 4, 22);
+      ctx.fillRect(256, 154, 36, 3);
+      const tins = ['#e11d48', '#f59e0b', '#0284c7', '#10b981'];
+      tins.forEach((tc, i) => {
+        ctx.fillStyle = tc;
+        ctx.fillRect(432 + i * 19, 150, 16, 20);
+      });
+    } else if (theme.layout === 'pensao') {
+      // Brass reception service bell + guest register ledger
+      ctx.fillStyle = '#eab308';
+      ctx.beginPath();
+      ctx.arc(276, 166, 9, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = '#7c2d12';
+      ctx.fillRect(442, 148, 56, 24);
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(446, 151, 48, 18);
     } else if (theme.layout === 'gallery') {
-      // Framed Lisbon copperplate engravings & miniature architectural models on counter
       ctx.fillStyle = '#fef3c7';
       ctx.fillRect(252, 148, 42, 24);
       ctx.strokeStyle = '#785a36';
@@ -2363,7 +2817,6 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#b84a32';
       ctx.fillRect(460, 154, 32, 12);
     } else if (theme.layout === 'cathedral') {
-      // Flickering brass sanctuary candles & open stone-pedestal visitor guestbook
       for (const cx of [258, 274, 484, 500]) {
         ctx.fillStyle = '#fef3c7';
         ctx.fillRect(cx, 154, 5, 16);
@@ -2378,35 +2831,145 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1.4;
       ctx.strokeRect(352, 152, 56, 20);
     } else {
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillRect(258, 150, 36, 22);
-      ctx.fillStyle = '#e2b98f';
-      ctx.fillRect(444, 150, 26, 20);
-      ctx.fillStyle = '#24588a';
-      ctx.fillRect(478, 150, 26, 20);
+      // Cork & leather atelier tools + stitched cork notebooks
+      ctx.fillStyle = '#c89b6d';
+      ctx.fillRect(252, 148, 38, 24);
+      ctx.fillStyle = '#8b5a34';
+      ctx.fillRect(444, 148, 26, 22);
+      ctx.fillStyle = '#1f7062';
+      ctx.fillRect(476, 148, 26, 22);
     }
 
-    ctx.fillStyle = '#7b5336';
+    // Left interactive display station tailored to venue category (keeps exact collision footprint 62..134, 204..322)
+    ctx.fillStyle = theme.layout === 'gallery' || theme.layout === 'cathedral' ? '#e5dfd3' : '#7b5336';
     drawRoundedRect(ctx, 62, 204, 72, 118, 6);
     ctx.fill();
     ctx.strokeStyle = '#472d1b';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    const swatchColors = ['#1b4d89', '#c98a18', '#b84a32', '#13795b'];
-    for (let sy = 216; sy <= 298; sy += 26) {
-      ctx.fillStyle = swatchColors[(sy / 26) % swatchColors.length | 0];
-      ctx.fillRect(72, sy, 52, 15);
+    if (theme.layout === 'bookshop') {
+      // Floor-to-ceiling bookshop shelf packed with vertical book spines
+      const colors = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18', '#5b3a63', '#2563eb'];
+      for (let row = 0; row < 4; row += 1) {
+        const sy = 212 + row * 26;
+        for (let b = 0; b < 7; b += 1) {
+          ctx.fillStyle = colors[(row * 3 + b) % colors.length];
+          ctx.fillRect(70 + b * 8, sy, 6, 18);
+        }
+        ctx.fillStyle = '#4e311c';
+        ctx.fillRect(68, sy + 18, 58, 3);
+      }
+    } else if (theme.layout === 'vinyl') {
+      // Wooden record flip crates showing vinyl discs
+      for (let sy = 216; sy <= 286; sy += 34) {
+        ctx.fillStyle = '#111827';
+        ctx.beginPath();
+        ctx.arc(98, sy + 12, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(98, sy + 12, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (theme.layout === 'gallery' || theme.layout === 'cathedral') {
+      // Glass museum display vitrine / cathedral reliquary cabinet
+      ctx.fillStyle = '#dbeafe';
+      ctx.fillRect(70, 214, 56, 98);
+      ctx.strokeStyle = '#92400e';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(70, 214, 56, 98);
+      ctx.fillStyle = theme.layout === 'cathedral' ? '#eab308' : '#1b4d89';
+      ctx.beginPath();
+      ctx.arc(98, 262, 16, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const swatchColors =
+        theme.layout === 'azulejo'
+          ? ['#1d568a', '#3b82f6', '#1e40af', '#0284c7']
+          : theme.layout === 'bakery'
+            ? ['#c8802b', '#e09f3e', '#b45309', '#d97706']
+            : ['#1b4d89', '#c98a18', '#b84a32', '#13795b'];
+      for (let sy = 216; sy <= 298; sy += 26) {
+        ctx.fillStyle = swatchColors[(sy / 26) % swatchColors.length | 0];
+        ctx.fillRect(72, sy, 52, 15);
+      }
     }
 
+    // Right furnishings tailored to venue category (keeps exact collision footprint 590..682, 225..279 & 325..379)
     const tableYs = [225, 325];
     for (const ty of tableYs) {
-      ctx.fillStyle = theme.layout === 'restaurant' ? '#f8fafc' : '#8e623f';
-      drawRoundedRect(ctx, 590, ty, 92, 54, 8);
-      ctx.fill();
-      ctx.strokeStyle = '#472d1b';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
+      if (theme.layout === 'restaurant') {
+        // Checkered restaurant dining table with plates & glowing candle
+        ctx.fillStyle = '#f8fafc';
+        drawRoundedRect(ctx, 590, ty, 92, 54, 8);
+        ctx.fill();
+        ctx.fillStyle = venue.id === 'tasca-do-fado' ? '#dc2626' : '#1d4ed8';
+        ctx.fillRect(594, ty + 4, 84, 8);
+        ctx.fillRect(594, ty + 42, 84, 8);
+        ctx.fillStyle = '#e5e7eb';
+        ctx.beginPath();
+        ctx.arc(614, ty + 27, 8, 0, Math.PI * 2);
+        ctx.arc(658, ty + 27, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(636, ty + 27, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (theme.layout === 'cafe' || theme.layout === 'bakery') {
+        // Marble bistro table with espresso cups & pastry plates
+        ctx.fillStyle = '#f8f5ef';
+        drawRoundedRect(ctx, 590, ty, 92, 54, 14);
+        ctx.fill();
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.fillStyle = '#451a03';
+        ctx.beginPath();
+        ctx.arc(618, ty + 27, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#d98a1c';
+        ctx.beginPath();
+        ctx.arc(654, ty + 27, 7, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (theme.layout === 'cathedral') {
+        // Carved dark-oak Romanesque church pews
+        ctx.fillStyle = '#5c3a21';
+        drawRoundedRect(ctx, 590, ty + 4, 92, 18, 4);
+        ctx.fill();
+        drawRoundedRect(ctx, 590, ty + 30, 92, 18, 4);
+        ctx.fill();
+        ctx.strokeStyle = '#3d2514';
+        ctx.lineWidth = 1.4;
+        ctx.strokeRect(590, ty + 4, 92, 18);
+        ctx.strokeRect(590, ty + 30, 92, 18);
+      } else if (theme.layout === 'bookshop') {
+        // Oak reading table with open books
+        ctx.fillStyle = '#7c4f2b';
+        drawRoundedRect(ctx, 590, ty, 92, 54, 6);
+        ctx.fill();
+        ctx.fillStyle = '#fef9ef';
+        ctx.fillRect(606, ty + 14, 24, 18);
+        ctx.fillRect(644, ty + 18, 22, 16);
+        ctx.strokeStyle = '#472d1b';
+        ctx.lineWidth = 1.4;
+        ctx.strokeRect(590, ty, 92, 54);
+      } else if (theme.layout === 'gallery') {
+        // Velvet museum viewing bench
+        ctx.fillStyle = '#7f1d1d';
+        drawRoundedRect(ctx, 594, ty + 10, 84, 34, 8);
+        ctx.fill();
+        ctx.strokeStyle = '#d4a337';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#8e623f';
+        drawRoundedRect(ctx, 590, ty, 92, 54, 8);
+        ctx.fill();
+        ctx.strokeStyle = '#472d1b';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
     }
 
     this.drawInteriorMarker(

@@ -458,7 +458,7 @@ test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, ve
 });
 
 test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 9 venue interiors cleanly', () => {
-  const noop = () => {};
+  const noop = () => { };
   const mockGradient = { addColorStop: noop };
   let drawCalls = 0;
   const mockCtx = {
