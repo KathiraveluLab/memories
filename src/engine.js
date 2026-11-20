@@ -6,6 +6,8 @@ import {
   WATERFRONT_Y,
   NEIGHBORHOODS,
   DECORATIVE_STRUCTURES,
+  METRO_LINE,
+  METRO_STATIONS,
   VENUES,
   REST_SPOTS,
   TRANSIT_LINES,
@@ -25,11 +27,16 @@ export const OVERNIGHT_COST_EUR = 18.0;
 export const LOW_FUND_STIPEND_THRESHOLD = 25.0;
 export const LOW_FUND_STIPEND_AMOUNT = 25.0;
 export const PLAYER_RADIUS = 13;
+export const PERSON_SEPARATION_DIST = PLAYER_RADIUS * 2 + 2;
+export const VEHICLE_HALF_LEN = 38;
+export const VEHICLE_HALF_WIDTH = 17;
+export const VEHICLE_BRAKE_LOOKAHEAD = 76;
 export const BASE_WALK_SPEED = 165;
 export const INTERIOR_WALK_SPEED = 155;
 export const INTERACT_DISTANCE = 76;
 
 const VENUE_MAP = new Map(VENUES.map((v) => [v.id, v]));
+const METRO_MAP = new Map(METRO_STATIONS.map((m) => [m.id, m]));
 const REST_SPOT_MAP = new Map(REST_SPOTS.map((s) => [s.id, s]));
 const TRANSIT_LINE_MAP = new Map(TRANSIT_LINES.map((l) => [l.id, l]));
 const ALL_STOPS = getAllTransitStops();
@@ -38,7 +45,8 @@ const ALL_MEMORIES = getAllMemoryCatalog();
 
 const SOLID_OVERWORLD_RECTS = [
   ...VENUES.map((v) => ({ x: v.x, y: v.y, w: v.w, h: v.h, id: v.id })),
-  ...DECORATIVE_STRUCTURES.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, id: d.id }))
+  ...DECORATIVE_STRUCTURES.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, id: d.id })),
+  ...METRO_STATIONS.map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h, id: m.id }))
 ];
 
 export const INTERIOR_STATIONS = {
@@ -46,6 +54,12 @@ export const INTERIOR_STATIONS = {
   display: { x: 175, y: 245, radius: 66, label: 'Local Display' },
   exitMat: { x: 380, y: 416, halfWidth: 60, triggerY: 404 }
 };
+
+const SOLID_INTERIOR_RECTS = [
+  { x: 62, y: 204, w: 72, h: 118 },
+  { x: 590, y: 225, w: 92, h: 54 },
+  { x: 590, y: 325, w: 92, h: 54 }
+];
 
 function roundMoney(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -78,6 +92,10 @@ export function getVenueById(venueId) {
   return VENUE_MAP.get(venueId) || null;
 }
 
+export function getMetroStationById(stationId) {
+  return METRO_MAP.get(stationId) || null;
+}
+
 export function getRestSpotById(spotId) {
   return REST_SPOT_MAP.get(spotId) || null;
 }
@@ -98,6 +116,46 @@ function circleIntersectsRect(cx, cy, radius, rect) {
   return dx * dx + dy * dy < radius * radius;
 }
 
+function toVehicleLocal(px, py, vehicle) {
+  const dx = px - vehicle.x;
+  const dy = py - vehicle.y;
+  const cos = Math.cos(-vehicle.heading);
+  const sin = Math.sin(-vehicle.heading);
+  return {
+    localX: dx * cos - dy * sin,
+    localY: dx * sin + dy * cos
+  };
+}
+
+export function pointIntersectsVehicle(px, py, radius, vehicle) {
+  const { localX, localY } = toVehicleLocal(px, py, vehicle);
+  const pad = radius + 4;
+  return (
+    Math.abs(localX) < VEHICLE_HALF_LEN + pad &&
+    Math.abs(localY) < VEHICLE_HALF_WIDTH + pad
+  );
+}
+
+export function isPedestrianAheadOfVehicle(vehicle, px, py, radius = PLAYER_RADIUS) {
+  const { localX, localY } = toVehicleLocal(px, py, vehicle);
+  const inFront = localX > -VEHICLE_HALF_LEN - radius && localX < VEHICLE_HALF_LEN + VEHICLE_BRAKE_LOOKAHEAD;
+  const inLane = Math.abs(localY) < VEHICLE_HALF_WIDTH + radius + 12;
+  return inFront && inLane;
+}
+
+export function isPointInVehicleLane(px, py) {
+  // Tram 28E track strip (y: 586..634, x: 200..2200)
+  if (px >= 200 && px <= 2200 && py >= 586 && py <= 634) return true;
+  // North Bus 737 corridor (y: 262..308, x: 138..2240)
+  if (px >= 138 && px <= 2240 && py >= 262 && py <= 308) return true;
+  // South Bus 737 corridor (y: 908..956, x: 138..2240)
+  if (px >= 138 && px <= 2240 && py >= 908 && py <= 956) return true;
+  // West & East vertical Bus 737 connectors
+  if (py >= 262 && py <= 956 && px >= 138 && px <= 186) return true;
+  if (py >= 262 && py <= 956 && px >= 2190 && px <= 2240) return true;
+  return false;
+}
+
 export function isOverworldPositionValid(x, y, radius = PLAYER_RADIUS) {
   if (x < 40 + radius || x > WORLD_WIDTH - 40 - radius) return false;
   if (y < 42 + radius || y > WATERFRONT_Y - 12 - radius) return false;
@@ -108,12 +166,6 @@ export function isOverworldPositionValid(x, y, radius = PLAYER_RADIUS) {
   }
   return true;
 }
-
-const SOLID_INTERIOR_RECTS = [
-  { x: 62, y: 204, w: 72, h: 118 }, // Display shelf
-  { x: 590, y: 225, w: 92, h: 54 }, // Upper right table
-  { x: 590, y: 325, w: 92, h: 54 }  // Lower right table
-];
 
 export function isInteriorPositionValid(x, y, radius = PLAYER_RADIUS) {
   if (x < 68 + radius || x > INTERIOR_WIDTH - 68 - radius) return false;
@@ -180,6 +232,7 @@ function createInitialVehicles() {
       waypointIndex: startIdx,
       direction: 1,
       dwellRemaining: wp.stopId ? 2.5 : 0,
+      yielding: false,
       currentStopId: wp.stopId || null,
       currentStopName: wp.stopName || null,
       nextStopName: findUpcomingStopName(line, startIdx, 1)
@@ -191,7 +244,8 @@ function createInitialNpcs() {
   return AMBIENT_NPCS.map((npc) => ({
     ...npc,
     dir: 1,
-    walkPhase: 0
+    walkPhase: 0,
+    isMoving: true
   }));
 }
 
@@ -234,14 +288,14 @@ function unlockMemory(state, memoryDef) {
   recordLog(state, 'memory', `Captured Memory: ${memoryDef.title}`);
   if (state.memories.length >= ALL_MEMORIES.length && !state.albumCompleted) {
     state.albumCompleted = true;
-    recordLog(state, 'milestone', 'Lisboa Memory Album complete! All 16 neighborhood memories captured.');
+    recordLog(state, 'milestone', `Lisboa Memory Album complete! All ${ALL_MEMORIES.length} neighborhood memories captured.`);
   }
   return true;
 }
 
 export function createInitialState() {
   const startX = 950;
-  const startY = 550;
+  const startY = 544;
   const startHood = getNeighborhoodForX(startX);
 
   const state = {
@@ -268,6 +322,7 @@ export function createInitialState() {
     visitedNeighborhoods: [startHood.id],
     currentVenueId: null,
     visitedVenues: [],
+    activeMetroStationId: null,
     ridingVehicleId: null,
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
@@ -279,19 +334,20 @@ export function createInitialState() {
     tastedFoods: [],
     learnedPhrases: [
       {
-        pt: 'Bom dia! Estou a explorar Lisboa a pe e de eletrico.',
-        pronunciation: 'Bohm dee-ah! Esh-toh ah esh-ploh-rahr Leesh-boh-ah ah peh ee deh eh-leh-tree-koo.',
-        en: 'Good morning! I am exploring Lisbon on foot and by tram.',
+        pt: 'Bom dia! Estou a explorar Lisboa a pe, de eletrico e de metro.',
+        pronunciation: 'Bohm dee-ah! Esh-toh ah esh-ploh-rahr Leesh-boh-ah ah peh, deh eh-leh-tree-koo ee deh meh-troo.',
+        en: 'Good morning! I am exploring Lisbon on foot, by tram, and by metro.',
         source: 'Praca Luis de Camoes',
         day: 1
       }
     ],
     journal: [],
-    statusMessage: 'Welcome to Lisboa! Walk around Bairro Alto, Chiado, and Alfama, board Tram 28E or Carris Bus, and step inside local shops and restaurants.',
+    statusMessage: 'Welcome to Lisboa! Walk along the cobblestone sidewalks of Bairro Alto, Chiado, and Alfama, ride Tram 28E, Carris Bus, or Metro de Lisboa, and visit local shops and cafes.',
     stats: {
       distanceWalkedPx: 0,
       tramRides: 0,
       busRides: 0,
+      metroRides: 0,
       venuesEntered: 0,
       mealsEaten: 0,
       souvenirsBought: 0,
@@ -325,6 +381,11 @@ export class MemoriesGameEngine {
     return getVenueById(this.state.currentVenueId);
   }
 
+  getActiveMetroStation() {
+    if (!this.state.activeMetroStationId) return null;
+    return getMetroStationById(this.state.activeMetroStationId);
+  }
+
   getRidingVehicle() {
     if (!this.state.ridingVehicleId) return null;
     return this.state.vehicles.find((v) => v.id === this.state.ridingVehicleId) || null;
@@ -343,12 +404,14 @@ export class MemoriesGameEngine {
 
   setWalkTarget(x, y, onArriveAction = null) {
     if (this.state.ridingVehicleId) return;
+    this.state.activeMetroStationId = null;
     this.state.player.walkQueue = [];
     this.state.player.walkTarget = { x, y, onArriveAction };
   }
 
   setWalkPath(waypoints = []) {
     if (this.state.ridingVehicleId || !Array.isArray(waypoints) || waypoints.length === 0) return;
+    this.state.activeMetroStationId = null;
     const [first, ...rest] = waypoints;
     this.state.player.walkTarget = first;
     this.state.player.walkQueue = rest;
@@ -370,12 +433,78 @@ export class MemoriesGameEngine {
     }
   }
 
+  isBlockedByVehicle(x, y, radius = PLAYER_RADIUS) {
+    for (const vehicle of this.state.vehicles) {
+      if (pointIntersectsVehicle(x, y, radius, vehicle)) {
+        return vehicle;
+      }
+    }
+    return null;
+  }
+
+  isBlockedByPerson(x, y, { ignorePlayer = false, ignoreNpcId = null } = {}) {
+    if (!ignorePlayer && this.state.mode === 'overworld' && !this.state.ridingVehicleId) {
+      if (distance(x, y, this.state.player.x, this.state.player.y) < PERSON_SEPARATION_DIST) {
+        return { kind: 'player', name: 'Traveler' };
+      }
+    }
+    for (const npc of this.state.npcs) {
+      if (npc.id === ignoreNpcId) continue;
+      if (distance(x, y, npc.x, npc.y) < PERSON_SEPARATION_DIST) {
+        return { kind: 'npc', name: npc.name, npc };
+      }
+    }
+    return null;
+  }
+
+  canPlayerStepTo(x, y) {
+    if (this.state.mode === 'interior') {
+      return { ok: isInteriorPositionValid(x, y), blocker: null };
+    }
+    if (!isOverworldPositionValid(x, y)) {
+      return { ok: false, blocker: { kind: 'structure' } };
+    }
+    const blockingVehicle = this.isBlockedByVehicle(x, y, PLAYER_RADIUS);
+    if (blockingVehicle) {
+      return { ok: false, blocker: { kind: 'vehicle', vehicle: blockingVehicle } };
+    }
+    const blockingPerson = this.isBlockedByPerson(x, y, { ignorePlayer: true });
+    if (blockingPerson) {
+      return { ok: false, blocker: blockingPerson };
+    }
+    return { ok: true, blocker: null };
+  }
+
+  shouldVehicleYield(vehicle, nextHeading) {
+    const probeVehicle = { ...vehicle, heading: nextHeading };
+    // Never run over or collide with the player walking on foot
+    if (this.state.mode === 'overworld' && !this.state.ridingVehicleId) {
+      if (
+        isPedestrianAheadOfVehicle(probeVehicle, this.state.player.x, this.state.player.y, PLAYER_RADIUS) ||
+        pointIntersectsVehicle(this.state.player.x, this.state.player.y, PLAYER_RADIUS, probeVehicle)
+      ) {
+        return true;
+      }
+    }
+    // Never run over or collide with ambient Lisbon pedestrians
+    for (const npc of this.state.npcs) {
+      if (
+        isPedestrianAheadOfVehicle(probeVehicle, npc.x, npc.y, PLAYER_RADIUS) ||
+        pointIntersectsVehicle(npc.x, npc.y, PLAYER_RADIUS, probeVehicle)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   updateVehicles(dt) {
     for (const vehicle of this.state.vehicles) {
       const line = getTransitLineById(vehicle.id);
       if (!line) continue;
 
       if (vehicle.dwellRemaining > 0) {
+        vehicle.yielding = false;
         vehicle.dwellRemaining = Math.max(0, vehicle.dwellRemaining - dt);
         continue;
       }
@@ -385,14 +514,19 @@ export class MemoriesGameEngine {
       const dx = targetWp.x - vehicle.x;
       const dy = targetWp.y - vehicle.y;
       const dist = Math.hypot(dx, dy);
-      const stepDist = line.speedPxPerSec * dt;
+      const nextHeading = dist > 0.001 ? Math.atan2(dy, dx) : vehicle.heading;
 
+      // Safety brake: yield cleanly whenever any passenger/pedestrian is in front of the vehicle
+      if (this.shouldVehicleYield(vehicle, nextHeading)) {
+        vehicle.yielding = true;
+        continue;
+      }
+      vehicle.yielding = false;
+
+      const stepDist = line.speedPxPerSec * dt;
       vehicle.currentStopId = null;
       vehicle.currentStopName = null;
-
-      if (dist > 0.001) {
-        vehicle.heading = Math.atan2(dy, dx);
-      }
+      vehicle.heading = nextHeading;
 
       if (dist <= stepDist) {
         vehicle.x = targetWp.x;
@@ -420,25 +554,40 @@ export class MemoriesGameEngine {
   updateNpcs(dt) {
     for (const npc of this.state.npcs) {
       const delta = npc.speed * dt * npc.dir;
+      let nextX = npc.x;
+      let nextY = npc.y;
+
       if (npc.patrolAxis === 'x') {
-        npc.x += delta;
-        if (npc.x >= npc.max) {
-          npc.x = npc.max;
+        nextX += delta;
+        if (nextX >= npc.max) {
+          nextX = npc.max;
           npc.dir = -1;
-        } else if (npc.x <= npc.min) {
-          npc.x = npc.min;
+        } else if (nextX <= npc.min) {
+          nextX = npc.min;
           npc.dir = 1;
         }
       } else {
-        npc.y += delta;
-        if (npc.y >= npc.max) {
-          npc.y = npc.max;
+        nextY += delta;
+        if (nextY >= npc.max) {
+          nextY = npc.max;
           npc.dir = -1;
-        } else if (npc.y <= npc.min) {
-          npc.y = npc.min;
+        } else if (nextY <= npc.min) {
+          nextY = npc.min;
           npc.dir = 1;
         }
       }
+
+      // Pedestrians never step into a passing vehicle or collide with the player / other locals
+      const vehicleBlocked = this.isBlockedByVehicle(nextX, nextY, PLAYER_RADIUS + 4);
+      const personBlocked = this.isBlockedByPerson(nextX, nextY, { ignoreNpcId: npc.id });
+      if (vehicleBlocked || personBlocked || !isOverworldPositionValid(nextX, nextY)) {
+        npc.isMoving = false;
+        continue;
+      }
+
+      npc.x = nextX;
+      npc.y = nextY;
+      npc.isMoving = true;
       npc.walkPhase = (npc.walkPhase + dt * 5.2) % (Math.PI * 2);
     }
   }
@@ -452,7 +601,7 @@ export class MemoriesGameEngine {
       if (!this.state.visitedNeighborhoods.includes(hood.id)) {
         this.state.visitedNeighborhoods.push(hood.id);
         this.state.statusMessage = `Entered ${hood.name}: ${hood.subtitle}`;
-        recordLog(stateRef(this.state), 'neighborhood', `Walked into ${hood.name}.`);
+        recordLog(this.state, 'neighborhood', `Walked into ${hood.name}.`);
       }
     }
   }
@@ -465,6 +614,7 @@ export class MemoriesGameEngine {
     if (Math.abs(vx) > 0.01 || Math.abs(vy) > 0.01) {
       player.walkTarget = null;
       player.walkQueue = [];
+      this.state.activeMetroStationId = null;
     } else if (player.walkTarget) {
       const dx = player.walkTarget.x - player.x;
       const dy = player.walkTarget.y - player.y;
@@ -509,19 +659,25 @@ export class MemoriesGameEngine {
 
     const stepX = vx * speed * dt;
     const stepY = vy * speed * dt;
-    const validator =
-      this.state.mode === 'interior' ? isInteriorPositionValid : isOverworldPositionValid;
 
     let movedX = 0;
     let movedY = 0;
+    let lastBlocker = null;
 
-    if (validator(player.x + stepX, player.y)) {
+    const checkX = this.canPlayerStepTo(player.x + stepX, player.y);
+    if (checkX.ok) {
       player.x += stepX;
       movedX = stepX;
+    } else if (checkX.blocker) {
+      lastBlocker = checkX.blocker;
     }
-    if (validator(player.x, player.y + stepY)) {
+
+    const checkY = this.canPlayerStepTo(player.x, player.y + stepY);
+    if (checkY.ok) {
       player.y += stepY;
       movedY = stepY;
+    } else if (checkY.blocker) {
+      lastBlocker = checkY.blocker;
     }
 
     const movedDist = Math.hypot(movedX, movedY);
@@ -548,9 +704,19 @@ export class MemoriesGameEngine {
       }
     } else {
       player.isMoving = false;
+      if (lastBlocker?.kind === 'vehicle') {
+        this.state.statusMessage = `Waiting safely on the side as ${lastBlocker.vehicle.name} passes.`;
+        // Keep click-to-walk target waiting patiently if blocked temporarily by a passing vehicle
+        return;
+      }
+      if (lastBlocker?.kind === 'npc') {
+        this.state.statusMessage = `Paused politely on the sidewalk as ${lastBlocker.name} passes.`;
+        return;
+      }
       if (player.walkTarget) {
         const arriveAction = player.walkTarget.onArriveAction;
         player.walkTarget = null;
+        player.walkQueue = [];
         if (arriveAction) {
           this.executeArriveAction(arriveAction);
         }
@@ -562,6 +728,8 @@ export class MemoriesGameEngine {
     if (!action || !action.type) return;
     if (action.type === 'enterVenue') {
       this.enterVenue(action.id);
+    } else if (action.type === 'openMetro') {
+      this.openMetroStation(action.id);
     } else if (action.type === 'boardStop') {
       this.boardTransitAtStop(action.id, { waitIfApproaching: true });
     } else if (action.type === 'restBench') {
@@ -623,7 +791,7 @@ export class MemoriesGameEngine {
           : state.alightAtNextStop
             ? `Bell rung - Hopping off at ${vehicle.nextStopName}`
             : `Ring Bell to exit at ${vehicle.nextStopName}`,
-        sublabel: atStop ? 'Doors open - Press [E] to step out' : 'Press [E] to ring bell (or again to alight at next stop)'
+        sublabel: atStop ? 'Doors open - Press [E] to step out onto the sidewalk' : 'Press [E] to ring bell (or again to alight at next stop)'
       };
     }
 
@@ -669,6 +837,20 @@ export class MemoriesGameEngine {
     let best = null;
     let bestDist = Infinity;
 
+    for (const station of METRO_STATIONS) {
+      const d = distance(px, py, station.doorX, station.doorY);
+      if (d <= INTERACT_DISTANCE && d < bestDist) {
+        bestDist = d;
+        best = {
+          type: 'metro',
+          id: station.id,
+          station,
+          label: `Enter ${station.name} (${METRO_LINE.fareEur.toFixed(2)} EUR)`,
+          sublabel: `${station.lines.join(' & ')} - Press [E] to choose destination`
+        };
+      }
+    }
+
     for (const venue of VENUES) {
       const d = distance(px, py, venue.doorX, venue.doorY);
       if (d <= INTERACT_DISTANCE && d < bestDist) {
@@ -702,7 +884,7 @@ export class MemoriesGameEngine {
             ? `Board ${stop.lineName} (${stop.fareEur.toFixed(2)} EUR)`
             : `Catch ${stop.lineName} at ${stop.stopName} (${stop.fareEur.toFixed(2)} EUR)`,
           sublabel: vehicleAtStop
-            ? 'Doors open now - Press [E] to board'
+            ? 'Doors open now - Press [E] to board from the sidewalk'
             : `Approaching (${vehicleDist}m away) - Press [E] to wait and board`
         };
       }
@@ -728,7 +910,7 @@ export class MemoriesGameEngine {
   triggerNearbyInteraction() {
     const nearby = this.getNearbyInteraction();
     if (!nearby) {
-      return { ok: false, error: 'Move closer to a doorway, transit stop, or bench to interact.' };
+      return { ok: false, error: 'Move closer to a doorway, metro entrance, transit stop, or bench to interact.' };
     }
     if (nearby.type === 'riding') {
       const vehicle = this.getRidingVehicle();
@@ -739,6 +921,9 @@ export class MemoriesGameEngine {
         return this.disembarkTransit({ immediateToNextStop: true });
       }
       return this.disembarkTransit();
+    }
+    if (nearby.type === 'metro') {
+      return this.openMetroStation(nearby.id);
     }
     if (nearby.type === 'venue') {
       return this.enterVenue(nearby.id);
@@ -761,6 +946,72 @@ export class MemoriesGameEngine {
     return { ok: false, error: 'No action available.' };
   }
 
+  openMetroStation(stationId) {
+    if (this.state.mode !== 'overworld' || this.state.ridingVehicleId) {
+      return { ok: false, error: 'Walk up to a Metro de Lisboa entrance on the sidewalk first.' };
+    }
+    const station = getMetroStationById(stationId);
+    if (!station) {
+      return { ok: false, error: `Unknown metro station: ${stationId}` };
+    }
+    this.state.activeMetroStationId = station.id;
+    this.state.statusMessage = `At ${station.name} (${station.lines.join(' & ')}). Choose a destination on Linha Azul (${METRO_LINE.fareEur.toFixed(2)} EUR).`;
+    return { ok: true, station, state: this.state };
+  }
+
+  closeMetroStation() {
+    this.state.activeMetroStationId = null;
+    return { ok: true, state: this.state };
+  }
+
+  rideMetro(fromStationId, toStationId) {
+    if (this.state.mode !== 'overworld' || this.state.ridingVehicleId) {
+      return { ok: false, error: 'Step onto the sidewalk at a Metro station before riding the Metro.' };
+    }
+    const origin = getMetroStationById(fromStationId);
+    const destination = getMetroStationById(toStationId);
+    if (!origin || !destination) {
+      return { ok: false, error: 'Unknown Metro station selected.' };
+    }
+    if (origin.id === destination.id) {
+      return { ok: false, error: `You are already at ${origin.name}.` };
+    }
+    if (this.state.euros < METRO_LINE.fareEur) {
+      this.state.statusMessage = `Need ${METRO_LINE.fareEur.toFixed(2)} EUR for Metropolitano de Lisboa (you have ${this.state.euros.toFixed(2)} EUR).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    this.state.euros = roundMoney(this.state.euros - METRO_LINE.fareEur);
+    this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + METRO_LINE.fareEur);
+    this.state.stats.metroRides += 1;
+    this.state.energy = clamp(this.state.energy + 4, 0, 100);
+    this.advanceMinutes(METRO_LINE.travelMinutes);
+
+    this.state.player.x = destination.spawnOutside.x;
+    this.state.player.y = destination.spawnOutside.y;
+    this.state.player.overworldX = destination.spawnOutside.x;
+    this.state.player.overworldY = destination.spawnOutside.y;
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.activeMetroStationId = null;
+    this.updateNeighborhoodTracking();
+
+    const newPhrase = recordPhrase(this.state, METRO_LINE.phrase, METRO_LINE.name);
+    const newMemory = unlockMemory(this.state, METRO_LINE.memory);
+
+    this.state.statusMessage = `Rode Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR, +${METRO_LINE.travelMinutes} min).`;
+    recordLog(this.state, 'metro', `Took Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`);
+
+    return {
+      ok: true,
+      origin,
+      destination,
+      newPhrase,
+      newMemory,
+      state: this.state
+    };
+  }
+
   enterVenue(venueId) {
     if (this.state.ridingVehicleId) {
       return { ok: false, error: 'Step off transit before entering a shop or restaurant.' };
@@ -770,6 +1021,7 @@ export class MemoriesGameEngine {
       return { ok: false, error: `Unknown venue: ${venueId}` };
     }
 
+    this.state.activeMetroStationId = null;
     this.state.mode = 'interior';
     this.state.currentVenueId = venue.id;
     this.state.player.overworldX = venue.spawnOutside.x;
@@ -826,8 +1078,8 @@ export class MemoriesGameEngine {
     this.updateNeighborhoodTracking();
 
     this.state.statusMessage = venue
-      ? `Stepped back onto the cobblestones outside ${venue.name}.`
-      : 'Stepped back outside onto Lisboa streets.';
+      ? `Stepped back onto the sidewalk outside ${venue.name}.`
+      : 'Stepped back outside onto Lisboa sidewalks.';
     return { ok: true, venue, state: this.state };
   }
 
@@ -943,17 +1195,18 @@ export class MemoriesGameEngine {
       if (!waitIfApproaching) {
         return { ok: false, error: `${line.name} has not reached ${stop.stopName} yet.`, state: this.state };
       }
-      // Gently advance vehicle to this stop as if waiting a few minutes at the shelter
       vehicle.x = stop.x;
       vehicle.y = stop.y;
       vehicle.waypointIndex = stop.waypointIndex;
       vehicle.currentStopId = stop.stopId;
       vehicle.currentStopName = stop.stopName;
       vehicle.dwellRemaining = 1.2;
+      vehicle.yielding = false;
       vehicle.nextStopName = findUpcomingStopName(line, vehicle.waypointIndex, vehicle.direction);
       this.advanceMinutes(7);
     }
 
+    this.state.activeMetroStationId = null;
     this.state.euros = roundMoney(this.state.euros - line.fareEur);
     this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + line.fareEur);
     if (line.mode === 'tram') {
@@ -1004,18 +1257,17 @@ export class MemoriesGameEngine {
       this.state.ridingVehicleId = null;
       this.state.alightAtNextStop = false;
       this.state.player.x = stop ? stop.platformX : vehicle.x;
-      this.state.player.y = stop ? stop.platformY : vehicle.y - 36;
+      this.state.player.y = stop ? stop.platformY : vehicle.y - 44;
       this.state.player.overworldX = this.state.player.x;
       this.state.player.overworldY = this.state.player.y;
       this.updateNeighborhoodTracking();
 
-      this.state.statusMessage = `Stepped off ${line.name} at ${stop ? stop.stopName : 'stop'}.`;
+      this.state.statusMessage = `Stepped off ${line.name} onto the sidewalk at ${stop ? stop.stopName : 'stop'}.`;
       recordLog(this.state, 'transit', `Alighted from ${line.name} at ${stop ? stop.stopName : 'stop'}.`);
       return { ok: true, alighted: true, stop, state: this.state };
     }
 
     if (immediateToNextStop) {
-      // Advance cleanly to the next stop on the route
       let guard = 0;
       while (!vehicle.currentStopId && guard < 120) {
         const step = getNextWaypointIndex(line, vehicle.waypointIndex, vehicle.direction);
@@ -1037,7 +1289,7 @@ export class MemoriesGameEngine {
     }
 
     this.state.alightAtNextStop = true;
-    this.state.statusMessage = `Bell rung aboard ${line.name}. You will step out automatically at ${vehicle.nextStopName}.`;
+    this.state.statusMessage = `Bell rung aboard ${line.name}. You will step out onto the sidewalk at ${vehicle.nextStopName}.`;
     return { ok: true, alighted: false, queuedStop: vehicle.nextStopName, state: this.state };
   }
 
@@ -1050,6 +1302,7 @@ export class MemoriesGameEngine {
       return { ok: false, error: `Unknown rest spot: ${spotId}` };
     }
 
+    this.state.activeMetroStationId = null;
     this.state.energy = clamp(this.state.energy + 30, 0, 100);
     this.state.stats.restsTaken += 1;
     this.advanceMinutes(25);
@@ -1076,6 +1329,7 @@ export class MemoriesGameEngine {
     if (this.state.mode === 'interior') {
       this.exitVenue();
     }
+    this.state.activeMetroStationId = null;
 
     let paid = 0;
     if (this.state.euros >= OVERNIGHT_COST_EUR) {
@@ -1110,8 +1364,4 @@ export class MemoriesGameEngine {
       state: this.state
     };
   }
-}
-
-function stateRef(state) {
-  return state;
 }

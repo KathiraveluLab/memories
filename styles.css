@@ -300,12 +300,12 @@ h1, h2, h3, h4, p {
 .legend-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 10px;
   margin-top: 10px;
   padding: 8px 10px;
   background: var(--bg-subtle);
   border-radius: var(--radius-sm);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   color: var(--ink-primary);
 }
 
@@ -325,6 +325,7 @@ h1, h2, h3, h4, p {
 
 .swatch-tram { background: #e6a817; }
 .swatch-bus { background: #1b7a5c; }
+.swatch-metro { background: #c81e32; }
 .swatch-cafe { background: #b84a32; }
 .swatch-shop { background: #1b4d89; }
 .swatch-bench { background: #8b5a34; }

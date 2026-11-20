@@ -6,7 +6,9 @@ import {
   WATERFRONT_Y,
   NEIGHBORHOODS,
   STREETS,
+  CROSSWALKS,
   DECORATIVE_STRUCTURES,
+  METRO_STATIONS,
   VENUES,
   REST_SPOTS,
   TRANSIT_LINES,
@@ -30,18 +32,6 @@ function drawRoundedRect(ctx, x, y, w, h, r = 6) {
   ctx.arcTo(x, y, x + w, y, radius);
   ctx.closePath();
 }
-
-const VENUE_ARCHITECTURAL_STYLE = {
-  'quiosque-sao-pedro': { wallStyle: 'pombaline-teal', shutter: '#1b4f3e', flowers: '#d94854', chimney: false },
-  'tasca-do-fado': { wallStyle: 'ochre-plaster', shutter: '#6e231c', flowers: '#c93434', chimney: true },
-  'vinil-do-alto': { wallStyle: 'rose-plaster', shutter: '#3b2e5a', flowers: '#c94c7a', chimney: true },
-  'livraria-chiado': { wallStyle: 'cobalt-azulejo', shutter: '#16385b', flowers: '#d14334', chimney: false },
-  'cafe-do-poeta': { wallStyle: 'ochre-azulejo', shutter: '#5a3a18', flowers: '#d94c3d', chimney: true },
-  'atelier-cortica': { wallStyle: 'pombaline-teal', shutter: '#5e351e', flowers: '#cf5636', chimney: false },
-  'oficina-azulejos': { wallStyle: 'cobalt-azulejo', shutter: '#143c69', flowers: '#d94854', chimney: true },
-  'taberna-sardinha': { wallStyle: 'ochre-plaster', shutter: '#1d568a', flowers: '#e04f3e', chimney: true },
-  'conservas-alfama': { wallStyle: 'cobalt-azulejo', shutter: '#165248', flowers: '#d94854', chimney: false }
-};
 
 export class LisboaCanvasRenderer {
   constructor(canvas) {
@@ -86,16 +76,13 @@ export class LisboaCanvasRenderer {
           const sw = w - 2;
           const sh = stoneH - 2;
 
-          // Draw wrapped stone so tile repeats seamlessly
           for (const wrapX of [sx, sx - size, sx + size]) {
             if (wrapX + sw < 0 || wrapX > size) continue;
             drawRoundedRect(tctx, wrapX, sy, sw, sh, 2.5);
             tctx.fillStyle = color;
             tctx.fill();
-            // Sunlit top bevel highlight
             tctx.fillStyle = 'rgba(255, 252, 245, 0.24)';
             tctx.fillRect(wrapX + 1.5, sy + 1, Math.max(2, sw - 3), 2);
-            // Subtle bottom stone shadow
             tctx.fillStyle = 'rgba(35, 32, 28, 0.14)';
             tctx.fillRect(wrapX + 1.5, sy + sh - 2, Math.max(2, sw - 3), 1.5);
           }
@@ -183,25 +170,24 @@ export class LisboaCanvasRenderer {
     ctx.save();
     ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
 
-    // 1. Limestone neighborhood base ground
+    // 1. Limestone neighborhood base ground + sidewalk calcada cobblestones
     for (const hood of NEIGHBORHOODS) {
       ctx.fillStyle = hood.groundTint;
       ctx.fillRect(hood.minX, 0, hood.maxX - hood.minX, WATERFRONT_Y);
     }
-
-    // Subtle Lisbon calcada limestone masonry texture
     this.drawCalcadaGroundTexture(ctx);
 
-    // 2. Streets, plazas, Alfama escadinhas, and calcada Mar Largo waves
+    // 2. Streets, plazas, Alfama escadinhas, crosswalks, and calcada Mar Largo waves
     this.drawStreetsAndPlazas(ctx);
+    this.drawCrosswalks(ctx);
 
-    // 3. Tagus River Waterfront with stone parapet and sailboats
+    // 3. Tagus River Waterfront
     this.drawTagusWaterfront(ctx);
 
     // 4. Transit corridors (Bus road markings + Steel Tram 28E Rails)
     this.drawTransitInfrastructure(ctx);
 
-    // 5. Enamel Lisbon street plaques (Placas Toponimicas)
+    // 5. Enamel Lisbon street plaques
     this.drawLisbonStreetPlaques(ctx);
 
     // 6. Jacaranda trees, bougainvillea pergolas, and tiled miradouro benches
@@ -212,23 +198,31 @@ export class LisboaCanvasRenderer {
       this.drawDecorativeStructure(ctx, struct, isEvening);
     }
 
-    // 8. Enterable Shops, Cafes & Restaurants with azulejos and Pombaline facades
+    // 8. Authentic Lisbon Metro Stations (only where actually available: Baixa-Chiado, Terreiro do Paco, Santa Apolonia)
+    for (const station of METRO_STATIONS) {
+      const isHighlighted =
+        (nearbyInteraction?.type === 'metro' && nearbyInteraction.id === station.id) ||
+        state.activeMetroStationId === station.id;
+      this.drawMetroStation(ctx, station, isHighlighted, isEvening);
+    }
+
+    // 9. Bespoke Enterable Shops, Cafes & Restaurants
     for (const venue of VENUES) {
       const visited = state.visitedVenues.includes(venue.id);
       const isHighlighted = nearbyInteraction?.type === 'venue' && nearbyInteraction.id === venue.id;
       this.drawVenueBuilding(ctx, venue, visited, isHighlighted, isEvening);
     }
 
-    // 9. Transit Stops
+    // 10. Sidewalk Transit Stops
     for (const stop of ALL_STOPS) {
       const isHighlighted = nearbyInteraction?.type === 'stop' && nearbyInteraction.id === stop.stopId;
       this.drawTransitStop(ctx, stop, isHighlighted, isEvening);
     }
 
-    // 10. Classic wrought-iron Lisbon streetlamps (Candeeiros)
+    // 11. Classic wrought-iron Lisbon streetlamps
     this.drawLisbonStreetlamps(ctx, isEvening, isGolden);
 
-    // 11. Walk Target Indicator
+    // 12. Walk Target Indicator
     if (state.player.walkTarget) {
       const pulse = 8 + Math.sin(this.animTime * 6) * 3;
       ctx.strokeStyle = '#1b4d89';
@@ -238,12 +232,12 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // 12. Ambient Lisbon Locals
+    // 13. Ambient Lisbon Locals (walking safely on sidewalks and plazas)
     for (const npc of state.npcs) {
       this.drawCharacterSprite(ctx, npc.x, npc.y, {
         facing: npc.patrolAxis === 'x' ? (npc.dir > 0 ? 'right' : 'left') : (npc.dir > 0 ? 'down' : 'up'),
         walkPhase: npc.walkPhase,
-        isMoving: true,
+        isMoving: npc.isMoving !== false,
         tunicColor: npc.shirt,
         scarfColor: '#e6dcc8',
         hairColor: npc.hair,
@@ -251,13 +245,13 @@ export class LisboaCanvasRenderer {
       });
     }
 
-    // 13. Live Transit Vehicles (Remodelado Tram 28E & Carris Bus)
+    // 14. Live Transit Vehicles (Remodelado Tram 28E & Carris Bus)
     for (const vehicle of state.vehicles) {
       const playerAboard = state.ridingVehicleId === vehicle.id;
       this.drawTransitVehicle(ctx, vehicle, playerAboard, isEvening);
     }
 
-    // 14. Player Character (when walking on foot)
+    // 15. Player Character (when walking on foot)
     if (!state.ridingVehicleId) {
       this.drawCharacterSprite(ctx, state.player.x, state.player.y, {
         facing: state.player.facing,
@@ -272,13 +266,13 @@ export class LisboaCanvasRenderer {
 
     ctx.restore();
 
-    // 15. Time-of-day atmospheric lighting wash
+    // 16. Time-of-day atmospheric lighting wash
     this.drawTimeOfDayOverlay(ctx, phase);
 
-    // 16. Mini-map HUD overlay inside top-right corner
+    // 17. Mini-map HUD overlay inside top-right corner
     this.drawMiniMap(ctx, state);
 
-    // 17. Floating Context Interaction Prompt at bottom-center
+    // 18. Floating Context Interaction Prompt at bottom-center
     if (nearbyInteraction) {
       this.drawInteractionBanner(ctx, nearbyInteraction);
     }
@@ -319,34 +313,31 @@ export class LisboaCanvasRenderer {
 
   drawStreetsAndPlazas(ctx) {
     const drawCurb = (x, y, w, h) => {
-      ctx.strokeStyle = '#d6cebf';
+      ctx.strokeStyle = '#dfd7c8';
       ctx.lineWidth = 4;
       ctx.strokeRect(x, y, w, h);
-      ctx.strokeStyle = '#7e766b';
+      ctx.strokeStyle = '#7b7368';
       ctx.lineWidth = 1.4;
       ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
     };
 
     for (const st of STREETS) {
       if (st.style === 'bus-road') {
-        // Limestone sidewalk band + interlocking basalt cobblestone roadway
         ctx.fillStyle = this.patterns.sidewalk || '#ddd6c8';
         ctx.fillRect(st.x, st.y, st.w, st.h);
         ctx.fillStyle = this.patterns.street || '#a69f95';
-        ctx.fillRect(st.x + 10, st.y + 12, st.w - 20, st.h - 24);
-        drawCurb(st.x + 10, st.y + 12, st.w - 20, st.h - 24);
+        ctx.fillRect(st.x + 10, st.y + 18, st.w - 20, st.h - 36);
+        drawCurb(st.x + 10, st.y + 18, st.w - 20, st.h - 36);
       } else if (st.style === 'tram-avenue') {
         ctx.fillStyle = this.patterns.sidewalk || '#e0d9cb';
         ctx.fillRect(st.x, st.y, st.w, st.h);
         ctx.fillStyle = this.patterns.street || '#aba49a';
-        ctx.fillRect(st.x + 6, st.y + 16, st.w - 12, st.h - 32);
-        drawCurb(st.x + 6, st.y + 16, st.w - 12, st.h - 32);
+        ctx.fillRect(st.x + 6, st.y + 22, st.w - 12, st.h - 44);
+        drawCurb(st.x + 6, st.y + 22, st.w - 12, st.h - 44);
       } else if (st.style === 'plaza') {
-        // Praca Luis de Camoes iconic Mar Largo black-and-white calcada portuguesa
         ctx.fillStyle = this.patterns.plaza || '#ede7db';
         ctx.fillRect(st.x, st.y, st.w, st.h);
 
-        // Decorative basalt border trim
         ctx.strokeStyle = '#3b424c';
         ctx.lineWidth = 3;
         ctx.strokeRect(st.x + 4, st.y + 4, st.w - 8, st.h - 8);
@@ -354,7 +345,6 @@ export class LisboaCanvasRenderer {
         ctx.lineWidth = 1;
         ctx.strokeRect(st.x + 9, st.y + 9, st.w - 18, st.h - 18);
 
-        // Alternating black basalt wave mosaic bands (Mar Largo)
         for (let wy = st.y + 22; wy < st.y + st.h - 18; wy += 24) {
           ctx.fillStyle = 'rgba(46, 54, 66, 0.34)';
           ctx.beginPath();
@@ -371,16 +361,14 @@ export class LisboaCanvasRenderer {
           ctx.fill();
         }
       } else {
-        // Historic Lisbon cobbled lanes (Rua da Rosa, Rua do Carmo, Escadinhas da Se)
         ctx.fillStyle = this.patterns.sidewalk || '#dcd4c5';
         ctx.fillRect(st.x, st.y, st.w, st.h);
         ctx.fillStyle = this.patterns.street || '#b2aba0';
-        ctx.globalAlpha = 0.72;
-        ctx.fillRect(st.x + 8, st.y + 4, st.w - 16, st.h - 8);
+        ctx.globalAlpha = 0.65;
+        ctx.fillRect(st.x + 10, st.y + 4, st.w - 20, st.h - 8);
         ctx.globalAlpha = 1;
-        drawCurb(st.x + 8, st.y + 4, st.w - 16, st.h - 8);
+        drawCurb(st.x + 10, st.y + 4, st.w - 20, st.h - 8);
 
-        // Alfama limestone steps (Escadinhas da Se)
         if (st.id === 'st-se') {
           for (let sy = 365; sy < 530; sy += 14) {
             ctx.fillStyle = sy % 28 === 0 ? '#cfc6b6' : '#e3dccd';
@@ -393,8 +381,17 @@ export class LisboaCanvasRenderer {
     }
   }
 
+  drawCrosswalks(ctx) {
+    // Crisp white limestone Lisbon zebra crosswalk bars at pedestrian crossings
+    ctx.fillStyle = 'rgba(248, 244, 236, 0.82)';
+    for (const cw of CROSSWALKS) {
+      for (let sx = cw.x + 3; sx < cw.x + cw.w - 4; sx += 11) {
+        ctx.fillRect(sx, cw.y + 4, 6, cw.h - 8);
+      }
+    }
+  }
+
   drawTagusWaterfront(ctx) {
-    // Classic Ribeira limestone balustrade & azulejo quay trim
     ctx.fillStyle = '#d5ccbc';
     ctx.fillRect(0, WATERFRONT_Y - 18, WORLD_WIDTH, 18);
     ctx.fillStyle = '#1b4d89';
@@ -404,7 +401,6 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = '#8b8274';
     ctx.fillRect(0, WATERFRONT_Y - 4, WORLD_WIDTH, 5);
 
-    // Stone bollards along the Tagus promenade
     for (let bx = 60; bx < WORLD_WIDTH - 40; bx += 110) {
       ctx.fillStyle = '#a89f8e';
       ctx.fillRect(bx - 5, WATERFRONT_Y - 16, 10, 12);
@@ -412,7 +408,6 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(bx - 4, WATERFRONT_Y - 16, 8, 4);
     }
 
-    // Tagus estuary water
     const grad = ctx.createLinearGradient(0, WATERFRONT_Y, 0, WORLD_HEIGHT);
     grad.addColorStop(0, '#2a6f97');
     grad.addColorStop(0.55, '#1e5b82');
@@ -420,7 +415,6 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = grad;
     ctx.fillRect(0, WATERFRONT_Y, WORLD_WIDTH, WORLD_HEIGHT - WATERFRONT_Y);
 
-    // Animated river ripples
     ctx.strokeStyle = 'rgba(218, 240, 255, 0.28)';
     ctx.lineWidth = 2;
     for (let row = 0; row < 4; row += 1) {
@@ -434,7 +428,6 @@ export class LisboaCanvasRenderer {
       }
     }
 
-    // Traditional Tagus fragata sailboats with terracotta lateen sails
     const boats = [520, 1280, 1980];
     for (let i = 0; i < boats.length; i += 1) {
       const bx = boats[i] + Math.sin(this.animTime * 0.4 + i * 2) * 16;
@@ -463,7 +456,6 @@ export class LisboaCanvasRenderer {
   }
 
   drawTransitInfrastructure(ctx) {
-    // Bus 737/758 loop lane centerlines
     const busLine = TRANSIT_LINES.find((l) => l.mode === 'bus');
     if (busLine) {
       ctx.save();
@@ -480,7 +472,6 @@ export class LisboaCanvasRenderer {
       ctx.restore();
     }
 
-    // Tram 28E twin steel rails inlaid into basalt cobblestones along y = 610
     const tramY = 610;
     ctx.strokeStyle = 'rgba(72, 66, 58, 0.34)';
     ctx.lineWidth = 2;
@@ -498,7 +489,6 @@ export class LisboaCanvasRenderer {
     ctx.moveTo(195, tramY + 7);
     ctx.lineTo(2205, tramY + 7);
     ctx.stroke();
-    // Subtle metallic sheen on top rail edge
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
@@ -508,7 +498,6 @@ export class LisboaCanvasRenderer {
   }
 
   drawLisbonStreetPlaques(ctx) {
-    // Authentic white-and-cobalt Lisbon limestone street plaques (Placas Toponimicas)
     const plaques = [
       { title: 'BAIRRO ALTO', sub: 'RUA DA ROSA', x: 340, y: 358 },
       { title: 'CHIADO', sub: 'PRACA LUIS DE CAMOES', x: 950, y: 358 },
@@ -521,12 +510,10 @@ export class LisboaCanvasRenderer {
       const px = p.x - w / 2;
       const py = p.y - h / 2;
 
-      // Shadow
       ctx.fillStyle = 'rgba(18, 28, 42, 0.16)';
       drawRoundedRect(ctx, px + 2, py + 2, w, h, 4);
       ctx.fill();
 
-      // White glazed ceramic plaque with double cobalt azulejo border
       ctx.fillStyle = '#faf8f3';
       drawRoundedRect(ctx, px, py, w, h, 4);
       ctx.fill();
@@ -538,7 +525,6 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1;
       ctx.strokeRect(px + 3, py + 3, w - 6, h - 6);
 
-      // Corner cobalt dots
       ctx.fillStyle = '#1b4d89';
       ctx.fillRect(px + 4, py + 4, 3, 3);
       ctx.fillRect(px + w - 7, py + 4, 3, 3);
@@ -557,7 +543,6 @@ export class LisboaCanvasRenderer {
   }
 
   drawTreesAndBenches(ctx, state) {
-    // Lisbon Jacaranda (violet blossoms), Mediterranean cypress & olive trees
     const trees = [
       { x: 482, y: 125, c: '#7a58ab', highlight: '#b093dc' },
       { x: 545, y: 125, c: '#7a58ab', highlight: '#b093dc' },
@@ -590,11 +575,9 @@ export class LisboaCanvasRenderer {
       ctx.fill();
     }
 
-    // Free Miradouro Azulejo-Trimmed Rest Benches + Santa Luzia Bougainvillea Pergola
     for (const spot of REST_SPOTS) {
       const captured = state.memories.some((m) => m.id === spot.memory.id);
 
-      // Decorative limestone & cobalt tile miradouro backing wall
       ctx.fillStyle = '#f2eee6';
       drawRoundedRect(ctx, spot.x - 32, spot.y - 18, 64, 12, 3);
       ctx.fill();
@@ -602,13 +585,11 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Cobalt azulejo tile accents along miradouro wall
       ctx.fillStyle = '#1b4d89';
       for (let tx = spot.x - 26; tx <= spot.x + 20; tx += 12) {
         ctx.fillRect(tx, spot.y - 15, 6, 6);
       }
 
-      // Bougainvillea vines on Alfama & Bairro Alto miradouros
       if (spot.id !== 'bench-chiado') {
         ctx.fillStyle = '#be2f6c';
         ctx.beginPath();
@@ -622,7 +603,6 @@ export class LisboaCanvasRenderer {
         ctx.fill();
       }
 
-      // Bench shadow + slatted timber bench
       ctx.fillStyle = 'rgba(25, 30, 35, 0.2)';
       ctx.fillRect(spot.x - 22, spot.y - 3, 44, 15);
 
@@ -650,9 +630,95 @@ export class LisboaCanvasRenderer {
     }
   }
 
+  drawMetroStation(ctx, station, isHighlighted, isEvening) {
+    // Authentic Metropolitano de Lisboa street entrance: stone stair canopy + red/white M mast
+    ctx.save();
+
+    if (isHighlighted) {
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3.5;
+      drawRoundedRect(ctx, station.x - 5, station.y - 5, station.w + 10, station.h + 10, 7);
+      ctx.stroke();
+    }
+
+    // Drop shadow
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.24)';
+    drawRoundedRect(ctx, station.x + 4, station.y + 5, station.w, station.h, 5);
+    ctx.fill();
+
+    // Limestone & steel headhouse / stairwell enclosure
+    ctx.fillStyle = '#e5dfd3';
+    drawRoundedRect(ctx, station.x, station.y, station.w, station.h, 5);
+    ctx.fill();
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // Descending escalator steps inside glazed canopy
+    const innerX = station.x + 7;
+    const innerY = station.y + 8;
+    const innerW = station.w - 14;
+    const innerH = Math.max(10, station.h - 14);
+    ctx.fillStyle = isEvening ? '#1e3a5f' : '#324a66';
+    ctx.fillRect(innerX, innerY, innerW, innerH);
+
+    // Subtle descending staircase treads
+    ctx.strokeStyle = 'rgba(203, 213, 225, 0.45)';
+    ctx.lineWidth = 1;
+    for (let sy = innerY + 4; sy < innerY + innerH - 2; sy += 5) {
+      ctx.beginPath();
+      ctx.moveTo(innerX + 3, sy);
+      ctx.lineTo(innerX + innerW - 3, sy);
+      ctx.stroke();
+    }
+
+    // Blue glazed glass canopy roof highlight
+    ctx.fillStyle = 'rgba(125, 211, 252, 0.28)';
+    ctx.fillRect(innerX, innerY, innerW, Math.min(18, innerH));
+
+    // Iconic Lisbon Metro crimson-and-white "M" totem emblem
+    const mx = station.x + station.w / 2;
+    const my = station.y - 6;
+    ctx.fillStyle = '#c81e32';
+    ctx.beginPath();
+    ctx.arc(mx, my, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 12px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('M', mx, my + 4.2);
+
+    // Line color pills (Linha Azul / Linha Verde)
+    const dotStartX = mx - ((station.lineColors.length - 1) * 7);
+    station.lineColors.forEach((col, i) => {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(dotStartX + i * 14, station.y + station.h - 6, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+
+    // Crisp station name tag
+    const shortName = station.name.replace('Metro ', '');
+    ctx.font = '700 8.5px "Segoe UI", sans-serif';
+    const labelW = ctx.measureText(shortName).width + 10;
+    drawRoundedRect(ctx, mx - labelW / 2, station.y + station.h + 2, labelW, 13, 3);
+    ctx.fillStyle = 'rgba(18, 34, 56, 0.88)';
+    ctx.fill();
+    ctx.fillStyle = '#e0f2fe';
+    ctx.fillText(shortName, mx, station.y + station.h + 11.5);
+
+    ctx.restore();
+  }
+
   drawAzulejoWall(ctx, x, y, w, h, wallStyle) {
     if (wallStyle === 'cobalt-azulejo') {
-      // Classic 18th-century Lisbon glazed white-and-cobalt ceramic tile facade
       ctx.fillStyle = '#f2f6fb';
       ctx.fillRect(x, y, w, h);
 
@@ -665,7 +731,6 @@ export class LisboaCanvasRenderer {
           const th = Math.min(tile, y + h - ty);
           ctx.strokeRect(tx, ty, tw, th);
           if (tw >= 10 && th >= 10) {
-            // Azulejo cobalt diamond rosette
             const cx = tx + tw / 2;
             const cy = ty + th / 2;
             ctx.fillStyle = '#1d528f';
@@ -676,7 +741,6 @@ export class LisboaCanvasRenderer {
             ctx.lineTo(cx - 3.6, cy);
             ctx.closePath();
             ctx.fill();
-            // White center dot + corner petals
             ctx.fillStyle = '#f2f6fb';
             ctx.fillRect(cx - 1, cy - 1, 2, 2);
             ctx.fillStyle = 'rgba(29, 82, 143, 0.65)';
@@ -687,7 +751,6 @@ export class LisboaCanvasRenderer {
           }
         }
       }
-      // Ornamental cobalt border frieze
       ctx.fillStyle = '#1b4d89';
       ctx.fillRect(x, y, w, 4);
       ctx.fillRect(x, y + h - 4, w, 4);
@@ -695,7 +758,6 @@ export class LisboaCanvasRenderer {
     }
 
     if (wallStyle === 'pombaline-teal') {
-      // 19th-century Chiado emerald/turquoise glazed tile facade
       ctx.fillStyle = '#e7f2ee';
       ctx.fillRect(x, y, w, h);
       const tile = 14;
@@ -723,38 +785,20 @@ export class LisboaCanvasRenderer {
       return;
     }
 
-    if (wallStyle === 'ochre-azulejo') {
-      // Sunlit Chiado golden-ochre & cobalt geometric tilework
-      ctx.fillStyle = '#f6ecd7';
+    if (wallStyle === 'whitewash-alfama') {
+      ctx.fillStyle = '#f8f4ec';
       ctx.fillRect(x, y, w, h);
-      const tile = 14;
-      ctx.strokeStyle = 'rgba(156, 103, 36, 0.24)';
-      ctx.lineWidth = 0.7;
-      for (let ty = y; ty < y + h; ty += tile) {
-        for (let tx = x; tx < x + w; tx += tile) {
-          const tw = Math.min(tile, x + w - tx);
-          const th = Math.min(tile, y + h - ty);
-          ctx.strokeRect(tx, ty, tw, th);
-          if (tw >= 10 && th >= 10) {
-            const cx = tx + tw / 2;
-            const cy = ty + th / 2;
-            ctx.fillStyle = ((tx + ty) / tile) % 2 === 0 ? '#b6781f' : '#245285';
-            ctx.beginPath();
-            ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
-      }
-      ctx.fillStyle = '#245285';
-      ctx.fillRect(x, y, w, 4);
+      // Warm stone base plinth + subtle cobalt trim
+      ctx.fillStyle = '#ddd4c3';
+      ctx.fillRect(x, y + h - 12, w, 12);
+      ctx.fillStyle = '#1d568a';
+      ctx.fillRect(x, y + h - 14, w, 3);
       return;
     }
 
-    // Traditional Portuguese warm lime plaster (ochre or dusty rose) with limestone cantaria quoins
     ctx.fillStyle = wallStyle === 'rose-plaster' ? '#ebd4da' : '#f1dec4';
     ctx.fillRect(x, y, w, h);
 
-    // Subtle limestone corner stone blocks (cantaria quoins)
     ctx.fillStyle = '#e5ddcf';
     ctx.strokeStyle = 'rgba(116, 104, 88, 0.45)';
     ctx.lineWidth = 0.8;
@@ -766,7 +810,6 @@ export class LisboaCanvasRenderer {
       ctx.strokeRect(x + w - qw, qy, qw, 10);
     }
 
-    // Lower cobalt azulejo wainscot band along base of facade
     ctx.fillStyle = '#eef4fa';
     ctx.fillRect(x + 10, y + h - 14, w - 20, 12);
     ctx.fillStyle = '#1b4d89';
@@ -775,15 +818,14 @@ export class LisboaCanvasRenderer {
     }
   }
 
-  drawTerracottaRoof(ctx, x, y, w, h, baseColor, hasChimney = true) {
-    // Base clay-tile roof gradient
+  drawTerracottaRoof(ctx, x, y, w, h, baseColor, opts = {}) {
+    const { hasChimney = true, hasDormers = false } = typeof opts === 'boolean' ? { hasChimney: opts } : opts;
     const grad = ctx.createLinearGradient(x, y, x, y + h);
     grad.addColorStop(0, baseColor);
     grad.addColorStop(1, '#7c2e1c');
     ctx.fillStyle = grad;
     ctx.fillRect(x, y, w, h);
 
-    // Scalloped Portuguese barrel tiles (telha portuguesa)
     ctx.strokeStyle = 'rgba(255, 224, 194, 0.25)';
     ctx.lineWidth = 1.1;
     for (let ry = y + 10; ry < y + h - 4; ry += 11) {
@@ -794,63 +836,83 @@ export class LisboaCanvasRenderer {
       }
     }
 
-    // Ridge beam along crest
     ctx.fillStyle = 'rgba(255, 232, 206, 0.34)';
     ctx.fillRect(x + 4, y + Math.round(h * 0.45), w - 8, 3);
 
-    // Classic Portuguese stone eave cornice (beiral)
+    // Authentic Pombaline roof dormers (aguas-furtadas)
+    if (hasDormers && w >= 160) {
+      const dormerXs = [x + 28, x + w - 46];
+      for (const dx of dormerXs) {
+        ctx.fillStyle = '#e7dfd0';
+        ctx.fillRect(dx, y + h - 22, 18, 17);
+        ctx.fillStyle = '#47627d';
+        ctx.fillRect(dx + 4, y + h - 18, 10, 11);
+        ctx.fillStyle = '#993d27';
+        ctx.beginPath();
+        ctx.moveTo(dx - 3, y + h - 22);
+        ctx.lineTo(dx + 9, y + h - 30);
+        ctx.lineTo(dx + 21, y + h - 22);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
     ctx.fillStyle = '#e7dfd0';
     ctx.fillRect(x, y + h - 4, w, 4);
     ctx.fillStyle = 'rgba(40, 28, 20, 0.28)';
     ctx.fillRect(x, y + h, w, 3);
 
-    // Traditional whitewashed Portuguese chimney with terracotta cap
     if (hasChimney && w >= 150) {
-      const cx = x + w - 28;
-      const cy = y + 7;
+      const cx = x + w - 26;
+      const cy = y + 6;
       ctx.fillStyle = '#f3ede2';
-      ctx.fillRect(cx, cy, 14, 16);
+      ctx.fillRect(cx, cy, 13, 15);
       ctx.strokeStyle = '#9c8e7c';
       ctx.lineWidth = 1;
-      ctx.strokeRect(cx, cy, 14, 16);
+      ctx.strokeRect(cx, cy, 13, 15);
       ctx.fillStyle = '#b4482e';
-      ctx.fillRect(cx - 2, cy - 3, 18, 5);
+      ctx.fillRect(cx - 2, cy - 3, 17, 5);
       ctx.fillStyle = '#334155';
-      ctx.fillRect(cx + 3, cy + 4, 8, 3);
+      ctx.fillRect(cx + 3, cy + 4, 7, 3);
     }
   }
 
   drawLisbonWindow(ctx, wx, wy, ww, wh, opts) {
-    const { isEvening, shutterColor = '#22543d', flowerColor = '#d64545', hasBalcony = true } = opts;
+    const { isEvening, shutterColor = '#22543d', flowerColor = '#d64545', hasBalcony = true, arched = false } = opts;
 
-    // Lioz limestone cantaria window frame
     ctx.fillStyle = '#ebe4d5';
     ctx.fillRect(wx - 4, wy - 4, ww + 8, wh + 8);
     ctx.strokeStyle = '#8b8070';
     ctx.lineWidth = 1;
     ctx.strokeRect(wx - 4, wy - 4, ww + 8, wh + 8);
 
-    // Wooden louvered shutters (portadas)
     ctx.fillStyle = shutterColor;
     ctx.fillRect(wx - 9, wy - 1, 6, wh + 2);
     ctx.fillRect(wx + ww + 3, wy - 1, 6, wh + 2);
 
-    // Glass pane (golden glow in evening, sky blue tint by day)
     ctx.fillStyle = isEvening ? '#ffe285' : '#6c97ba';
-    ctx.fillRect(wx, wy, ww, wh);
-    // White colonial wood muntin bars (6-pane Lisbon sash)
+    if (arched) {
+      ctx.beginPath();
+      ctx.arc(wx + ww / 2, wy + ww / 2, ww / 2, Math.PI, 0);
+      ctx.lineTo(wx + ww, wy + wh);
+      ctx.lineTo(wx, wy + wh);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillRect(wx, wy, ww, wh);
+    }
+
     ctx.strokeStyle = '#f5f2eb';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(wx + ww / 2, wy);
     ctx.lineTo(wx + ww / 2, wy + wh);
-    ctx.moveTo(wx, wy + wh * 0.36);
-    ctx.lineTo(wx + ww, wy + wh * 0.36);
-    ctx.moveTo(wx, wy + wh * 0.7);
-    ctx.lineTo(wx + ww, wy + wh * 0.7);
+    ctx.moveTo(wx, wy + wh * 0.4);
+    ctx.lineTo(wx + ww, wy + wh * 0.4);
+    ctx.moveTo(wx, wy + wh * 0.72);
+    ctx.lineTo(wx + ww, wy + wh * 0.72);
     ctx.stroke();
 
-    // Wrought-iron Juliet balcony railing + terracotta geranium pot
     if (hasBalcony) {
       const by = wy + wh - 5;
       ctx.strokeStyle = '#222a35';
@@ -862,7 +924,6 @@ export class LisboaCanvasRenderer {
         ctx.lineTo(bx, by + 11);
         ctx.stroke();
       }
-      // Tiny terracotta planter with red geranium blooms
       ctx.fillStyle = '#b95534';
       ctx.fillRect(wx + ww / 2 - 6, by + 4, 12, 5);
       ctx.fillStyle = '#2f7a49';
@@ -874,7 +935,6 @@ export class LisboaCanvasRenderer {
   }
 
   drawDecorativeStructure(ctx, struct, isEvening) {
-    // Drop shadow
     ctx.fillStyle = 'rgba(20, 26, 36, 0.2)';
     ctx.fillRect(struct.x + 7, struct.y + 9, struct.w, struct.h);
 
@@ -882,7 +942,6 @@ export class LisboaCanvasRenderer {
       const cx = struct.x + struct.w / 2;
       const cy = struct.y + struct.h / 2;
 
-      // 16-point calcada compass rose inlaid around Camoes statue
       ctx.fillStyle = '#f0eadc';
       ctx.beginPath();
       ctx.arc(cx, cy, 32, 0, Math.PI * 2);
@@ -903,7 +962,6 @@ export class LisboaCanvasRenderer {
         ctx.fill();
       }
 
-      // Octagonal lioz limestone plinth + bronze poet statue
       ctx.fillStyle = '#ded7c7';
       drawRoundedRect(ctx, struct.x + 10, struct.y + 10, struct.w - 20, struct.h - 20, 5);
       ctx.fill();
@@ -929,11 +987,9 @@ export class LisboaCanvasRenderer {
     }
 
     if (struct.style === 'cathedral') {
-      // Se de Lisboa (Lisbon Cathedral) - Romanesque limestone fortress towers & rose window
       ctx.fillStyle = '#ddd5c5';
       ctx.fillRect(struct.x, struct.y, struct.w, struct.h);
 
-      // Ashlar limestone stone masonry joints
       ctx.strokeStyle = 'rgba(98, 88, 72, 0.25)';
       ctx.lineWidth = 1;
       for (let sy = struct.y + 12; sy < struct.y + struct.h; sy += 14) {
@@ -943,10 +999,8 @@ export class LisboaCanvasRenderer {
         ctx.stroke();
       }
 
-      // Central nave roof
       this.drawTerracottaRoof(ctx, struct.x + 48, struct.y + 6, struct.w - 96, 42, '#9d4c36', false);
 
-      // Twin Romanesque square bell towers with fortress battlements (ameias)
       const towerXs = [struct.x + 6, struct.x + struct.w - 50];
       for (const tx of towerXs) {
         ctx.fillStyle = '#d3cab7';
@@ -955,14 +1009,12 @@ export class LisboaCanvasRenderer {
         ctx.lineWidth = 1.6;
         ctx.strokeRect(tx, struct.y - 12, 44, struct.h + 10);
 
-        // Crenellations / battlements at tower tops
         ctx.fillStyle = '#e5ded0';
         for (let bx = tx + 2; bx < tx + 40; bx += 11) {
           ctx.fillRect(bx, struct.y - 18, 7, 7);
           ctx.strokeRect(bx, struct.y - 18, 7, 7);
         }
 
-        // Arched belfry window with bronze bell
         ctx.fillStyle = '#3c362e';
         ctx.beginPath();
         ctx.arc(tx + 22, struct.y + 22, 10, Math.PI, 0);
@@ -976,7 +1028,6 @@ export class LisboaCanvasRenderer {
         ctx.fill();
       }
 
-      // Spoked stained-glass rose window
       const rcx = struct.x + struct.w / 2;
       const rcy = struct.y + 78;
       ctx.fillStyle = isEvening ? '#f7ce65' : '#2f5885';
@@ -997,7 +1048,6 @@ export class LisboaCanvasRenderer {
         ctx.stroke();
       }
 
-      // Triple-recessed Gothic entrance portal arch
       ctx.fillStyle = '#625647';
       ctx.beginPath();
       ctx.arc(rcx, struct.y + struct.h - 22, 20, Math.PI, 0);
@@ -1013,7 +1063,6 @@ export class LisboaCanvasRenderer {
       ctx.closePath();
       ctx.fill();
 
-      // Label plaque
       drawRoundedRect(ctx, rcx - 46, struct.y + 12, 92, 18, 4);
       ctx.fillStyle = 'rgba(24, 34, 48, 0.8)';
       ctx.fill();
@@ -1025,33 +1074,57 @@ export class LisboaCanvasRenderer {
       return;
     }
 
-    // Pombaline & Bairro Alto Townhouses with Azulejo / Plaster + Barrel Roof + Juliet Balconies
     const roofH = Math.round(struct.h * 0.42);
     const wallStyle =
-    struct.style === 'azulejo' || struct.id === 'house-chiado-south'
-      ? 'cobalt-azulejo'
+      struct.style === 'azulejo' || struct.style === 'arcaded-azulejo'
+        ? 'cobalt-azulejo'
         : struct.id === 'house-ba-mid'
-      ? 'rose-plaster'
-      : 'ochre-plaster';
+          ? 'rose-plaster'
+          : 'ochre-plaster';
 
     this.drawAzulejoWall(ctx, struct.x, struct.y + roofH - 2, struct.w, struct.h - roofH + 2, wallStyle);
-    this.drawTerracottaRoof(ctx, struct.x - 3, struct.y - 3, struct.w + 6, roofH, struct.roofColor, true);
+    this.drawTerracottaRoof(ctx, struct.x - 3, struct.y - 3, struct.w + 6, roofH, struct.roofColor, {
+      hasChimney: true,
+      hasDormers: true
+    });
 
-    // Lisbon balcony windows with louvered shutters and geranium pots
-    const cols = Math.max(3, Math.floor((struct.w - 28) / 48));
-    const step = (struct.w - 34) / cols;
-    for (let i = 0; i < cols; i += 1) {
-      const wx = struct.x + 22 + i * step;
-      const wy = struct.y + roofH + 16;
-      this.drawLisbonWindow(ctx, wx, wy, 20, 30, {
-        isEvening,
-        shutterColor: struct.trimColor,
-        flowerColor: i % 2 === 0 ? '#d94854' : '#e07a32',
-        hasBalcony: true
-      });
+    if (struct.style === 'arcaded-azulejo') {
+      // Authentic Pombaline arched stone arcades (Arcadas do Chiado) along lower facade
+      const arches = 4;
+      const span = (struct.w - 24) / arches;
+      for (let i = 0; i < arches; i += 1) {
+        const ax = struct.x + 12 + i * span + span / 2;
+        const ay = struct.y + roofH + 34;
+        ctx.fillStyle = '#e5ded0';
+        ctx.beginPath();
+        ctx.arc(ax, ay, 16, Math.PI, 0);
+        ctx.lineTo(ax + 16, struct.y + struct.h);
+        ctx.lineTo(ax - 16, struct.y + struct.h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = isEvening ? '#e5bd67' : '#3a4f66';
+        ctx.beginPath();
+        ctx.arc(ax, ay + 2, 11, Math.PI, 0);
+        ctx.lineTo(ax + 11, struct.y + struct.h - 2);
+        ctx.lineTo(ax - 11, struct.y + struct.h - 2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else {
+      const cols = Math.max(3, Math.floor((struct.w - 28) / 48));
+      const step = (struct.w - 34) / cols;
+      for (let i = 0; i < cols; i += 1) {
+        const wx = struct.x + 22 + i * step;
+        const wy = struct.y + roofH + 16;
+        this.drawLisbonWindow(ctx, wx, wy, 20, 30, {
+          isEvening,
+          shutterColor: struct.trimColor,
+          flowerColor: i % 2 === 0 ? '#d94854' : '#e07a32',
+          hasBalcony: true
+        });
+      }
     }
 
-    // Subtle Bairro Alto laundry bunting strung across balconies on Casas da Rosa
     if (struct.id === 'house-ba-mid') {
       ctx.strokeStyle = 'rgba(60, 50, 44, 0.45)';
       ctx.lineWidth = 1;
@@ -1073,24 +1146,26 @@ export class LisboaCanvasRenderer {
 
     ctx.font = '600 9.5px Georgia, serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255, 250, 240, 0.92)';
-    ctx.fillText(struct.label, struct.x + struct.w / 2, struct.y + 20);
+    ctx.fillStyle = 'rgba(255, 250, 240, 0.94)';
+    ctx.fillText(struct.label, struct.x + struct.w / 2, struct.y + 18);
     ctx.textAlign = 'left';
   }
 
   drawVenueBuilding(ctx, venue, visited, isHighlighted, isEvening) {
-    const arch = VENUE_ARCHITECTURAL_STYLE[venue.id] || {
-      wallStyle: 'cobalt-azulejo',
-      shutter: venue.awningColor,
-      flowers: '#d94854',
-      chimney: true
-    };
+    if (venue.archStyle === 'kiosk') {
+      this.drawQuiosqueBuilding(ctx, venue, visited, isHighlighted, isEvening);
+      return;
+    }
 
-    // Building shadow
+    if (venue.archStyle === 'brasileira') {
+      this.drawBrasileiraBuilding(ctx, venue, visited, isHighlighted, isEvening);
+      return;
+    }
+
+    // Standard bespoke Pombaline / Alfama / Bairro Alto architecture
     ctx.fillStyle = 'rgba(18, 26, 36, 0.24)';
     ctx.fillRect(venue.x + 7, venue.y + 9, venue.w, venue.h);
 
-    // Highlight halo when player approaches doorway
     if (isHighlighted) {
       ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 4;
@@ -1101,12 +1176,24 @@ export class LisboaCanvasRenderer {
     const facadeY = venue.doorSide === 'south' ? venue.y + roofH - 2 : venue.y;
     const facadeH = venue.h - roofH + 2;
 
-    // 1. Azulejo / Portuguese plastered facade
-    this.drawAzulejoWall(ctx, venue.x, facadeY, venue.w, facadeH, arch.wallStyle);
+    const wallStyleMap = {
+      tasca: 'ochre-plaster',
+      'bohemian-shop': 'rose-plaster',
+      bertrand: 'cobalt-azulejo',
+      'chiado-arcade': 'pombaline-teal',
+      'azulejo-atelier': 'cobalt-azulejo',
+      'alfama-taberna': 'whitewash-alfama',
+      mercearia: 'cobalt-azulejo'
+    };
+    const wallStyle = wallStyleMap[venue.archStyle] || 'cobalt-azulejo';
 
-    // 2. Terracotta telha portuguesa roof
+    this.drawAzulejoWall(ctx, venue.x, facadeY, venue.w, facadeH, wallStyle);
+
     if (venue.doorSide === 'south') {
-      this.drawTerracottaRoof(ctx, venue.x - 3, venue.y - 3, venue.w + 6, roofH, venue.roofColor, arch.chimney);
+      this.drawTerracottaRoof(ctx, venue.x - 3, venue.y - 3, venue.w + 6, roofH, venue.roofColor, {
+        hasChimney: venue.archStyle !== 'bertrand',
+        hasDormers: venue.archStyle === 'bertrand' || venue.archStyle === 'azulejo-atelier'
+      });
     } else {
       this.drawTerracottaRoof(
         ctx,
@@ -1115,32 +1202,312 @@ export class LisboaCanvasRenderer {
         venue.w + 6,
         roofH,
         venue.roofColor,
-        arch.chimney
+        { hasChimney: venue.archStyle === 'bohemian-shop', hasDormers: venue.archStyle === 'chiado-arcade' }
       );
     }
 
-    // 3. Detailed Lisbon shuttered windows with wrought-iron balconies & flowers
     const winY = venue.doorSide === 'south' ? venue.y + roofH + 14 : venue.y + 20;
-    this.drawLisbonWindow(ctx, venue.x + 22, winY, 24, 28, {
-      isEvening,
-      shutterColor: arch.shutter,
-      flowerColor: arch.flowers,
-      hasBalcony: true
-    });
-    this.drawLisbonWindow(ctx, venue.x + venue.w - 46, winY, 24, 28, {
-      isEvening,
-      shutterColor: arch.shutter,
-      flowerColor: arch.flowers,
-      hasBalcony: true
+
+    // Bespoke display windows per iconic venue
+    if (venue.archStyle === 'bertrand') {
+      // Livraria Bertrand (1732) oak-framed arched book display bays + 1732 ceramic badge
+      for (const wx of [venue.x + 16, venue.x + venue.w - 58]) {
+        ctx.fillStyle = '#5a3a21';
+        drawRoundedRect(ctx, wx - 3, winY - 2, 46, 36, 5);
+        ctx.fill();
+        ctx.fillStyle = isEvening ? '#fce19a' : '#f4ece0';
+        ctx.fillRect(wx, winY + 2, 40, 29);
+        // Tiny colorful book spines in window bay
+        const books = ['#1b4d89', '#b84a32', '#1f7062', '#c98a18', '#5b3a63'];
+        for (let bi = 0; bi < 5; bi += 1) {
+          ctx.fillStyle = books[bi];
+          ctx.fillRect(wx + 3 + bi * 7, winY + 14, 5, 14);
+        }
+        ctx.fillStyle = '#7c5332';
+        ctx.fillRect(wx, winY + 27, 40, 3);
+      }
+      // 1732 heritage badge above door
+      ctx.fillStyle = '#1b4d89';
+      drawRoundedRect(ctx, venue.doorX - 18, venue.y + roofH + 6, 36, 13, 3);
+      ctx.fill();
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = '700 8.5px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('1732', venue.doorX, venue.y + roofH + 15.5);
+      ctx.textAlign = 'left';
+    } else if (venue.archStyle === 'mercearia') {
+      // Colorful lithograph sardine conservas pyramids inside arched grocer windows
+      for (const wx of [venue.x + 16, venue.x + venue.w - 58]) {
+        ctx.fillStyle = '#15544a';
+        ctx.fillRect(wx - 2, winY - 2, 44, 34);
+        ctx.fillStyle = isEvening ? '#fde69e' : '#faf5e8';
+        ctx.fillRect(wx, winY, 40, 30);
+        const tins = ['#e11d48', '#f59e0b', '#0284c7', '#10b981'];
+        for (let r = 0; r < 2; r += 1) {
+          for (let c = 0; c < 4; c += 1) {
+            ctx.fillStyle = tins[(r + c) % tins.length];
+            ctx.fillRect(wx + 3 + c * 9, winY + 6 + r * 11, 7, 8);
+          }
+        }
+      }
+    } else if (venue.archStyle === 'chiado-arcade') {
+      // Triple limestone Chiado arcade arches on ground floor
+      for (const wx of [venue.x + 22, venue.x + venue.w - 46]) {
+        this.drawLisbonWindow(ctx, wx, winY, 24, 28, {
+          isEvening,
+          shutterColor: '#7a4526',
+          flowerColor: '#cf5636',
+          hasBalcony: true,
+          arched: true
+        });
+      }
+    } else {
+      this.drawLisbonWindow(ctx, venue.x + 22, winY, 24, 28, {
+        isEvening,
+        shutterColor: venue.awningColor,
+        flowerColor: '#d94854',
+        hasBalcony: true,
+        arched: venue.archStyle === 'tasca' || venue.archStyle === 'alfama-taberna'
+      });
+      this.drawLisbonWindow(ctx, venue.x + venue.w - 46, winY, 24, 28, {
+        isEvening,
+        shutterColor: venue.awningColor,
+        flowerColor: '#e07a32',
+        hasBalcony: true,
+        arched: venue.archStyle === 'tasca' || venue.archStyle === 'alfama-taberna'
+      });
+    }
+
+    // Alfama Santos Populares festive flags & glowing charcoal brazier at Taberna da Sardinha
+    if (venue.archStyle === 'alfama-taberna') {
+      const colors = ['#dc2626', '#facc15', '#16a34a', '#2563eb'];
+      for (let i = 0; i < 8; i += 1) {
+        const fx = venue.x + 14 + i * 25;
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.beginPath();
+        ctx.moveTo(fx, venue.y + roofH + 2);
+        ctx.lineTo(fx + 14, venue.y + roofH + 2);
+        ctx.lineTo(fx + 7, venue.y + roofH + 12);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Glowing charcoal grill outside doorway
+      ctx.fillStyle = '#374151';
+      ctx.fillRect(venue.doorX + 26, venue.y + venue.h - 14, 18, 12);
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(venue.doorX + 29, venue.y + venue.h - 12, 12, 5);
+    }
+
+    // Tasca do Fado hanging iron lantern & blue ceramic FADO plaque
+    if (venue.archStyle === 'tasca') {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(venue.doorX + 24, venue.y + roofH + 10, 26, 12);
+      ctx.strokeStyle = '#1b4d89';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(venue.doorX + 24, venue.y + roofH + 10, 26, 12);
+      ctx.fillStyle = '#1b4d89';
+      ctx.font = '700 7.5px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('FADO', venue.doorX + 37, venue.y + roofH + 18.5);
+      ctx.textAlign = 'left';
+    }
+
+    // Arched Portuguese Limestone Doorway + Striped Awning
+    this.drawVenueDoorAndPlaque(ctx, venue, visited, isEvening);
+  }
+
+  drawQuiosqueBuilding(ctx, venue, visited, isHighlighted, isEvening) {
+    // Authentic octagonal green wrought-iron Lisbon garden kiosk (Quiosque de Sao Pedro)
+    const cx = venue.x + venue.w / 2;
+    const cy = venue.y + venue.h / 2 + 4;
+
+    // Garden limestone terrace base with wrought-iron railings
+    ctx.fillStyle = 'rgba(20, 28, 36, 0.2)';
+    drawRoundedRect(ctx, venue.x + 8, venue.y + 10, venue.w - 8, venue.h - 6, 14);
+    ctx.fill();
+
+    if (isHighlighted) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 4;
+      drawRoundedRect(ctx, venue.x - 4, venue.y - 4, venue.w + 8, venue.h + 8, 14);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#e7dfd0';
+    drawRoundedRect(ctx, venue.x + 4, venue.y + 6, venue.w - 8, venue.h - 10, 12);
+    ctx.fill();
+    ctx.strokeStyle = '#245e4f';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Small round outdoor cafe tables flanking the octagon
+    for (const tx of [venue.x + 28, venue.x + venue.w - 28]) {
+      ctx.fillStyle = '#f8f5ef';
+      ctx.beginPath();
+      ctx.arc(tx, cy + 20, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#6c7a89';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+
+    // Octagonal green iron pavilion walls
+    const drawOctagon = (radius, offsetY = 0) => {
+      ctx.beginPath();
+      for (let i = 0; i < 8; i += 1) {
+        const a = (i * Math.PI) / 4 + Math.PI / 8;
+        const ox = cx + Math.cos(a) * radius;
+        const oy = cy + offsetY + Math.sin(a) * (radius * 0.78);
+        if (i === 0) ctx.moveTo(ox, oy);
+        else ctx.lineTo(ox, oy);
+      }
+      ctx.closePath();
+    };
+
+    drawOctagon(54, 8);
+    ctx.fillStyle = '#1f5446';
+    ctx.fill();
+    ctx.strokeStyle = '#0f332a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Warm serving counter windows around front of kiosk
+    ctx.fillStyle = isEvening ? '#ffe394' : '#f7e4b2';
+    ctx.fillRect(cx - 26, cy + 20, 52, 24);
+    ctx.strokeStyle = '#143b31';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 26, cy + 20, 52, 24);
+
+    // Ornate domed wrought-iron Lisbon kiosk cupola roof
+    drawOctagon(58, -10);
+    const roofGrad = ctx.createRadialGradient(cx - 10, cy - 22, 6, cx, cy - 10, 58);
+    roofGrad.addColorStop(0, '#44917b');
+    roofGrad.addColorStop(1, '#1a493d');
+    ctx.fillStyle = roofGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#d1fae5';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // Central brass spire finial
+    ctx.fillStyle = '#eab308';
+    ctx.beginPath();
+    ctx.arc(cx, cy - 12, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Door step spill glow
+    ctx.fillStyle = 'rgba(255, 212, 108, 0.34)';
+    ctx.beginPath();
+    ctx.ellipse(venue.doorX, venue.doorY + 10, 26, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Plaque
+    const plaqueW = 168;
+    const plaqueH = 29;
+    drawRoundedRect(ctx, cx - plaqueW / 2, venue.y + 8, plaqueW, plaqueH, 5);
+    ctx.fillStyle = 'rgba(18, 42, 36, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = visited ? '#6ee7b7' : '#f3c623';
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+    ctx.font = '700 10.5px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(venue.name, cx, venue.y + 20);
+    ctx.font = '700 8.5px "Segoe UI", sans-serif';
+    ctx.fillStyle = visited ? '#86efac' : '#fde68a';
+    ctx.fillText(visited ? `${venue.badge} VISITED` : `${venue.badge} ENTER`, cx, venue.y + 32);
+    ctx.textAlign = 'left';
+  }
+
+  drawBrasileiraBuilding(ctx, venue, visited, isHighlighted, isEvening) {
+    // Iconic 1905 Art Nouveau Cafe A Brasileira + Bronze Fernando Pessoa seated terrace statue
+    ctx.fillStyle = 'rgba(18, 26, 36, 0.25)';
+    ctx.fillRect(venue.x + 7, venue.y + 9, venue.w, venue.h);
+
+    if (isHighlighted) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(venue.x - 4, venue.y - 4, venue.w + 8, venue.h + 8);
+    }
+
+    const roofH = Math.round(venue.h * 0.38);
+    // Upper stone masonry floor + terracotta roof
+    ctx.fillStyle = '#efe6d5';
+    ctx.fillRect(venue.x, venue.y + roofH - 2, venue.w, venue.h - roofH + 2);
+    this.drawTerracottaRoof(ctx, venue.x - 3, venue.y - 3, venue.w + 6, roofH, '#8d4827', {
+      hasChimney: true,
+      hasDormers: true
     });
 
-    // 4. Arched Portuguese Limestone Doorway + Scalloped Canvas Awning
+    // Ornate dark mahogany & brass Art Nouveau ground storefront
+    const sfY = venue.y + roofH + 14;
+    const sfH = venue.y + venue.h - sfY;
+    ctx.fillStyle = '#3d2417';
+    ctx.fillRect(venue.x + 4, sfY, venue.w - 8, sfH);
+    ctx.strokeStyle = '#d4a337';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(venue.x + 6, sfY + 2, venue.w - 12, sfH - 4);
+
+    // Gilded Art Nouveau curved display windows flanking the central brass doorway
+    for (const wx of [venue.x + 14, venue.x + venue.w - 58]) {
+      ctx.fillStyle = isEvening ? '#ffe494' : '#f5e1b5';
+      ctx.beginPath();
+      ctx.arc(wx + 22, sfY + 22, 20, Math.PI, 0);
+      ctx.lineTo(wx + 42, sfY + sfH - 6);
+      ctx.lineTo(wx + 2, sfY + sfH - 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#c99424';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+
+    // Gilded "A BRASILEIRA" Art Nouveau frieze bar above storefront
+    ctx.fillStyle = '#183d2e';
+    ctx.fillRect(venue.x + 12, sfY - 12, venue.w - 24, 14);
+    ctx.strokeStyle = '#e5b53d';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(venue.x + 12, sfY - 12, venue.w - 24, 14);
+    ctx.fillStyle = '#fef08a';
+    ctx.font = '700 8.5px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('A BRASILEIRA  -  1905', venue.x + venue.w / 2, sfY - 2.5);
+    ctx.textAlign = 'left';
+
+    // Famous Bronze Fernando Pessoa seated at a round marble cafe table on the sidewalk outside
+    const px = venue.x + 34;
+    const py = venue.y + venue.h + 13;
+    ctx.fillStyle = 'rgba(20, 26, 36, 0.2)';
+    ctx.beginPath();
+    ctx.ellipse(px, py + 4, 15, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Marble terrace table
+    ctx.fillStyle = '#f8f5ef';
+    ctx.beginPath();
+    ctx.arc(px + 6, py, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#5c4b3b';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Bronze Pessoa silhouette with iconic fedora hat
+    ctx.fillStyle = '#4a5d54';
+    ctx.beginPath();
+    ctx.arc(px - 6, py - 1, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2d3b35';
+    ctx.fillRect(px - 11, py - 6, 10, 2.5);
+    ctx.fillRect(px - 9, py - 9, 6, 3.5);
+
+    this.drawVenueDoorAndPlaque(ctx, venue, visited, isEvening);
+  }
+
+  drawVenueDoorAndPlaque(ctx, venue, visited, isEvening) {
     const doorW = 36;
     const doorH = 34;
     const dx = venue.doorX - doorW / 2;
     const dy = venue.doorSide === 'south' ? venue.y + venue.h - doorH : venue.y;
 
-    // Warm golden welcome light spilling onto cobblestones
     const pulse = 0.3 + Math.sin(this.animTime * 3.2) * 0.1;
     ctx.fillStyle = `rgba(255, 212, 108, ${isEvening ? 0.62 : pulse})`;
     ctx.beginPath();
@@ -1155,14 +1522,12 @@ export class LisboaCanvasRenderer {
     );
     ctx.fill();
 
-    // Lioz limestone arched stone surround
     ctx.fillStyle = '#e9e2d2';
     ctx.fillRect(dx - 4, dy - 2, doorW + 8, doorH + 2);
     ctx.strokeStyle = '#7e7362';
     ctx.lineWidth = 1.2;
     ctx.strokeRect(dx - 4, dy - 2, doorW + 8, doorH + 2);
 
-    // Wood door & glowing fanlight interior
     ctx.fillStyle = '#4e311d';
     ctx.fillRect(dx, dy, doorW, doorH);
     ctx.fillStyle = '#f8d57e';
@@ -1177,7 +1542,6 @@ export class LisboaCanvasRenderer {
     ctx.closePath();
     ctx.fill();
 
-    // Striped scalloped Lisbon storefront awning
     const awningY = venue.doorSide === 'south' ? dy - 11 : dy + doorH;
     ctx.fillStyle = venue.awningColor;
     ctx.fillRect(dx - 10, awningY, doorW + 20, 11);
@@ -1185,7 +1549,6 @@ export class LisboaCanvasRenderer {
     for (let sx = dx - 6; sx < dx + doorW + 8; sx += 10) {
       ctx.fillRect(sx, awningY, 4, 11);
     }
-    // Scalloped edge trim
     ctx.fillStyle = venue.awningColor;
     for (let sx = dx - 6; sx <= dx + doorW + 6; sx += 8) {
       ctx.beginPath();
@@ -1193,12 +1556,10 @@ export class LisboaCanvasRenderer {
       ctx.fill();
     }
 
-    // Crisp outer building outline
     ctx.strokeStyle = 'rgba(22, 32, 46, 0.5)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(venue.x, venue.y, venue.w, venue.h);
 
-    // Classic Portuguese Enamel Signboard Plaque centered on roof
     const plaqueW = Math.min(venue.w - 14, 184);
     const plaqueH = 31;
     const plaqueX = venue.x + (venue.w - plaqueW) / 2;
@@ -1255,7 +1616,6 @@ export class LisboaCanvasRenderer {
         ctx.fill();
       }
 
-      // Cast-iron post & lantern crown
       ctx.fillStyle = '#242f3d';
       ctx.fillRect(lamp.x - 1.5, lamp.y - 16, 3, 18);
       ctx.fillRect(lamp.x - 4, lamp.y, 8, 3);
@@ -1275,25 +1635,23 @@ export class LisboaCanvasRenderer {
     const isTram = stop.mode === 'tram';
     const postColor = isTram ? '#d9980c' : '#1b7a5c';
 
-    // Waiting platform pad
-    ctx.fillStyle = isHighlighted ? 'rgba(245, 158, 11, 0.26)' : 'rgba(255, 252, 245, 0.6)';
-    drawRoundedRect(ctx, px - 28, py - 14, 56, 26, 6);
+    ctx.fillStyle = isHighlighted ? 'rgba(245, 158, 11, 0.28)' : 'rgba(255, 252, 245, 0.65)';
+    drawRoundedRect(ctx, px - 28, py - 12, 56, 24, 6);
     ctx.fill();
     ctx.strokeStyle = postColor;
     ctx.lineWidth = isHighlighted ? 2.5 : 1.5;
     ctx.stroke();
 
-    // Carris transit post
     ctx.fillStyle = '#334155';
-    ctx.fillRect(px + 18, py - 24, 3, 24);
+    ctx.fillRect(px + 18, py - 22, 3, 22);
     ctx.fillStyle = postColor;
-    drawRoundedRect(ctx, px + 7, py - 35, 26, 14, 3);
+    drawRoundedRect(ctx, px + 7, py - 33, 26, 14, 3);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 8.5px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(isTram ? '28E' : 'BUS', px + 20, py - 25);
+    ctx.fillText(isTram ? '28E' : 'BUS', px + 20, py - 23);
 
     if (isEvening) {
       ctx.fillStyle = 'rgba(255, 232, 158, 0.24)';
@@ -1303,8 +1661,8 @@ export class LisboaCanvasRenderer {
     }
 
     ctx.fillStyle = '#1e293b';
-    ctx.font = '600 9.5px "Segoe UI", sans-serif';
-    ctx.fillText(stop.stopName.split(' (')[0], px, py + 22);
+    ctx.font = '600 9.2px "Segoe UI", sans-serif';
+    ctx.fillText(stop.stopName.split(' (')[0], px, py + 20);
     ctx.textAlign = 'left';
   }
 
@@ -1315,14 +1673,12 @@ export class LisboaCanvasRenderer {
 
     const isTram = vehicle.mode === 'tram';
     const len = isTram ? 72 : 76;
-    const wid = isTram ? 30 : 30;
+    const wid = 30;
 
-    // Ground shadow
     ctx.fillStyle = 'rgba(15, 23, 42, 0.3)';
     drawRoundedRect(ctx, -len / 2 + 3, -wid / 2 + 4, len, wid, 7);
     ctx.fill();
 
-    // Evening headlight beam
     if (isEvening) {
       const beam = ctx.createLinearGradient(len / 2, 0, len / 2 + 72, 0);
       beam.addColorStop(0, 'rgba(255, 236, 153, 0.56)');
@@ -1338,12 +1694,10 @@ export class LisboaCanvasRenderer {
     }
 
     if (isTram) {
-      // Classic Lisbon Remodelado yellow streetcar with front iron fender & mahogany trim
       ctx.fillStyle = '#334155';
       ctx.fillRect(len / 2 - 2, -wid / 2 + 6, 6, wid - 12);
       ctx.fillRect(-len / 2 - 4, -wid / 2 + 6, 6, wid - 12);
 
-      // Iconic Carris yellow hull
       ctx.fillStyle = '#eab308';
       drawRoundedRect(ctx, -len / 2, -wid / 2, len, wid, 8);
       ctx.fill();
@@ -1351,7 +1705,6 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1.8;
       ctx.stroke();
 
-      // Ivory clerestory upper roof deck
       ctx.fillStyle = '#fdfbf7';
       drawRoundedRect(ctx, -len / 2 + 7, -wid / 2 + 4, len - 14, wid - 8, 5);
       ctx.fill();
@@ -1359,20 +1712,17 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Subdivided vintage wooden side windows
       ctx.fillStyle = '#1e3a5f';
       for (let wx = -len / 2 + 11; wx <= len / 2 - 19; wx += 10) {
         ctx.fillRect(wx, -wid / 2 + 1, 7, 3);
         ctx.fillRect(wx, wid / 2 - 4, 7, 3);
       }
 
-      // Brass headlamp
       ctx.fillStyle = '#fef08a';
       ctx.beginPath();
       ctx.arc(len / 2 - 1, 0, 3.2, 0, Math.PI * 2);
       ctx.fill();
 
-      // Diamond trolley pantograph pole
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
@@ -1391,7 +1741,6 @@ export class LisboaCanvasRenderer {
       ctx.textAlign = 'center';
       ctx.fillText('28E', 14, 3.5);
     } else {
-      // Carris City Bus 737 / 758 livery
       ctx.fillStyle = vehicle.color;
       drawRoundedRect(ctx, -len / 2, -wid / 2, len, wid, 7);
       ctx.fill();
@@ -1417,7 +1766,13 @@ export class LisboaCanvasRenderer {
       ctx.fillText('737', 0, 3.5);
     }
 
-    // Highlight ring & traveler indicator if aboard
+    // Brake taillights glowing red when yielding to a pedestrian
+    if (vehicle.yielding) {
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(-len / 2 - 1, -wid / 2 + 4, 3, 6);
+      ctx.fillRect(-len / 2 - 1, wid / 2 - 10, 3, 6);
+    }
+
     if (playerAboard) {
       ctx.strokeStyle = '#f97316';
       ctx.lineWidth = 3;
@@ -1436,8 +1791,18 @@ export class LisboaCanvasRenderer {
 
     ctx.restore();
 
-    // Floating boarding badge cleanly below vehicle when stopped
-    if (vehicle.currentStopId) {
+    if (vehicle.yielding) {
+      const tag = `${vehicle.badge} YIELDING`;
+      ctx.font = '700 9px "Segoe UI", sans-serif';
+      const tw = ctx.measureText(tag).width + 12;
+      drawRoundedRect(ctx, vehicle.x - tw / 2, vehicle.y + 20, tw, 16, 4);
+      ctx.fillStyle = 'rgba(153, 27, 27, 0.9)';
+      ctx.fill();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fef2f2';
+      ctx.fillText(tag, vehicle.x, vehicle.y + 31);
+      ctx.textAlign = 'left';
+    } else if (vehicle.currentStopId) {
       const tag = playerAboard ? 'ABOARD - AT STOP' : `${vehicle.badge} AT STOP`;
       ctx.font = '700 9.5px "Segoe UI", sans-serif';
       const tw = ctx.measureText(tag).width + 12;
@@ -1557,10 +1922,29 @@ export class LisboaCanvasRenderer {
     ctx.lineTo(mx + 2160 * sx, my + 610 * sy);
     ctx.stroke();
 
+    // Underground Metro Blue Line dashed link on minimap
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.3;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    METRO_STATIONS.forEach((st, idx) => {
+      const px = mx + st.doorX * sx;
+      const py = my + st.doorY * sy;
+      if (idx === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
     for (const venue of VENUES) {
       const visited = state.visitedVenues.includes(venue.id);
       ctx.fillStyle = visited ? '#34d399' : '#fbbf24';
       ctx.fillRect(mx + venue.x * sx, my + venue.y * sy, Math.max(4, venue.w * sx), Math.max(4, venue.h * sy));
+    }
+
+    for (const st of METRO_STATIONS) {
+      ctx.fillStyle = '#e11d48';
+      ctx.fillRect(mx + st.doorX * sx - 2.5, my + st.doorY * sy - 2.5, 5, 5);
     }
 
     for (const v of state.vehicles) {
@@ -1627,7 +2011,6 @@ export class LisboaCanvasRenderer {
     ctx.save();
     ctx.translate(offsetX, offsetY);
 
-    // Room frame
     drawRoundedRect(ctx, 0, 0, INTERIOR_WIDTH, INTERIOR_HEIGHT, 12);
     ctx.fillStyle = theme.wall;
     ctx.fill();
@@ -1635,14 +2018,12 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 6;
     ctx.stroke();
 
-    // Upper back wall + Authentic Cobalt Azulejo Wainscoting Dado
     ctx.fillStyle = theme.wall;
     ctx.fillRect(6, 6, INTERIOR_WIDTH - 12, 134);
     this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
     ctx.fillStyle = theme.trim;
     ctx.fillRect(6, 132, INTERIOR_WIDTH - 12, 8);
 
-    // Arched Pombaline windows on back wall looking onto Lisbon sky
     const skyColor =
       phase.id === 'evening' ? '#1c2c4d' : phase.id === 'golden' ? '#e89a54' : '#8ec5e8';
     const winXs = [78, 578];
@@ -1665,7 +2046,6 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // Room title enamel plaque centered on back wall
     drawRoundedRect(ctx, 224, 22, 312, 46, 8);
     ctx.fillStyle = theme.trim;
     ctx.fill();
@@ -1680,7 +2060,6 @@ export class LisboaCanvasRenderer {
     ctx.font = '600 10.5px "Segoe UI", sans-serif';
     ctx.fillText(`${venue.badge}  -  ${venue.memory.neighborhood.toUpperCase()}`, 380, 60);
 
-    // Patterned Portuguese hydraulic-tile interior floor (mosaico hidraulico)
     const tile = 32;
     for (let fy = 140; fy < INTERIOR_HEIGHT - 12; fy += tile) {
       for (let fx = 12; fx < INTERIOR_WIDTH - 12; fx += tile) {
@@ -1689,7 +2068,6 @@ export class LisboaCanvasRenderer {
         const th = Math.min(tile, INTERIOR_HEIGHT - 12 - fy);
         ctx.fillStyle = alt ? theme.floorPrimary : theme.floorSecondary;
         ctx.fillRect(fx, fy, tw, th);
-        // Subtle inlaid diamond star motif
         if (tw === tile && th === tile) {
           ctx.fillStyle = 'rgba(27, 77, 137, 0.08)';
           ctx.beginPath();
@@ -1703,7 +2081,6 @@ export class LisboaCanvasRenderer {
       }
     }
 
-    // Proprietor NPC standing behind counter
     this.drawCharacterSprite(ctx, 380, 140, {
       facing: 'down',
       walkPhase: 0,
@@ -1724,7 +2101,6 @@ export class LisboaCanvasRenderer {
     ctx.textAlign = 'center';
     ctx.fillText(venue.proprietor, 380, 110);
 
-    // Service counter (drawn in front of proprietor lower body)
     ctx.fillStyle = 'rgba(20, 20, 25, 0.22)';
     ctx.fillRect(236, 152, 294, 42);
     ctx.fillStyle = theme.counter;
@@ -1734,13 +2110,11 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Decorative tiled front face on counter
     ctx.fillStyle = 'rgba(255, 248, 235, 0.25)';
     for (let cx = 244; cx < 516; cx += 24) {
       ctx.fillRect(cx, 174, 14, 7);
     }
 
-    // Counter props based on venue layout
     if (theme.layout === 'cafe') {
       ctx.fillStyle = '#c5922b';
       ctx.fillRect(256, 150, 38, 22);
@@ -1776,7 +2150,6 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(478, 150, 26, 20);
     }
 
-    // Side furnishings (Display corner on left, dining/reading tables on right)
     ctx.fillStyle = '#7b5336';
     drawRoundedRect(ctx, 62, 204, 72, 118, 6);
     ctx.fill();
@@ -1800,7 +2173,6 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // Interactive station circles
     this.drawInteriorMarker(
       ctx,
       INTERIOR_STATIONS.counter.x,
@@ -1816,7 +2188,6 @@ export class LisboaCanvasRenderer {
       nearbyInteraction?.type === 'display'
     );
 
-    // Exit door mat at bottom
     const mat = INTERIOR_STATIONS.exitMat;
     drawRoundedRect(ctx, mat.x - mat.halfWidth, mat.y - 16, mat.halfWidth * 2, 32, 6);
     ctx.fillStyle = nearbyInteraction?.type === 'exit' ? '#d97706' : '#7c4f2b';

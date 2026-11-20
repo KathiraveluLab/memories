@@ -1,5 +1,7 @@
 import {
   NEIGHBORHOODS,
+  METRO_LINE,
+  METRO_STATIONS,
   VENUES,
   REST_SPOTS,
   getAllTransitStops,
@@ -10,14 +12,18 @@ import {
   INTERIOR_STATIONS,
   formatClock,
   getDayPhase,
-  isOverworldPositionValid
+  isOverworldPositionValid,
+  isPointInVehicleLane
 } from './engine.js';
 import { LisboaCanvasRenderer } from './renderer.js';
 
 const ALL_STOPS = getAllTransitStops();
 const ALL_MEMORIES = getAllMemoryCatalog();
-const HORIZONTAL_AVENUES = [250, 550, 665, 895];
-const VERTICAL_CORRIDORS = [162, 510, 892, 1360, 1730, 2200];
+
+// Pedestrians route strictly along sidewalks (never down the middle of bus/tram roadways)
+// and cross streets cleanly at zebra crosswalk corridors.
+const HORIZONTAL_SIDEWALKS = [220, 352, 546, 676, 878, 996];
+const VERTICAL_SIDEWALKS = [512, 892, 1384, 1726, 2124];
 
 function escapeHtml(text) {
   return String(text ?? '')
@@ -41,39 +47,50 @@ function nearestValue(target, candidates) {
   return best;
 }
 
-function isInHorizontalBand(y) {
-  return (y >= 205 && y <= 360) || (y >= 535 && y <= 682) || (y >= 850 && y <= 1005);
+function isInSidewalkBand(y) {
+  return (
+    (y >= 205 && y <= 246) ||
+    (y >= 332 && y <= 368) ||
+    (y >= 532 && y <= 570) ||
+    (y >= 654 && y <= 688) ||
+    (y >= 856 && y <= 892) ||
+    (y >= 978 && y <= 1012)
+  );
 }
 
-function isLineClear(ax, ay, bx, by) {
-  const steps = Math.max(4, Math.ceil(Math.hypot(bx - ax, by - ay) / 18));
+function isSidewalkLineClear(ax, ay, bx, by) {
+  const dist = Math.hypot(bx - ax, by - ay);
+  const steps = Math.max(4, Math.ceil(dist / 16));
+  let laneSamples = 0;
   for (let i = 1; i < steps; i += 1) {
     const t = i / steps;
     const x = ax + (bx - ax) * t;
     const y = ay + (by - ay) * t;
-    if (!isOverworldPositionValid(x, y, 11)) return false;
+    if (!isOverworldPositionValid(x, y, 12)) return false;
+    if (isPointInVehicleLane(x, y)) laneSamples += 1;
   }
-  return true;
+  // Allow direct line only if it stays off vehicle lanes (short sidewalk walks)
+  return laneSamples === 0;
 }
 
-function buildOverworldPath(sx, sy, tx, ty, finalAction = null) {
-  if (isLineClear(sx, sy, tx, ty)) {
+export function buildOverworldPath(sx, sy, tx, ty, finalAction = null) {
+  if (isSidewalkLineClear(sx, sy, tx, ty)) {
     return [{ x: tx, y: ty, onArriveAction: finalAction }];
   }
 
   const waypoints = [];
-  const hEnd = nearestValue(ty, HORIZONTAL_AVENUES);
-  const vStart = nearestValue(sx, VERTICAL_CORRIDORS);
+  const hEnd = nearestValue(ty, HORIZONTAL_SIDEWALKS);
+  const vStart = nearestValue(sx, VERTICAL_SIDEWALKS);
 
-  if (isInHorizontalBand(sy)) {
-    const hStart = nearestValue(sy, HORIZONTAL_AVENUES);
-    if (Math.abs(sy - hStart) > 8) {
+  if (isInSidewalkBand(sy)) {
+    const hStart = nearestValue(sy, HORIZONTAL_SIDEWALKS);
+    if (Math.abs(sy - hStart) > 6) {
       waypoints.push({ x: sx, y: hStart, onArriveAction: null });
     }
     if (hStart !== hEnd) {
-      const vBridge = nearestValue((sx + tx) / 2, VERTICAL_CORRIDORS);
-      waypoints.push({ x: vBridge, y: hStart, onArriveAction: null });
-      waypoints.push({ x: vBridge, y: hEnd, onArriveAction: null });
+      const vCrosswalk = nearestValue((sx + tx) / 2, VERTICAL_SIDEWALKS);
+      waypoints.push({ x: vCrosswalk, y: hStart, onArriveAction: null });
+      waypoints.push({ x: vCrosswalk, y: hEnd, onArriveAction: null });
     }
     waypoints.push({ x: tx, y: hEnd, onArriveAction: null });
   } else {
@@ -190,7 +207,28 @@ function handleCanvasClick(event) {
     return;
   }
 
-  // Overworld clicks: check if clicked on a venue building
+  // Overworld clicks: check Metro stations first
+  for (const station of METRO_STATIONS) {
+    const hitMetro =
+      worldPt.x >= station.x - 14 &&
+      worldPt.x <= station.x + station.w + 14 &&
+      worldPt.y >= station.y - 20 &&
+      worldPt.y <= station.y + station.h + 18;
+    if (hitMetro) {
+      const path = buildOverworldPath(
+        state.player.x,
+        state.player.y,
+        station.spawnOutside.x,
+        station.spawnOutside.y,
+        { type: 'openMetro', id: station.id }
+      );
+      engine.setWalkPath(path);
+      setStatusBanner(`Walking along the sidewalk to ${station.name}...`);
+      return;
+    }
+  }
+
+  // Check venue buildings
   for (const venue of VENUES) {
     const hitBuilding =
       worldPt.x >= venue.x - 10 &&
@@ -206,12 +244,12 @@ function handleCanvasClick(event) {
         { type: 'enterVenue', id: venue.id }
       );
       engine.setWalkPath(path);
-      setStatusBanner(`Walking toward ${venue.name}...`);
+      setStatusBanner(`Walking along the sidewalk toward ${venue.name}...`);
       return;
     }
   }
 
-  // Check if clicked on a transit stop
+  // Check transit stops
   for (const stop of ALL_STOPS) {
     const d = Math.min(
       Math.hypot(worldPt.x - stop.platformX, worldPt.y - stop.platformY),
@@ -226,12 +264,12 @@ function handleCanvasClick(event) {
         { type: 'boardStop', id: stop.stopId }
       );
       engine.setWalkPath(path);
-      setStatusBanner(`Walking to ${stop.stopName} to catch ${stop.lineName}...`);
+      setStatusBanner(`Walking to ${stop.stopName} sidewalk shelter to catch ${stop.lineName}...`);
       return;
     }
   }
 
-  // Check if clicked on a rest bench
+  // Check rest benches
   for (const spot of REST_SPOTS) {
     if (Math.hypot(worldPt.x - spot.x, worldPt.y - spot.y) <= 38) {
       const path = buildOverworldPath(
@@ -247,18 +285,24 @@ function handleCanvasClick(event) {
     }
   }
 
-  // Otherwise walk to clicked street spot
-  const path = buildOverworldPath(state.player.x, state.player.y, worldPt.x, worldPt.y, null);
+  // Snap clicks inside vehicle lanes gently onto the nearest sidewalk edge
+  let targetY = worldPt.y;
+  if (isPointInVehicleLane(worldPt.x, targetY)) {
+    targetY = nearestValue(targetY, HORIZONTAL_SIDEWALKS);
+  }
+  const path = buildOverworldPath(state.player.x, state.player.y, worldPt.x, targetY, null);
   engine.setWalkPath(path);
 }
 
 function renderActiveContextPanel(state) {
   const venue = engine.getCurrentVenue();
   const riding = engine.getRidingVehicle();
+  const metroStation = engine.getActiveMetroStation();
 
   const sig = JSON.stringify({
     mode: state.mode,
     venueId: venue?.id || null,
+    metroId: metroStation?.id || null,
     ridingId: riding?.id || null,
     stopId: riding?.currentStopId || null,
     nextStop: riding?.nextStopName || null,
@@ -283,7 +327,7 @@ function renderActiveContextPanel(state) {
         <span class="badge ${riding.mode === 'tram' ? 'badge-tram' : 'badge-bus'}">${escapeHtml(riding.badge)}</span>
       </div>
       <p class="helper-text">
-        Enjoy the street-level view across Lisboa while resting your feet. Ring the bell to disembark automatically at the next stop, or step off immediately at the upcoming shelter.
+        Enjoy the street-level view across Lisboa while resting your feet. Ring the bell to step out safely onto the sidewalk at the next stop.
       </p>
       <div class="action-strip">
         <button type="button" class="btn btn-primary btn-sm" data-transit-action="ring">
@@ -293,6 +337,51 @@ function renderActiveContextPanel(state) {
           Hop Off at ${escapeHtml(riding.currentStopId ? riding.currentStopName : riding.nextStopName)}
         </button>
       </div>
+    `;
+    return;
+  }
+
+  if (metroStation) {
+    dom.activeContextPanel.classList.remove('hidden');
+    const destinations = METRO_STATIONS.filter((s) => s.id !== metroStation.id);
+    const affordable = state.euros >= METRO_LINE.fareEur;
+    const destHtml = destinations
+      .map(
+        (dest) => `
+        <div class="item-card">
+          <div>
+            <h4>${escapeHtml(dest.name)}</h4>
+            <div class="item-meta">${escapeHtml(dest.lines.join(' & '))} | ${escapeHtml(dest.note)}</div>
+            <div class="item-meta"><strong>${METRO_LINE.fareEur.toFixed(2)} EUR</strong> | ${METRO_LINE.travelMinutes} min underground ride (+4 Energy)</div>
+          </div>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            data-ride-metro="${escapeHtml(dest.id)}"
+            ${affordable ? '' : 'disabled'}
+          >
+            Ride Metro
+          </button>
+        </div>
+      `
+      )
+      .join('');
+
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>${escapeHtml(metroStation.name)}</h3>
+          <div class="item-meta">${escapeHtml(metroStation.lines.join(' & '))} | Metropolitano de Lisboa</div>
+        </div>
+        <button type="button" class="btn btn-sm" data-metro-close="true">Close</button>
+      </div>
+      <p class="helper-text">${escapeHtml(metroStation.note)}</p>
+      <div class="phrase-callout">
+        <span class="pt">${escapeHtml(METRO_LINE.phrase.pt)}</span>
+        <span class="pron">${escapeHtml(METRO_LINE.phrase.pronunciation)}</span>
+        <span>${escapeHtml(METRO_LINE.phrase.en)}</span>
+      </div>
+      ${destHtml}
     `;
     return;
   }
@@ -375,7 +464,6 @@ function renderLists(state) {
 
   dom.albumCompleteBanner.classList.toggle('hidden', !state.albumCompleted);
 
-  // Guide tab: grouped by Bairro Alto, Chiado, Alfama + Transit Stops
   const guideParts = [];
   for (const hood of NEIGHBORHOODS) {
     guideParts.push(`<div class="hood-group-title">${escapeHtml(hood.name)}</div>`);
@@ -411,6 +499,21 @@ function renderLists(state) {
     }
   }
 
+  guideParts.push('<div class="hood-group-title">Metropolitano de Lisboa (Available Stations)</div>');
+  for (const station of METRO_STATIONS) {
+    guideParts.push(`
+      <div class="guide-card">
+        <div>
+          <div class="guide-card-title">${escapeHtml(station.name)} <span class="badge-muted">[METRO]</span></div>
+          <div class="guide-card-sub">${escapeHtml(station.lines.join(' & '))} - ${METRO_LINE.fareEur.toFixed(2)} EUR</div>
+        </div>
+        <button type="button" class="btn btn-sm" data-walk-metro="${escapeHtml(station.id)}" ${state.ridingVehicleId ? 'disabled' : ''}>
+          Walk Here
+        </button>
+      </div>
+    `);
+  }
+
   guideParts.push('<div class="hood-group-title">Carris Tram 28E &amp; Bus 737 / 758 Stops</div>');
   for (const stop of ALL_STOPS) {
     guideParts.push(`
@@ -427,7 +530,6 @@ function renderLists(state) {
   }
   dom.guideList.innerHTML = guideParts.join('');
 
-  // Memories Album tab
   const capturedMap = new Map(state.memories.map((m) => [m.id, m]));
   dom.memoriesList.innerHTML = ALL_MEMORIES.map((mem) => {
     const found = capturedMap.get(mem.id);
@@ -453,7 +555,6 @@ function renderLists(state) {
     `;
   }).join('');
 
-  // Phrasebook tab
   dom.phrasebookList.innerHTML = state.learnedPhrases
     .map(
       (p) => `
@@ -467,7 +568,6 @@ function renderLists(state) {
     )
     .join('');
 
-  // Satchel & Log tab
   dom.satchelList.innerHTML =
     state.satchel.length > 0
       ? state.satchel
@@ -483,7 +583,7 @@ function renderLists(state) {
       ? state.tastedFoods
           .map((f) => `<li><strong>${escapeHtml(f.name)}</strong> at ${escapeHtml(f.venueName)} (Day ${f.day})</li>`)
           .join('')
-      : '<li class="empty-note">No Lisbon dishes tasted yet. Stop by a cafe or tasca!</li>';
+      : '<li class="empty-note">No Lisbon dishes tasted yet. Stop by Cafe A Brasileira or a local tasca!</li>';
 
   dom.journalList.innerHTML = state.journal
     .slice(0, 18)
@@ -517,25 +617,29 @@ function refreshUi(force = false) {
   } else if (riding) {
     dom.sceneTitle.textContent = `Riding ${riding.name} through ${state.currentNeighborhoodName}`;
     dom.sceneSubtitle.textContent = riding.currentStopId
-      ? `Stopped at ${riding.currentStopName}. Press [E] to step off.`
+      ? `Stopped at ${riding.currentStopName}. Press [E] to step out onto the sidewalk.`
       : `Next stop: ${riding.nextStopName}. Press [E] to ring the bell.`;
   } else {
     dom.sceneTitle.textContent = `${state.currentNeighborhoodName} - Ground-Level Lisboa`;
     dom.sceneSubtitle.textContent =
-      'Walk with WASD / Arrows or click on the streets. Press [E] to enter shops, board Tram 28E or Carris Bus, or rest.';
+      'Walk along sidewalks with WASD / Arrows or click anywhere. Press [E] at shops, Metro entrances, transit stops, or benches.';
   }
 
   const tram = state.vehicles.find((v) => v.mode === 'tram');
   const bus = state.vehicles.find((v) => v.mode === 'bus');
   if (tram) {
-    dom.liveTramStatus.textContent = tram.currentStopName
-      ? `[TRAM 28E] At ${tram.currentStopName.split(' (')[0]}`
-      : `[TRAM 28E] -> ${tram.nextStopName.split(' (')[0]}`;
+    dom.liveTramStatus.textContent = tram.yielding
+      ? '[TRAM 28E] Yielding to pedestrian'
+      : tram.currentStopName
+        ? `[TRAM 28E] At ${tram.currentStopName.split(' (')[0]}`
+        : `[TRAM 28E] -> ${tram.nextStopName.split(' (')[0]}`;
   }
   if (bus) {
-    dom.liveBusStatus.textContent = bus.currentStopName
-      ? `[BUS 737] At ${bus.currentStopName.split(' (')[0]}`
-      : `[BUS 737] -> ${bus.nextStopName.split(' (')[0]}`;
+    dom.liveBusStatus.textContent = bus.yielding
+      ? '[BUS 737] Yielding to pedestrian'
+      : bus.currentStopName
+        ? `[BUS 737] At ${bus.currentStopName.split(' (')[0]}`
+        : `[BUS 737] -> ${bus.nextStopName.split(' (')[0]}`;
   }
 
   if (nearby) {
@@ -546,7 +650,7 @@ function refreshUi(force = false) {
     dom.btnContextAction.textContent =
       state.mode === 'interior'
         ? 'Walk to counter, display, or EXIT mat'
-        : 'Walk near a shop, transit stop, or bench';
+        : 'Walk near a shop, Metro entrance, transit stop, or bench';
   }
 
   if (state.mode === 'interior') {
@@ -587,6 +691,9 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'Escape') {
     if (engine.getState().mode === 'interior') {
       engine.exitVenue();
+      refreshUi(true);
+    } else if (engine.getState().activeMetroStationId) {
+      engine.closeMetroStation();
       refreshUi(true);
     }
     return;
@@ -641,6 +748,19 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 });
 
 dom.activeContextPanel.addEventListener('click', (event) => {
+  const rideMetroBtn = event.target.closest('[data-ride-metro]');
+  if (rideMetroBtn) {
+    const originId = engine.getState().activeMetroStationId;
+    const res = engine.rideMetro(originId, rideMetroBtn.dataset.rideMetro);
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
+  if (event.target.closest('[data-metro-close]')) {
+    engine.closeMetroStation();
+    refreshUi(true);
+    return;
+  }
   const buyBtn = event.target.closest('[data-buy-item]');
   if (buyBtn) {
     const res = engine.purchaseVenueItem(buyBtn.dataset.buyItem);
@@ -671,6 +791,22 @@ dom.guideList.addEventListener('click', (event) => {
   if (state.mode === 'interior') {
     engine.exitVenue();
   }
+  const metroBtn = event.target.closest('[data-walk-metro]');
+  if (metroBtn) {
+    const station = METRO_STATIONS.find((s) => s.id === metroBtn.dataset.walkMetro);
+    if (station) {
+      const path = buildOverworldPath(
+        engine.getState().player.x,
+        engine.getState().player.y,
+        station.spawnOutside.x,
+        station.spawnOutside.y,
+        { type: 'openMetro', id: station.id }
+      );
+      engine.setWalkPath(path);
+      setStatusBanner(`Walking along the sidewalk to ${station.name}...`);
+    }
+    return;
+  }
   const venueBtn = event.target.closest('[data-walk-venue]');
   if (venueBtn) {
     const venue = VENUES.find((v) => v.id === venueBtn.dataset.walkVenue);
@@ -683,7 +819,7 @@ dom.guideList.addEventListener('click', (event) => {
         { type: 'enterVenue', id: venue.id }
       );
       engine.setWalkPath(path);
-      setStatusBanner(`Walking toward ${venue.name} in ${venue.memory.neighborhood}...`);
+      setStatusBanner(`Walking along the sidewalk toward ${venue.name}...`);
     }
     return;
   }
@@ -715,12 +851,11 @@ dom.guideList.addEventListener('click', (event) => {
         { type: 'boardStop', id: stop.stopId }
       );
       engine.setWalkPath(path);
-      setStatusBanner(`Walking to ${stop.stopName} for ${stop.lineName}...`);
+      setStatusBanner(`Walking to ${stop.stopName} sidewalk shelter for ${stop.lineName}...`);
     }
   }
 });
 
-// Main animation loop
 let lastFrameTime = performance.now();
 let uiTimer = 0;
 

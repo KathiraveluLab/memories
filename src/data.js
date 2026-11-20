@@ -12,7 +12,7 @@ export const NEIGHBORHOODS = [
     maxX: 840,
     accent: '#b84a32',
     groundTint: '#e9dfd1',
-    subtitle: 'Bohemian hillside lanes, evening fado taverns, and terraced viewpoints.'
+    subtitle: 'Bohemian hillside lanes, fado taverns, and terraced viewpoints (served by Tram 28E, buses, and footwalks).'
   },
   {
     id: 'chiado',
@@ -21,7 +21,7 @@ export const NEIGHBORHOODS = [
     maxX: 1660,
     accent: '#1b4d89',
     groundTint: '#ece6db',
-    subtitle: 'Pombaline plazas, historic literary cafes, and limestone calcada promenades.'
+    subtitle: 'Pombaline plazas, Cafe A Brasileira, Livraria Bertrand, and Baixa-Chiado Metro.'
   },
   {
     id: 'alfama',
@@ -30,7 +30,7 @@ export const NEIGHBORHOODS = [
     maxX: 2400,
     accent: '#0f766e',
     groundTint: '#e6e0d4',
-    subtitle: 'Azulejo facades, winding hillside alleys, and sunlit overlooks above the Tagus.'
+    subtitle: 'Azulejo alleys, Se de Lisboa, Portas do Sol, and waterfront Metro access at Santa Apolonia.'
   }
 ];
 
@@ -45,9 +45,27 @@ export const STREETS = [
   { id: 'st-west-edge', x: 110, y: 230, w: 105, h: 760, style: 'bus-road', name: 'Rua da Misericordia Oeste' },
   { id: 'st-bairro-mid', x: 465, y: 120, w: 95, h: 870, style: 'cobble', name: 'Rua da Rosa' },
   { id: 'st-camoes', x: 865, y: 230, w: 170, h: 760, style: 'plaza', name: 'Praca Luis de Camoes' },
-  { id: 'st-carmo', x: 1310, y: 230, w: 105, h: 760, style: 'cobble', name: 'Rua do Carmo' },
+  { id: 'st-carmo', x: 1334, y: 230, w: 98, h: 760, style: 'cobble', name: 'Rua do Carmo' },
   { id: 'st-se', x: 1675, y: 230, w: 110, h: 760, style: 'cobble', name: 'Escadinhas da Se' },
   { id: 'st-east-edge', x: 2145, y: 230, w: 145, h: 760, style: 'bus-road', name: 'Largo das Portas do Sol' }
+];
+
+export const CROSSWALKS = [
+  // Crosswalks across North Bus Road (y: 252..318)
+  { x: 488, y: 250, w: 48, h: 70, orientation: 'vertical' },
+  { x: 882, y: 250, w: 54, h: 70, orientation: 'vertical' },
+  { x: 1358, y: 250, w: 50, h: 70, orientation: 'vertical' },
+  { x: 1702, y: 250, w: 50, h: 70, orientation: 'vertical' },
+  // Crosswalks across Tram 28E Corridor (y: 576..644)
+  { x: 488, y: 575, w: 48, h: 70, orientation: 'vertical' },
+  { x: 882, y: 575, w: 54, h: 70, orientation: 'vertical' },
+  { x: 1358, y: 575, w: 50, h: 70, orientation: 'vertical' },
+  { x: 1702, y: 575, w: 50, h: 70, orientation: 'vertical' },
+  // Crosswalks across South Bus Road (y: 896..966)
+  { x: 488, y: 896, w: 48, h: 70, orientation: 'vertical' },
+  { x: 882, y: 896, w: 54, h: 70, orientation: 'vertical' },
+  { x: 1358, y: 896, w: 50, h: 70, orientation: 'vertical' },
+  { x: 1702, y: 896, w: 50, h: 70, orientation: 'vertical' }
 ];
 
 export const DECORATIVE_STRUCTURES = [
@@ -126,8 +144,8 @@ export const DECORATIVE_STRUCTURES = [
     h: 145,
     wallColor: '#dce5df',
     roofColor: '#ad4f3a',
-    trimColor: '#2d5a4c',
-    style: 'townhouse'
+    trimColor: '#1b4d89',
+    style: 'arcaded-azulejo'
   },
   {
     id: 'monument-camoes',
@@ -144,6 +162,74 @@ export const DECORATIVE_STRUCTURES = [
   }
 ];
 
+export const METRO_LINE = {
+  id: 'metro-linha-azul',
+  name: 'Metropolitano de Lisboa (Linha Azul)',
+  badge: '[METRO]',
+  fareEur: 1.8,
+  travelMinutes: 6,
+  phrase: {
+    pt: 'Um bilhete de metro para a Linha Azul, por favor.',
+    pronunciation: 'Oom bee-lyeh-teh deh meh-troo pah-rah ah Lee-nyah Ah-zool, poor fah-vohr.',
+    en: 'One metro ticket for the Blue Line, please.'
+  },
+  memory: {
+    id: 'mem-ride-metro-lisboa',
+    title: 'Underground Tiles of Metro de Lisboa',
+    category: 'transit',
+    neighborhood: 'Chiado & Alfama Waterfront',
+    caption: 'Descending the long escalators at Baixa-Chiado beneath Lisbon hills toward the Tagus waterfront.'
+  }
+};
+
+export const METRO_STATIONS = [
+  {
+    id: 'metro-baixa-chiado',
+    name: 'Metro Baixa-Chiado',
+    neighborhood: 'chiado',
+    lines: ['Linha Azul', 'Linha Verde'],
+    lineColors: ['#2563eb', '#16a34a'],
+    x: 1266,
+    y: 446,
+    w: 58,
+    h: 79,
+    doorX: 1295,
+    doorY: 525,
+    spawnOutside: { x: 1295, y: 546 },
+    note: 'Deep transfer station right beside Cafe A Brasileira on Largo do Chiado, serving both Chiado and nearby hilltop Bairro Alto.'
+  },
+  {
+    id: 'metro-terreiro-paco',
+    name: 'Metro Terreiro do Paco',
+    neighborhood: 'chiado',
+    lines: ['Linha Azul'],
+    lineColors: ['#2563eb'],
+    x: 1516,
+    y: 842,
+    w: 68,
+    h: 22,
+    doorX: 1550,
+    doorY: 864,
+    spawnOutside: { x: 1550, y: 880 },
+    note: 'Tagus riverside Blue Line station at the edge of Baixa and lower Alfama.'
+  },
+  {
+    id: 'metro-santa-apolonia',
+    name: 'Metro Santa Apolonia',
+    neighborhood: 'alfama',
+    lines: ['Linha Azul'],
+    lineColors: ['#2563eb'],
+    x: 1990,
+    y: 842,
+    w: 68,
+    h: 22,
+    doorX: 2024,
+    doorY: 864,
+    spawnOutside: { x: 2024, y: 880 },
+    note: 'Eastern Blue Line terminus along the Alfama riverfront, framing the steep hillside below Portas do Sol.'
+  }
+];
+
 export const VENUES = [
   // BAIRRO ALTO
   {
@@ -152,6 +238,7 @@ export const VENUES = [
     neighborhood: 'bairro-alto',
     type: 'cafe',
     badge: '[CAFE]',
+    archStyle: 'kiosk',
     x: 245,
     y: 60,
     w: 190,
@@ -159,14 +246,14 @@ export const VENUES = [
     doorSide: 'south',
     doorX: 340,
     doorY: 195,
-    spawnOutside: { x: 340, y: 222 },
+    spawnOutside: { x: 340, y: 220 },
     wallColor: '#d8e6dc',
-    roofColor: '#2f6f5e',
-    awningColor: '#1f5748',
+    roofColor: '#245e4f',
+    awningColor: '#1a493d',
     accentColor: '#1f6e58',
     proprietor: 'Ines',
     proprietorRole: 'Kiosk Host',
-    description: 'An octagonal wrought-iron kiosk near the garden terrace serving cold lemonade, espresso, and toasted sandwiches.',
+    description: 'An octagonal wrought-iron garden pavilion overlooking the Bairro Alto ridge, serving cold lemonade, espresso, and toasted sandwiches.',
     greeting: 'Bom dia! Pull up a chair under the jacaranda trees and take in the breeze over the rooftops.',
     phrase: {
       pt: 'Queria uma limonada fresca e uma bica, por favor.',
@@ -188,7 +275,7 @@ export const VENUES = [
       counter: '#8b5e3c',
       layout: 'cafe'
     },
-    displayNote: 'Vintage Lisbon kiosk menus list homemade lemonade, toasted ham sandwiches, and dark-roast Portuguese coffee.',
+    displayNote: 'Historic 19th-century Lisbon quiosques combine octagonal iron frames with ornate domed roofs across hillside gardens.',
     items: [
       {
         id: 'item-limonada',
@@ -216,6 +303,7 @@ export const VENUES = [
     neighborhood: 'bairro-alto',
     type: 'restaurant',
     badge: '[RESTAURANT]',
+    archStyle: 'tasca',
     x: 245,
     y: 380,
     w: 195,
@@ -223,14 +311,14 @@ export const VENUES = [
     doorSide: 'south',
     doorX: 342,
     doorY: 525,
-    spawnOutside: { x: 342, y: 548 },
+    spawnOutside: { x: 342, y: 546 },
     wallColor: '#eed7c5',
     roofColor: '#a63e2e',
-    awningColor: '#8d2f22',
+    awningColor: '#7a251a',
     accentColor: '#a63e2e',
     proprietor: 'Senhor Manuel',
     proprietorRole: 'Tasca Owner',
-    description: 'A warm candlelit Bairro Alto tavern where stone soup bowls meet the gentle tuning of a twelve-string Portuguese guitar.',
+    description: 'A traditional Bairro Alto fado tavern with an arched green stone doorway, wrought-iron lantern, and simmering caldo verde.',
     greeting: 'Bem-vindo a nossa tasca! Sit down, rest your feet, and smell the caldo verde simmering in the kitchen.',
     phrase: {
       pt: 'A conta, por favor. Estava tudo delicioso!',
@@ -280,6 +368,7 @@ export const VENUES = [
     neighborhood: 'bairro-alto',
     type: 'shop',
     badge: '[SHOP]',
+    archStyle: 'bohemian-shop',
     x: 590,
     y: 695,
     w: 210,
@@ -287,14 +376,14 @@ export const VENUES = [
     doorSide: 'north',
     doorX: 695,
     doorY: 695,
-    spawnOutside: { x: 695, y: 672 },
+    spawnOutside: { x: 695, y: 676 },
     wallColor: '#e4d8eb',
     roofColor: '#6d476c',
-    awningColor: '#583758',
+    awningColor: '#523254',
     accentColor: '#6d476c',
     proprietor: 'Beatriz',
     proprietorRole: 'Record & Print Curator',
-    description: 'An independent Bairro Alto shop filled with classic fado vinyl sleeves and hand-pulled linocut prints of Lisbon streetcars.',
+    description: 'An independent Bairro Alto print and vinyl gallery with recessed showcase windows and hand-pulled Lisbon streetcar linocuts.',
     greeting: 'Ola! Browse the crates as long as you like. Every record sleeve here holds a piece of Lisbon night air.',
     phrase: {
       pt: 'Quanto custa este disco de fado?',
@@ -342,10 +431,11 @@ export const VENUES = [
   // CHIADO
   {
     id: 'livraria-chiado',
-    name: 'Livraria Antiga do Chiado',
+    name: 'Livraria Bertrand (1732)',
     neighborhood: 'chiado',
     type: 'shop',
-    badge: '[SHOP]',
+    badge: '[BOOKSHOP]',
+    archStyle: 'bertrand',
     x: 1060,
     y: 55,
     w: 215,
@@ -353,15 +443,15 @@ export const VENUES = [
     doorSide: 'south',
     doorX: 1167,
     doorY: 195,
-    spawnOutside: { x: 1167, y: 222 },
-    wallColor: '#d7e2ec',
+    spawnOutside: { x: 1167, y: 220 },
+    wallColor: '#f2f6fb',
     roofColor: '#1f4975',
     awningColor: '#16385b',
     accentColor: '#1b4d89',
     proprietor: 'Duarte',
     proprietorRole: 'Master Bookseller',
-    description: 'Vaulted timber bookrooms inspired by Rua Garrett literary heritage, stocked with poetry, Lisbon maps, and notebooks.',
-    greeting: 'Boa tarde! Step softly between the oak alcoves. Readers have traded stories under these arches for centuries.',
+    description: 'Recognized as the oldest operating bookshop in the world (founded 1732), framed in Pombaline blue-and-white azulejos on Rua Garrett.',
+    greeting: 'Boa tarde! Step softly through our vaulted bookrooms. Readers have traded stories on Rua Garrett since 1732.',
     phrase: {
       pt: 'Procura algum livro sobre a historia de Lisboa?',
       pronunciation: 'Proh-koo-rah ahl-goom lee-vroo soh-breh ah eesh-toh-ree-ah deh Leesh-boh-ah?',
@@ -369,10 +459,10 @@ export const VENUES = [
     },
     memory: {
       id: 'mem-livraria-chiado',
-      title: 'Oak Shelves of Livraria Antiga',
+      title: 'Vaulted Rooms of Livraria Bertrand',
       category: 'venue',
       neighborhood: 'Chiado',
-      caption: 'Floor-to-ceiling bookcases scented with cedar, paper, and quiet Chiado afternoons.'
+      caption: 'Hand-painted azulejos at the doorway and cedar-scented oak shelves founded in 1732.'
     },
     interiorTheme: {
       floorPrimary: '#b98f66',
@@ -382,7 +472,7 @@ export const VENUES = [
       counter: '#6c492e',
       layout: 'shop'
     },
-    displayNote: 'A glass display holds a bilingual pocket edition of poems celebrating Lisbon fog and river light.',
+    displayNote: 'Founded in 1732 and relocated to Rua Garrett after the 1755 earthquake, Bertrand stamps every book with its historic seal.',
     items: [
       {
         id: 'item-pessoa-book',
@@ -391,7 +481,7 @@ export const VENUES = [
         costEur: 11.0,
         fullnessDelta: 0,
         energyDelta: 5,
-        description: 'Bilingual Portuguese-English poetry collection stamped with the bookshop seal.'
+        description: 'Bilingual Portuguese-English poetry collection stamped with the 1732 bookshop seal.'
       },
       {
         id: 'item-lisbon-sketchbook',
@@ -406,26 +496,27 @@ export const VENUES = [
   },
   {
     id: 'cafe-do-poeta',
-    name: 'Cafe do Poeta',
+    name: 'Cafe A Brasileira',
     neighborhood: 'chiado',
     type: 'cafe',
-    badge: '[CAFE]',
-    x: 1070,
+    badge: '[CAFE 1905]',
+    archStyle: 'brasileira',
+    x: 1050,
     y: 380,
-    w: 210,
+    w: 202,
     h: 145,
     doorSide: 'south',
-    doorX: 1175,
+    doorX: 1151,
     doorY: 525,
-    spawnOutside: { x: 1175, y: 548 },
-    wallColor: '#f0e5d1',
-    roofColor: '#9c6724',
-    awningColor: '#7c4f18',
+    spawnOutside: { x: 1151, y: 546 },
+    wallColor: '#efe6d5',
+    roofColor: '#8d5324',
+    awningColor: '#1f4d3a',
     accentColor: '#a6701e',
     proprietor: 'Clara',
     proprietorRole: 'Head Barista',
-    description: 'A brass-and-mirror Chiado coffee house where poets and travelers share marble tables over bica and warm custard tarts.',
-    greeting: 'Bom dia! Fresh pasteis de nata just came out of the oven, dusted with cinnamon and powdered sugar.',
+    description: 'Chiado landmark opened in 1905 with dark mahogany Art Nouveau paneling, gilded brass lettering, and Fernando Pessoa bronze statue outside.',
+    greeting: 'Bom dia! Fresh pasteis de nata just came out of the oven, and Fernando Pessoa has saved a seat on the terrace.',
     phrase: {
       pt: 'Uma bica e um pastel de nata quentinho, se faz favor.',
       pronunciation: 'Oo-mah bee-kah ee oom pahsh-tehl deh nah-tah ken-tee-nyoo, seh fahsh fah-vohr.',
@@ -433,20 +524,20 @@ export const VENUES = [
     },
     memory: {
       id: 'mem-cafe-do-poeta',
-      title: 'Morning Bica at Cafe do Poeta',
+      title: 'Bica at Cafe A Brasileira',
       category: 'venue',
       neighborhood: 'Chiado',
-      caption: 'Flaky warm pastry, dark Lisbon roast, and Tram 28E bells drifting through tall glass doors.'
+      caption: 'Dark wood Art Nouveau mirrors, warm custard pastry, and Tram 28E ringing right past Largo do Chiado.'
     },
     interiorTheme: {
       floorPrimary: '#ede8de',
       floorSecondary: '#2d3540',
       wall: '#f7f1e3',
-      trim: '#7c4f18',
-      counter: '#5e3d24',
+      trim: '#1f4d3a',
+      counter: '#54351e',
       layout: 'cafe'
     },
-    displayNote: 'Polished brass coffee urns reflect the black-and-white marble checkerboard across the café salon.',
+    displayNote: 'Designed by Manuel Joaquim Norte Junior in 1905, A Brasileira popularized the Lisbon bica espresso among writers and artists.',
     items: [
       {
         id: 'item-bica-nata',
@@ -474,6 +565,7 @@ export const VENUES = [
     neighborhood: 'chiado',
     type: 'shop',
     badge: '[SHOP]',
+    archStyle: 'chiado-arcade',
     x: 1450,
     y: 695,
     w: 200,
@@ -481,14 +573,14 @@ export const VENUES = [
     doorSide: 'north',
     doorX: 1550,
     doorY: 695,
-    spawnOutside: { x: 1550, y: 672 },
-    wallColor: '#eadbc8',
+    spawnOutside: { x: 1550, y: 676 },
+    wallColor: '#e7f2ee',
     roofColor: '#995c38',
     awningColor: '#7a4526',
-    accentColor: '#995c38',
+    accentColor: '#1f7062',
     proprietor: 'Helena',
     proprietorRole: 'Artisan Maker',
-    description: 'A sunlit Chiado craft atelier showcasing supple Alentejo cork journals, wallets, and fine hand-stitched goods.',
+    description: 'A Pombaline arcaded Chiado craft boutique inspired by historic glove and cork ateliers, with stone arches and emerald tiles.',
     greeting: 'Entre, por favor! Feel how light Portuguese cork is. Every oak bark harvest heals naturally without felling a tree.',
     phrase: {
       pt: 'Isto e feito a mao em Portugal?',
@@ -500,7 +592,7 @@ export const VENUES = [
       title: 'Craftsmanship at Atelier de Cortica',
       category: 'venue',
       neighborhood: 'Chiado',
-      caption: 'Warm honey-toned cork leather, brass stitching tools, and patient Lisbon craftsmanship.'
+      caption: 'Limestone Chiado arches, supple honey-toned cork leather, and patient Portuguese craftsmanship.'
     },
     interiorTheme: {
       floorPrimary: '#d5b997',
@@ -539,7 +631,8 @@ export const VENUES = [
     name: 'Oficina de Azulejos',
     neighborhood: 'alfama',
     type: 'shop',
-    badge: '[SHOP]',
+    badge: '[ATELIER]',
+    archStyle: 'azulejo-atelier',
     x: 1840,
     y: 55,
     w: 220,
@@ -547,14 +640,14 @@ export const VENUES = [
     doorSide: 'south',
     doorX: 1950,
     doorY: 195,
-    spawnOutside: { x: 1950, y: 222 },
-    wallColor: '#d9e6f2',
+    spawnOutside: { x: 1950, y: 220 },
+    wallColor: '#f2f6fb',
     roofColor: '#1d568a',
     awningColor: '#15406a',
     accentColor: '#1d568a',
     proprietor: 'Tiago',
     proprietorRole: 'Tile Painter',
-    description: 'A cobalt-and-white Alfama ceramic studio where artisans glaze geometric tiles and maritime vignettes by hand.',
+    description: 'An 18th-century style Alfama ceramic workshop clad in cobalt-and-white diamond rosette tiles with a carved stone pediment.',
     greeting: 'Ola! Mind the fresh cobalt glaze on the kiln table. Look closely and you will spot the Santa Luzia pattern.',
     phrase: {
       pt: 'Estes azulejos pintados a mao sao lindos!',
@@ -604,6 +697,7 @@ export const VENUES = [
     neighborhood: 'alfama',
     type: 'restaurant',
     badge: '[RESTAURANT]',
+    archStyle: 'alfama-taberna',
     x: 1845,
     y: 380,
     w: 220,
@@ -611,14 +705,14 @@ export const VENUES = [
     doorSide: 'south',
     doorX: 1955,
     doorY: 525,
-    spawnOutside: { x: 1955, y: 548 },
-    wallColor: '#f2e0c7',
+    spawnOutside: { x: 1955, y: 546 },
+    wallColor: '#f7f3eb',
     roofColor: '#bf5530',
-    awningColor: '#9c3f21',
+    awningColor: '#1b558a',
     accentColor: '#bf5530',
     proprietor: 'Dona Rosa',
     proprietorRole: 'Chef & Host',
-    description: 'A lively Alfama neighborhood eatery fragrant with charcoal-grilled sardines, roasted peppers, and sea salt.',
+    description: 'A whitewashed Alfama hillside taberna adorned with festive Santos Populares garlands, cobalt doorway trim, and glowing charcoal grill.',
     greeting: 'Boa tarde, querido! The charcoal grill is hot and the sardines arrived from the river quay this morning.',
     phrase: {
       pt: 'Queria sardinhas assadas com pimentos, por favor.',
@@ -630,7 +724,7 @@ export const VENUES = [
       title: 'Charcoal & Sea Salt at Taberna da Sardinha',
       category: 'venue',
       neighborhood: 'Alfama',
-      caption: 'Crisp grilled sardines on thick bread, laughter across linen tables, and Tagus sunshine.'
+      caption: 'Crisp grilled sardines on thick bread, festive flags overhead, and Tagus sunshine.'
     },
     interiorTheme: {
       floorPrimary: '#e5c9a8',
@@ -668,6 +762,7 @@ export const VENUES = [
     neighborhood: 'alfama',
     type: 'shop',
     badge: '[SHOP]',
+    archStyle: 'mercearia',
     x: 1845,
     y: 695,
     w: 220,
@@ -675,14 +770,14 @@ export const VENUES = [
     doorSide: 'north',
     doorX: 1955,
     doorY: 695,
-    spawnOutside: { x: 1955, y: 672 },
-    wallColor: '#e9e2ce',
+    spawnOutside: { x: 1955, y: 676 },
+    wallColor: '#f2f6fb',
     roofColor: '#1f7063',
     awningColor: '#15544a',
     accentColor: '#1f7063',
     proprietor: 'Joao',
     proprietorRole: 'Grocer',
-    description: 'An old-world Alfama corner grocer gleaming with brightly illustrated Portuguese fish tins, fig sweets, and cherry cordial.',
+    description: 'An old-world tiled Alfama corner grocer with arched display bays packed with colorful lithograph fish tins and fig sweets.',
     greeting: 'Ora boas! Every shelf here is wrapped by hand in illustrated paper. Taste a fig sweet or pick a tin for home.',
     phrase: {
       pt: 'Pode embrulhar para presente, por favor?',
@@ -817,11 +912,11 @@ export const TRANSIT_LINES = [
       caption: 'Wood-paneled benches swaying along steel rails as the yellow streetcar climbs from Camoes to Alfama.'
     },
     waypoints: [
-      { x: 240, y: 610, stopId: 'stop-tram-loreto', stopName: 'Rua do Loreto (Bairro Alto)', platformY: 568 },
-      { x: 960, y: 610, stopId: 'stop-tram-camoes', stopName: 'Praca Luis de Camoes (Chiado)', platformY: 568 },
-      { x: 1360, y: 610, stopId: 'stop-tram-chiado', stopName: 'Largo do Chiado (Chiado)', platformY: 568 },
-      { x: 1730, y: 610, stopId: 'stop-tram-se', stopName: 'Se de Lisboa (Alfama Edge)', platformY: 568 },
-      { x: 2150, y: 610, stopId: 'stop-tram-alfama', stopName: 'Portas do Sol (Alfama)', platformY: 568 }
+      { x: 240, y: 610, stopId: 'stop-tram-loreto', stopName: 'Rua do Loreto (Bairro Alto)', platformY: 562 },
+      { x: 960, y: 610, stopId: 'stop-tram-camoes', stopName: 'Praca Luis de Camoes (Chiado)', platformY: 562 },
+      { x: 1384, y: 610, stopId: 'stop-tram-chiado', stopName: 'Largo do Chiado (Chiado)', platformY: 562 },
+      { x: 1730, y: 610, stopId: 'stop-tram-se', stopName: 'Se de Lisboa (Alfama Edge)', platformY: 562 },
+      { x: 2150, y: 610, stopId: 'stop-tram-alfama', stopName: 'Portas do Sol (Alfama)', platformY: 562 }
     ]
   },
   {
@@ -850,13 +945,13 @@ export const TRANSIT_LINES = [
     },
     waypoints: [
       { x: 162, y: 285 },
-      { x: 340, y: 285, stopId: 'stop-bus-sao-pedro', stopName: 'Sao Pedro de Alcantara (Bairro Alto)', platformY: 242 },
-      { x: 1170, y: 285, stopId: 'stop-bus-garrett', stopName: 'Rua Garrett (Chiado)', platformY: 242 },
-      { x: 1950, y: 285, stopId: 'stop-bus-santa-luzia', stopName: 'Miradouro Santa Luzia (Alfama)', platformY: 242 },
+      { x: 340, y: 285, stopId: 'stop-bus-sao-pedro', stopName: 'Sao Pedro de Alcantara (Bairro Alto)', platformY: 236 },
+      { x: 1170, y: 285, stopId: 'stop-bus-garrett', stopName: 'Rua Garrett (Chiado)', platformY: 236 },
+      { x: 1950, y: 285, stopId: 'stop-bus-santa-luzia', stopName: 'Miradouro Santa Luzia (Alfama)', platformY: 236 },
       { x: 2215, y: 285 },
       { x: 2215, y: 932 },
-      { x: 1920, y: 932, stopId: 'stop-bus-cais-alfama', stopName: 'Cais de Alfama (Waterfront)', platformY: 888 },
-      { x: 950, y: 932, stopId: 'stop-bus-camoes-sul', stopName: 'Camoes Sul (Waterfront)', platformY: 888 },
+      { x: 1900, y: 932, stopId: 'stop-bus-cais-alfama', stopName: 'Cais de Alfama (Waterfront)', platformY: 880 },
+      { x: 950, y: 932, stopId: 'stop-bus-camoes-sul', stopName: 'Camoes Sul (Waterfront)', platformY: 880 },
       { x: 162, y: 932 }
     ]
   }
@@ -879,12 +974,14 @@ export const MILESTONE_MEMORIES = {
   }
 };
 
+// All ambient Lisbon locals patrol strictly on sidewalks, plazas, and pedestrian steps (never inside vehicle lanes)
 export const AMBIENT_NPCS = [
-  { id: 'npc-1', name: 'Local Artist', x: 520, y: 295, patrolAxis: 'y', min: 255, max: 495, speed: 24, shirt: '#3b6ea5', hair: '#3b2b20' },
-  { id: 'npc-2', name: 'Musician', x: 930, y: 540, patrolAxis: 'x', min: 895, max: 1015, speed: 20, shirt: '#9f4438', hair: '#2a221e' },
-  { id: 'npc-3', name: 'Reader', x: 1355, y: 390, patrolAxis: 'y', min: 260, max: 520, speed: 22, shirt: '#2b6e59', hair: '#5a3d28' },
-  { id: 'npc-4', name: 'Tile Courier', x: 1730, y: 450, patrolAxis: 'y', min: 265, max: 545, speed: 26, shirt: '#c68a1e', hair: '#2c2521' },
-  { id: 'npc-5', name: 'Waterfront Stroller', x: 1450, y: 900, patrolAxis: 'x', min: 1120, max: 1780, speed: 28, shirt: '#6a4c7a', hair: '#40312a' }
+  { id: 'npc-1', name: 'Local Artist', x: 526, y: 420, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#3b6ea5', hair: '#3b2b20' },
+  { id: 'npc-2', name: 'Chiado Musician', x: 1120, y: 676, patrolAxis: 'x', min: 1060, max: 1340, speed: 20, shirt: '#9f4438', hair: '#2a221e' },
+  { id: 'npc-3', name: 'Rua Garrett Reader', x: 1120, y: 218, patrolAxis: 'x', min: 1040, max: 1320, speed: 22, shirt: '#2b6e59', hair: '#5a3d28' },
+  { id: 'npc-4', name: 'Alfama Neighbor', x: 1730, y: 440, patrolAxis: 'y', min: 360, max: 510, speed: 24, shirt: '#c68a1e', hair: '#2c2521' },
+  { id: 'npc-5', name: 'Tagus Stroller', x: 1420, y: 996, patrolAxis: 'x', min: 1050, max: 1860, speed: 28, shirt: '#6a4c7a', hair: '#40312a' },
+  { id: 'npc-6', name: 'Bairro Alto Stroller', x: 380, y: 676, patrolAxis: 'x', min: 240, max: 560, speed: 22, shirt: '#2c5f8a', hair: '#3b2e26' }
 ];
 
 export function getAllTransitStops() {
@@ -920,6 +1017,7 @@ export function getAllMemoryCatalog() {
   for (const line of TRANSIT_LINES) {
     catalog.push(line.memory);
   }
+  catalog.push(METRO_LINE.memory);
   for (const spot of REST_SPOTS) {
     catalog.push(spot.memory);
   }

@@ -6,9 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 import {
   NEIGHBORHOODS,
+  METRO_LINE,
+  METRO_STATIONS,
   VENUES,
   REST_SPOTS,
   TRANSIT_LINES,
+  AMBIENT_NPCS,
   getAllTransitStops,
   getAllMemoryCatalog
 } from '../src/data.js';
@@ -21,8 +24,12 @@ import {
   OVERNIGHT_COST_EUR,
   LOW_FUND_STIPEND_AMOUNT,
   INTERIOR_STATIONS,
+  PLAYER_RADIUS,
+  PERSON_SEPARATION_DIST,
   isOverworldPositionValid,
   isInteriorPositionValid,
+  isPointInVehicleLane,
+  pointIntersectsVehicle,
   formatClock,
   getDayPhase
 } from '../src/engine.js';
@@ -32,23 +39,45 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-test('dataset & spatial integrity: 3 neighborhoods, 9 enterable venues, valid spawns, stops, and 16 memories', () => {
+test('dataset & spatial integrity: 3 neighborhoods, 9 venues, 3 real Metro stations, valid sidewalk spawns, and 17 memories', () => {
   assert.deepEqual(
     NEIGHBORHOODS.map((n) => n.id),
     ['bairro-alto', 'chiado', 'alfama']
   );
   assert.equal(VENUES.length, 9);
+  assert.equal(METRO_STATIONS.length, 3);
   assert.equal(REST_SPOTS.length, 3);
   assert.equal(TRANSIT_LINES.length, 2);
-  assert.equal(getAllMemoryCatalog().length, 16);
+  assert.equal(getAllMemoryCatalog().length, 17);
 
-  const venueIds = new Set(VENUES.map((v) => v.id));
-  assert.equal(venueIds.size, 9);
+  // Authentic Lisbon geography: no Metro station inside hilltop Bairro Alto
+  assert.equal(
+    METRO_STATIONS.some((s) => s.neighborhood === 'bairro-alto'),
+    false,
+    'Bairro Alto should accurately have no underground Metro station inside its hilltop grid'
+  );
+
+  for (const station of METRO_STATIONS) {
+    assert.ok(
+      isOverworldPositionValid(station.spawnOutside.x, station.spawnOutside.y),
+      `Metro spawnOutside collides with obstacle for ${station.id}`
+    );
+    assert.equal(
+      isPointInVehicleLane(station.spawnOutside.x, station.spawnOutside.y),
+      false,
+      `Metro spawnOutside should sit safely on the sidewalk for ${station.id}`
+    );
+  }
 
   for (const venue of VENUES) {
     assert.ok(
       isOverworldPositionValid(venue.spawnOutside.x, venue.spawnOutside.y),
       `Venue spawnOutside collides with obstacle for ${venue.id}`
+    );
+    assert.equal(
+      isPointInVehicleLane(venue.spawnOutside.x, venue.spawnOutside.y),
+      false,
+      `Venue spawnOutside should sit safely on the sidewalk for ${venue.id}`
     );
     assert.ok(venue.phrase?.pt && venue.phrase?.pronunciation && venue.phrase?.en);
     assert.ok(venue.memory?.id && venue.memory?.title && venue.memory?.caption);
@@ -60,6 +89,11 @@ test('dataset & spatial integrity: 3 neighborhoods, 9 enterable venues, valid sp
       isOverworldPositionValid(stop.platformX, stop.platformY),
       `Transit stop platform collides with obstacle for ${stop.stopId}`
     );
+    assert.equal(
+      isPointInVehicleLane(stop.platformX, stop.platformY),
+      false,
+      `Transit stop platform should sit safely on the sidewalk for ${stop.stopId}`
+    );
   }
 
   for (const spot of REST_SPOTS) {
@@ -68,9 +102,18 @@ test('dataset & spatial integrity: 3 neighborhoods, 9 enterable venues, valid sp
       `Rest bench approach collides with obstacle for ${spot.id}`
     );
   }
+
+  // All ambient Lisbon locals patrol strictly off vehicle lanes
+  for (const npc of AMBIENT_NPCS) {
+    assert.equal(isPointInVehicleLane(npc.x, npc.y), false, `NPC ${npc.id} spawns in vehicle lane`);
+    const p1 = npc.patrolAxis === 'x' ? [npc.min, npc.y] : [npc.x, npc.min];
+    const p2 = npc.patrolAxis === 'x' ? [npc.max, npc.y] : [npc.x, npc.max];
+    assert.equal(isPointInVehicleLane(p1[0], p1[1]), false, `NPC ${npc.id} patrol min enters vehicle lane`);
+    assert.equal(isPointInVehicleLane(p2[0], p2[1]), false, `NPC ${npc.id} patrol max enters vehicle lane`);
+  }
 });
 
-test('AC-01: initial state, continuous foot walking, collision safety, and neighborhood transitions', () => {
+test('AC-01: initial state, continuous sidewalk walking, collision safety, and neighborhood transitions', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
@@ -82,8 +125,9 @@ test('AC-01: initial state, continuous foot walking, collision safety, and neigh
   assert.equal(state.minutesOfDay, DAY_START_MINUTES);
   assert.equal(state.currentNeighborhoodId, 'chiado');
   assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
+  assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 
-  // Walk west along Tram Avenue corridor from Chiado into Bairro Alto
+  // Walk west along the north sidewalk of Tram Avenue from Chiado into Bairro Alto
   for (let i = 0; i < 30; i += 1) {
     engine.tick(0.1, { x: -1, y: 0 });
   }
@@ -93,7 +137,7 @@ test('AC-01: initial state, continuous foot walking, collision safety, and neigh
   assert.ok(state.fullness < INITIAL_FULLNESS);
   assert.ok(state.stats.distanceWalkedPx > 200);
 
-  // Walk east all the way into Alfama
+  // Walk east along the sidewalk all the way into Alfama
   for (let i = 0; i < 95; i += 1) {
     engine.tick(0.1, { x: 1, y: 0 });
   }
@@ -102,11 +146,10 @@ test('AC-01: initial state, continuous foot walking, collision safety, and neigh
   assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
 });
 
-test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarking, and unlocking transit memories', () => {
+test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarking onto sidewalks, and transit memories', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
-  // Board Eletrico 28E at Praca Luis de Camoes
   const tramRes = engine.boardTransitAtStop('stop-tram-camoes', { waitIfApproaching: true });
   assert.equal(tramRes.ok, true);
   assert.equal(state.ridingVehicleId, 'tram-28e');
@@ -114,7 +157,6 @@ test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarkin
   assert.equal(state.stats.tramRides, 1);
   assert.ok(state.memories.some((m) => m.id === 'mem-ride-tram-28e'));
 
-  // Advance simulation while riding until tram moves away from stop, then ring bell and arrive at next stop
   const startX = state.player.x;
   for (let i = 0; i < 40; i += 1) {
     engine.tick(0.1, { x: 0, y: 0 });
@@ -126,8 +168,8 @@ test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarkin
   assert.equal(disembarkRes.alighted, true);
   assert.equal(state.ridingVehicleId, null);
   assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
+  assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 
-  // Now board Carris Bus 737 / 758
   const busRes = engine.boardTransitAtStop('stop-bus-santa-luzia', { waitIfApproaching: true });
   assert.equal(busRes.ok, true);
   assert.equal(state.ridingVehicleId, 'bus-737-758');
@@ -137,26 +179,25 @@ test('AC-02: boarding Tram 28E and Carris Bus, riding between stops, disembarkin
   const busExit = engine.disembarkTransit({ immediateToNextStop: true });
   assert.equal(busExit.ok, true);
   assert.equal(state.ridingVehicleId, null);
+  assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 });
 
-test('AC-03 & AC-04: entering shops and restaurants, walking interiors, eating, buying souvenirs, and exiting cleanly', () => {
+test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eating, buying souvenirs, and exiting cleanly', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
-  // Drain some energy and fullness first
   state.energy = 50;
   state.fullness = 40;
 
-  // Enter Cafe do Poeta in Chiado
   const enterRes = engine.enterVenue('cafe-do-poeta');
   assert.equal(enterRes.ok, true);
+  assert.equal(enterRes.venue.name, 'Cafe A Brasileira');
   assert.equal(state.mode, 'interior');
   assert.equal(state.currentVenueId, 'cafe-do-poeta');
   assert.equal(isInteriorPositionValid(state.player.x, state.player.y), true);
   assert.ok(state.memories.some((m) => m.id === 'mem-cafe-do-poeta'));
-  assert.ok(state.learnedPhrases.some((p) => p.source === 'Cafe do Poeta'));
+  assert.ok(state.learnedPhrases.some((p) => p.source === 'Cafe A Brasileira'));
 
-  // Walk inside the cafe toward counter
   const yBefore = state.player.y;
   for (let i = 0; i < 8; i += 1) {
     engine.tick(0.1, { x: 0, y: -1 });
@@ -164,7 +205,6 @@ test('AC-03 & AC-04: entering shops and restaurants, walking interiors, eating, 
   assert.ok(state.player.y < yBefore);
   assert.equal(isInteriorPositionValid(state.player.x, state.player.y), true);
 
-  // Order Bica & Pastel de Nata
   const eurosBefore = state.euros;
   const orderRes = engine.purchaseVenueItem('item-bica-nata');
   assert.equal(orderRes.ok, true);
@@ -174,14 +214,12 @@ test('AC-03 & AC-04: entering shops and restaurants, walking interiors, eating, 
   assert.equal(state.stats.mealsEaten, 1);
   assert.ok(state.memories.some((m) => m.id === 'mem-milestone-taste'));
 
-  // Exit back onto Chiado street
   const exitRes = engine.exitVenue();
   assert.equal(exitRes.ok, true);
   assert.equal(state.mode, 'overworld');
   assert.equal(state.currentVenueId, null);
   assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
 
-  // Enter Oficina de Azulejos in Alfama and buy a souvenir
   assert.equal(engine.enterVenue('oficina-azulejos').ok, true);
   const buyRes = engine.purchaseVenueItem('item-azulejo-coaster');
   assert.equal(buyRes.ok, true);
@@ -192,9 +230,24 @@ test('AC-03 & AC-04: entering shops and restaurants, walking interiors, eating, 
   assert.equal(engine.exitVenue().ok, true);
 });
 
-test('AC-05: gentle non-punitive loop (miradouro free rest, overnight refresh, low-fund stipend, and full 16-memory completion)', () => {
+test('AC-05 & AC-06: Metro Linha Azul rides, gentle non-punitive loop, and full 17-memory completion', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
+
+  // Ride Metro from Baixa-Chiado to Santa Apolonia (Alfama waterfront)
+  const openRes = engine.openMetroStation('metro-baixa-chiado');
+  assert.equal(openRes.ok, true);
+  assert.equal(state.activeMetroStationId, 'metro-baixa-chiado');
+
+  const eurosBeforeMetro = state.euros;
+  const metroRes = engine.rideMetro('metro-baixa-chiado', 'metro-santa-apolonia');
+  assert.equal(metroRes.ok, true);
+  assert.equal(state.euros, Math.round((eurosBeforeMetro - METRO_LINE.fareEur) * 100) / 100);
+  assert.equal(state.stats.metroRides, 1);
+  assert.equal(state.currentNeighborhoodId, 'alfama');
+  assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
+  assert.ok(state.memories.some((m) => m.id === 'mem-ride-metro-lisboa'));
+  assert.ok(state.learnedPhrases.some((p) => p.source === METRO_LINE.name));
 
   // Free bench rest restores energy and unlocks viewpoint memory
   state.energy = 35;
@@ -221,13 +274,12 @@ test('AC-05: gentle non-punitive loop (miradouro free rest, overnight refresh, l
   assert.equal(nightRes.stipendAdded, LOW_FUND_STIPEND_AMOUNT);
   assert.equal(state.euros, 5.0 + LOW_FUND_STIPEND_AMOUNT);
 
-  // Overnight rest with ample funds pays normal pensao rate
   state.euros = 80.0;
   const paidNight = engine.restOvernight();
   assert.equal(paidNight.paidEur, OVERNIGHT_COST_EUR);
   assert.equal(state.euros, 80.0 - OVERNIGHT_COST_EUR);
 
-  // Collecting all 16 memories marks albumCompleted = true
+  // Collecting all 17 memories marks albumCompleted = true
   for (const venue of VENUES) {
     engine.enterVenue(venue.id);
     if (venue.id === 'cafe-do-poeta') engine.purchaseVenueItem('item-bica-nata');
@@ -242,11 +294,71 @@ test('AC-05: gentle non-punitive loop (miradouro free rest, overnight refresh, l
   engine.boardTransitAtStop('stop-bus-garrett', { waitIfApproaching: true });
   engine.disembarkTransit({ immediateToNextStop: true });
 
-  assert.equal(state.memories.length, 16);
+  assert.equal(state.memories.length, 17);
   assert.equal(state.albumCompleted, true);
 });
 
-test('renderer smoke test: renders overworld phases, live vehicles, and all 9 venue interiors cleanly', () => {
+test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, vehicles yield without crashing, no person overlap)', () => {
+  const engine = new MemoriesGameEngine();
+  const state = engine.getState();
+
+  const tram = state.vehicles.find((v) => v.mode === 'tram');
+  assert.ok(tram);
+
+  // Case 1: Player cannot walk downward into a stopped/passing Tram 28E
+  tram.x = 960;
+  tram.y = 610;
+  tram.heading = 0;
+  tram.dwellRemaining = 0;
+  state.player.x = 960;
+  state.player.y = 572; // Just above tram top edge (610 - 17 - 13 - 4 = 576)
+
+  for (let i = 0; i < 15; i += 1) {
+    engine.tick(0.05, { x: 0, y: 1 });
+  }
+  assert.equal(
+    pointIntersectsVehicle(state.player.x, state.player.y, PLAYER_RADIUS, tram),
+    false,
+    'Player must never walk into a vehicle hitbox'
+  );
+
+  // Case 2: Tram yields and brakes smoothly when player stands ahead on the rails (never crashes into passenger)
+  tram.x = 1000;
+  tram.y = 610;
+  tram.heading = 0;
+  tram.direction = 1;
+  tram.waypointIndex = 1; // Heading east toward x=1384
+  tram.dwellRemaining = 0;
+
+  state.player.x = 1068;
+  state.player.y = 610;
+
+  const tramXBefore = tram.x;
+  for (let i = 0; i < 15; i += 1) {
+    engine.tick(0.1, { x: 0, y: 0 });
+  }
+  assert.equal(tram.yielding, true, 'Tram should engage safety yield brake when pedestrian is ahead');
+  assert.equal(tram.x, tramXBefore, 'Yielding tram must not advance into the pedestrian');
+  assert.equal(pointIntersectsVehicle(state.player.x, state.player.y, PLAYER_RADIUS, tram), false);
+
+  // Once pedestrian steps clear onto the sidewalk, tram resumes cleanly
+  state.player.y = 546;
+  engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(tram.yielding, false);
+  assert.ok(tram.x > tramXBefore, 'Tram should resume moving once pedestrian clears the track');
+
+  // Case 3: Player and ambient Lisbon pedestrians cannot overlap / walk through each other
+  const npc = state.npcs[0];
+  state.player.x = npc.x;
+  state.player.y = npc.y + PERSON_SEPARATION_DIST + 4;
+  for (let i = 0; i < 20; i += 1) {
+    engine.tick(0.05, { x: 0, y: -1 });
+  }
+  const sep = Math.hypot(state.player.x - npc.x, state.player.y - npc.y);
+  assert.ok(sep >= PERSON_SEPARATION_DIST - 0.5, `Expected person separation >= ${PERSON_SEPARATION_DIST}, got ${sep}`);
+});
+
+test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 9 venue interiors cleanly', () => {
   const noop = () => {};
   const mockGradient = { addColorStop: noop };
   let drawCalls = 0;
@@ -294,26 +406,27 @@ test('renderer smoke test: renders overworld phases, live vehicles, and all 9 ve
   const engine = new MemoriesGameEngine();
   const renderer = new LisboaCanvasRenderer(mockCanvas);
 
-  // Render all 4 time-of-day phases on overworld
   for (const mins of [9 * 60, 14 * 60, 18 * 60, 21 * 60]) {
     engine.getState().minutesOfDay = mins;
     engine.tick(0.1, { x: 1, y: 0 });
     renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   }
 
-  // Render riding tram and bus
+  engine.getState().vehicles[0].yielding = true;
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.getState().vehicles[0].yielding = false;
+
   engine.boardTransitAtStop('stop-tram-camoes', { waitIfApproaching: true });
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   engine.disembarkTransit({ immediateToNextStop: true });
 
-  // Render every venue interior
   for (const venue of VENUES) {
     engine.enterVenue(venue.id);
     renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
     engine.exitVenue();
   }
 
-  assert.ok(drawCalls > 500, `Expected substantial canvas draw calls, got ${drawCalls}`);
+  assert.ok(drawCalls > 600, `Expected substantial canvas draw calls, got ${drawCalls}`);
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {
