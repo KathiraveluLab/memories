@@ -1,4 +1,4 @@
-import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS } from './data.js';
+import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, REST_SPOTS } from './data.js';
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -157,11 +157,29 @@ export function computeSoundscapeProfile(state) {
     };
   }
 
+  let miradouroGuitar = 0;
+  const px = Number.isFinite(state.player?.x) ? state.player.x : 950;
+  for (const spot of REST_SPOTS) {
+    const d = Math.hypot(px - spot.x, py - spot.y);
+    if (d <= 120) {
+      miradouroGuitar = Math.max(miradouroGuitar, Math.round((1 - d / 140) * 85) / 100);
+    }
+  }
+  if (state.miradouroEncore) {
+    miradouroGuitar = Math.max(miradouroGuitar, 0.78);
+  }
+
   return {
     ...EMPTY_PROFILE,
+    folkGuitar: miradouroGuitar,
     riverWater,
-    badgeTone: riverWater >= 0.12 ? 'water' : 'idle',
-    activeLabel: riverWater >= 0.12 ? 'Tagus Riverfront' : 'Lisboa Streets'
+    badgeTone: riverWater >= 0.12 ? 'water' : miradouroGuitar >= 0.35 ? 'warm' : 'idle',
+    activeLabel:
+      riverWater >= 0.12
+        ? 'Tagus Riverfront'
+        : state.miradouroEncore || miradouroGuitar >= 0.45
+          ? 'Miradouro Street Musician'
+          : 'Lisboa Streets'
   };
 }
 
@@ -1386,6 +1404,55 @@ export class LisboaSoundEngine {
         env.connect(this.sfxBus);
         osc.start(t);
         osc.stop(t + 0.4);
+      }
+      return;
+    }
+
+    if (kind === 'miradouro-strum') {
+      // Bright Portuguese 12-string acoustic guitar arpeggio flourish at a sunlit Miradouro
+      for (const [idx, freq] of [392.0, 493.88, 587.33, 783.99].entries()) {
+        const t = now + idx * 0.075;
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        const harmonic = ctx.createOscillator();
+        harmonic.type = 'sine';
+        harmonic.frequency.setValueAtTime(freq * 2, t);
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.linearRampToValueAtTime(0.13, t + 0.01);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+        const hGain = ctx.createGain();
+        hGain.gain.value = 0.28;
+        osc.connect(env);
+        harmonic.connect(hGain);
+        hGain.connect(env);
+        env.connect(this.sfxBus);
+        osc.start(t);
+        harmonic.start(t);
+        osc.stop(t + 0.6);
+        harmonic.stop(t + 0.6);
+      }
+      return;
+    }
+
+    if (kind === 'cafe-toast') {
+      // Celebratory porcelain & crystal glass "Saude!" toast clink
+      for (const [delay, f1, f2] of [[0, 2093.0, 2637.02], [0.11, 2349.32, 3135.96]]) {
+        const t = now + delay;
+        for (const freq of [f1, f2]) {
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t);
+          const env = ctx.createGain();
+          env.gain.setValueAtTime(0.0001, t);
+          env.gain.linearRampToValueAtTime(0.11, t + 0.005);
+          env.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+          osc.connect(env);
+          env.connect(this.sfxBus);
+          osc.start(t);
+          osc.stop(t + 0.38);
+        }
       }
       return;
     }

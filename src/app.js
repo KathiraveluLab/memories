@@ -121,6 +121,8 @@ let prevAudioRidingId = null;
 let lastAnnouncementId = 0;
 let lastFerryHornId = 0;
 let lastMetroDoorChimeId = 0;
+let lastMiradouroEncoreId = 0;
+let lastSharedToastId = 0;
 let lastTransitIntentId = 0;
 
 const pressedKeys = new Set();
@@ -821,6 +823,7 @@ function renderActiveContextPanel(state) {
       <div class="action-strip">
         <button type="button" class="btn btn-sm" data-venue-action="talk">Chat with ${escapeHtml(venue.proprietor)}</button>
         <button type="button" class="btn btn-sm" data-venue-action="inspect">Inspect Display</button>
+        <button type="button" class="btn btn-primary btn-sm" data-venue-action="toast">Raise a Toast ("Saude!") [T]</button>
       </div>
     `;
     return;
@@ -1401,6 +1404,17 @@ window.addEventListener('keydown', (event) => {
     }
     return;
   }
+  if (event.code === 'KeyT') {
+    if (!event.repeat) {
+      const res = engine.triggerSharedToast();
+      mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+      if (res?.toast) {
+        setStatusBanner(res.toast.text);
+      }
+      refreshUi(true);
+    }
+    return;
+  }
   if (event.code === 'KeyE' || event.code === 'Space') {
     if (!event.repeat) {
       const res = engine.triggerNearbyInteraction();
@@ -1644,6 +1658,10 @@ dom.activeContextPanel.addEventListener('click', (event) => {
     if (act === 'exit') engine.exitVenue();
     else if (act === 'talk') engine.talkToProprietor();
     else if (act === 'inspect') engine.inspectVenueDisplay();
+    else if (act === 'toast') {
+      engine.triggerSharedToast();
+      mpClient.syncState(engine.getNetworkSnapshot(), { force: true });
+    }
     refreshUi(true);
     return;
   }
@@ -1875,6 +1893,14 @@ function frame(now) {
     lastMetroDoorChimeId = state.metroDoorChime.id;
     soundEngine.playEffect('metro-door-chime');
   }
+  if (state.miradouroEncore && state.miradouroEncore.id !== lastMiradouroEncoreId) {
+    lastMiradouroEncoreId = state.miradouroEncore.id;
+    soundEngine.playEffect('miradouro-strum');
+  }
+  if (state.sharedToast && state.sharedToast.id !== lastSharedToastId) {
+    lastSharedToastId = state.sharedToast.id;
+    soundEngine.playEffect('cafe-toast');
+  }
   if (state.ridingVehicleId === 'tram-28e' && prevAudioRidingId !== 'tram-28e') {
     soundEngine.playEffect('tram-bell');
   }
@@ -1901,6 +1927,10 @@ function frame(now) {
         mpClient.requestFerryHorn(intent.routeId, intent.fromPortId, intent.toPortId, intent.triggeredBy);
       } else if (intent.action === 'ring-bell') {
         mpClient.requestRingBell(intent.lineId, intent.stopName, intent.ringerName);
+      } else if (intent.action === 'miradouro-perform') {
+        mpClient.requestMiradouroPerform(intent.spotId, intent.requestedBy);
+      } else if (intent.action === 'cafe-toast') {
+        mpClient.requestCafeToast(intent);
       }
     }
   }

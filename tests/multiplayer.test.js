@@ -399,6 +399,63 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       brunoEngine.syncGlobalTransit(hornOnB.transit);
       assert.equal(brunoEngine.getState().ferryHornSignal.triggeredBy, 'Alice');
 
+      // 4c-iii. Synchronized Miradouro Street-Musician Performances & Shared Cafe Toast Emotes!
+      const encoreRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'miradouro-perform',
+          spotId: 'bench-chiado',
+          requestedBy: 'Alice'
+        })
+      });
+      const encoreJson = await encoreRes.json();
+      assert.equal(encoreJson.ok, true);
+      assert.equal(encoreJson.encore.musicianName, 'Beatriz');
+      assert.equal(encoreJson.encore.songTitle, 'Rapsodia da Rua Garrett');
+
+      const encoreOnB = await streamB.waitFor(
+        (evt) =>
+          evt.transit?.miradouros?.some(
+            (m) => m.spotId === 'bench-chiado' && m.lastEncore?.id === encoreJson.encore.id
+          )
+      );
+      brunoEngine.exitFerryTerminal({ immediate: true });
+      brunoEngine.setPlayerPosition(956, 512);
+      brunoEngine.syncGlobalTransit(encoreOnB.transit);
+      assert.ok(brunoEngine.getState().miradouroEncore);
+      assert.equal(brunoEngine.getState().miradouroEncore.musicianName, 'Beatriz');
+      assert.equal(brunoEngine.getState().miradouroEncore.songTitle, 'Rapsodia da Rua Garrett');
+      assert.equal(brunoEngine.getState().miradouroEncore.requestedBy, 'Alice');
+
+      // Shared Cafe Toast inside Cafe A Brasileira -> Bruno inside Cafe A Brasileira automatically raises a "Saude!" toast together!
+      brunoEngine.enterVenue('cafe-do-poeta');
+      const toastRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'cafe-toast',
+          locationKey: 'venue:cafe-do-poeta',
+          locationName: 'Cafe A Brasileira',
+          speakerName: 'Alice',
+          itemName: 'Bica & Pastel de Nata'
+        })
+      });
+      const toastJson = await toastRes.json();
+      assert.equal(toastJson.ok, true);
+      assert.ok(toastJson.cafeToast.text.includes('Saude!'));
+
+      const toastOnB = await streamB.waitFor(
+        (evt) => evt.transit?.cafeToast?.id === toastJson.cafeToast.id
+      );
+      brunoEngine.syncGlobalTransit(toastOnB.transit);
+      assert.ok(brunoEngine.getState().sharedToast);
+      assert.equal(brunoEngine.getState().sharedToast.speakerName, 'Alice');
+      assert.equal(brunoEngine.getState().sharedToast.locationKey, 'venue:cafe-do-poeta');
+      assert.equal(brunoEngine.getState().player.emoteText, 'Saude!');
+
       // 4d. Server-Authoritative Ambient Villagers & Ferry-Mode Remote Players stay synchronized across clients!
       assert.ok(Array.isArray(joinA.transit.npcs) && joinA.transit.npcs.length === 6);
       const initialNpc1X = joinA.transit.npcs.find((n) => n.id === 'npc-1').x;

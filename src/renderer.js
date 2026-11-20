@@ -719,6 +719,18 @@ export class LisboaCanvasRenderer {
       ctx.textAlign = 'center';
       ctx.fillStyle = captured ? '#0f766e' : '#3d2f22';
       ctx.fillText(captured ? 'MIRADOURO [SAVED]' : 'MIRADOURO BENCH', spot.x, spot.y - 23);
+      const perf = (state.miradouroPerformances || []).find((m) => m.spotId === spot.id);
+      if (perf) {
+        this.drawCharacterSprite(ctx, spot.x + 34, spot.y - 2, {
+          facing: 'down',
+          walkPhase: this.animTime * 3.2,
+          isMoving: false,
+          outfitId: perf.musicianOutfitId || spot.musicianOutfitId || 'fado-blazer',
+          label: `${perf.musicianName}: "${perf.songTitle}"`,
+          emoteText: state.miradouroEncore?.spotId === spot.id ? `${perf.instrument}!` : '',
+          isPlayer: false
+        });
+      }
       ctx.textAlign = 'left';
     }
   }

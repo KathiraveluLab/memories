@@ -849,11 +849,17 @@ export class LisboaScenes3DRenderer {
 
     // 7. Top-left Room HUD & Top-right Room Mini-Map
     const peersInRoom = (state.remotePlayers || []).filter((r) => r.mode === 'interior' && r.currentVenueId === state.currentVenueId);
+    const activeRoomToast =
+      state.sharedToast && state.sharedToast.locationKey === `venue:${venue.id}`
+        ? state.sharedToast
+        : null;
     this.drawSceneHud(
       ctx,
       cam,
       `3D INTERIOR  -  ${venue.name}`,
-      `${venue.memory.neighborhood}  |  Walk/Click Counter, Display, or Exit`,
+      activeRoomToast
+        ? `${(activeRoomToast.speakerName || 'COMPANION').toUpperCase()} TOAST: "${activeRoomToast.text}"`
+        : `${venue.memory.neighborhood}  |  Walk/Click Counter, Display, or Exit`,
       {
         floorRect: { x: xMin, y: yMin, w: xMax - xMin, h: yMax - yMin },
         floorColor: 'rgba(235, 224, 200, 0.24)',

@@ -312,6 +312,21 @@ export class LanMultiplayerClient {
     return this.postTransitAction({ action: 'next-fado' });
   }
 
+  requestMiradouroPerform(spotId, requestedBy) {
+    return this.postTransitAction({ action: 'miradouro-perform', spotId, requestedBy });
+  }
+
+  requestCafeToast({ locationKey, locationName, speakerName, itemName, text } = {}) {
+    return this.postTransitAction({
+      action: 'cafe-toast',
+      locationKey,
+      locationName,
+      speakerName,
+      itemName,
+      text
+    });
+  }
+
   handleBeforeUnload() {
     if (!this.playerId) return;
     const payload = JSON.stringify({ playerId: this.playerId });

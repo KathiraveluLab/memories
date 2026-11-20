@@ -1587,6 +1587,10 @@ export const REST_SPOTS = [
     neighborhood: 'bairro-alto',
     x: 510,
     y: 162,
+    musicianName: 'Mateus',
+    instrument: 'Guitarra Portuguesa',
+    musicianOutfitId: 'fado-blazer',
+    songs: ['Valsa de Sao Pedro', 'Serenata do Alto', 'Chula da Colina'],
     description: 'A stone garden bench framing terracotta rooftops stretching east toward Castelo de Sao Jorge.',
     phrase: {
       pt: 'Que vista maravilhosa sobre Lisboa!',
@@ -1607,6 +1611,10 @@ export const REST_SPOTS = [
     neighborhood: 'chiado',
     x: 950,
     y: 500,
+    musicianName: 'Beatriz',
+    instrument: 'Bandolim do Chiado',
+    musicianOutfitId: 'alfama-dress',
+    songs: ['Melodia de Camoes', 'Rapsodia da Rua Garrett', 'Valseto dos Poetas'],
     description: 'A shaded limestone bench beside the patterned calcada square linking Bairro Alto and Chiado.',
     phrase: {
       pt: 'Vamos descansar um pouco na praca.',
@@ -1627,6 +1635,10 @@ export const REST_SPOTS = [
     neighborhood: 'alfama',
     x: 2110,
     y: 492,
+    musicianName: 'Sebastiao',
+    instrument: 'Acordeao de Alfama',
+    musicianOutfitId: 'bohemian-poncho',
+    songs: ['Brisa das Portas do Sol', 'Marcha do Tejo', 'Saudade de Santa Luzia'],
     description: 'A sunlit stone parapet looking out across Alfama domes and the shimmering blue Tagus estuary.',
     phrase: {
       pt: 'O rio Tejo brilha ao fim da tarde.',

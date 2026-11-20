@@ -11,6 +11,7 @@ import {
   METRO_STATIONS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
+  REST_SPOTS,
   AMBIENT_NPCS
 } from './src/data.js';
 import { isPointOnSidewalk } from './src/engine.js';
@@ -164,7 +165,21 @@ export function createMultiplayerServer({
   let bellAnnouncementSeq = 0;
   let ferryHornSeq = 0;
   let metroChimeSeq = 0;
+  let miradouroEncoreSeq = 0;
+  let cafeToastSeq = 0;
   let sharedFadoTrackIndex = 0;
+  let sharedCafeToast = null;
+  const sharedMiradouros = REST_SPOTS.map((spot) => ({
+    spotId: spot.id,
+    spotName: spot.name,
+    neighborhood: spot.neighborhood,
+    musicianName: spot.musicianName || 'Musico de Lisboa',
+    instrument: spot.instrument || 'Guitarra Portuguesa',
+    songs: Array.isArray(spot.songs) && spot.songs.length > 0 ? spot.songs : ['Serenata de Lisboa'],
+    songIndex: 0,
+    songTitle: (Array.isArray(spot.songs) && spot.songs[0]) || 'Serenata de Lisboa',
+    lastEncore: null
+  }));
   const transitVehicles = TRANSIT_LINES.map((line, i) => {
     const startIdx = i === 0 ? 1 : 2;
     const wp = line.waypoints[startIdx];
@@ -510,7 +525,17 @@ export function createMultiplayerServer({
       }
     }
 
-    // 4. Shared Ambient Lisboa Sidewalk Villagers
+    // 4. Shared Miradouro Street-Musician Encores & Cafe Toast Expirations
+    for (const m of sharedMiradouros) {
+      if (m.lastEncore && nowMs >= m.lastEncore.expiresAt) {
+        m.lastEncore = null;
+      }
+    }
+    if (sharedCafeToast && nowMs >= sharedCafeToast.expiresAt) {
+      sharedCafeToast = null;
+    }
+
+    // 5. Shared Ambient Lisboa Sidewalk Villagers
     stepServerNpcs(dt);
   }
 
@@ -590,7 +615,40 @@ export function createMultiplayerServer({
         dir: n.dir,
         walkPhase: Math.round(n.walkPhase * 100) / 100,
         isMoving: n.isMoving
-      }))
+      })),
+      miradouros: sharedMiradouros.map((m) => ({
+        spotId: m.spotId,
+        spotName: m.spotName,
+        neighborhood: m.neighborhood,
+        musicianName: m.musicianName,
+        instrument: m.instrument,
+        songIndex: m.songIndex,
+        songTitle: m.songTitle,
+        lastEncore: m.lastEncore
+          ? {
+              id: m.lastEncore.id,
+              spotId: m.lastEncore.spotId,
+              spotName: m.lastEncore.spotName,
+              neighborhood: m.lastEncore.neighborhood,
+              musicianName: m.lastEncore.musicianName,
+              instrument: m.lastEncore.instrument,
+              songIndex: m.lastEncore.songIndex,
+              songTitle: m.lastEncore.songTitle,
+              requestedBy: m.lastEncore.requestedBy,
+              text: m.lastEncore.text
+            }
+          : null
+      })),
+      cafeToast: sharedCafeToast
+        ? {
+            id: sharedCafeToast.id,
+            locationKey: sharedCafeToast.locationKey,
+            locationName: sharedCafeToast.locationName,
+            speakerName: sharedCafeToast.speakerName,
+            itemName: sharedCafeToast.itemName,
+            text: sharedCafeToast.text
+          }
+        : null
     };
   }
 
@@ -1106,6 +1164,76 @@ export function createMultiplayerServer({
           sharedFadoTrackIndex = (sharedFadoTrackIndex + 1) % 3;
           broadcastTransit('fado-track');
           sendJson(res, 200, { ok: true, fadoTrackIndex: sharedFadoTrackIndex, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'miradouro-perform') {
+          const m = sharedMiradouros.find((entry) => entry.spotId === body.spotId) || sharedMiradouros[0];
+          if (!m) {
+            sendJson(res, 404, { ok: false, error: 'Unknown miradouro viewpoint.' });
+            return;
+          }
+          m.songIndex = (m.songIndex + 1) % m.songs.length;
+          m.songTitle = m.songs[m.songIndex];
+          const requestedBy = sanitizeText(
+            body.requestedBy || players.get(requesterId)?.name || 'Traveler',
+            'Traveler',
+            22
+          );
+          miradouroEncoreSeq += 1;
+          m.lastEncore = {
+            id: miradouroEncoreSeq,
+            spotId: m.spotId,
+            spotName: m.spotName,
+            neighborhood: m.neighborhood,
+            musicianName: m.musicianName,
+            instrument: m.instrument,
+            songIndex: m.songIndex,
+            songTitle: m.songTitle,
+            requestedBy,
+            text: `${m.musicianName} (${m.instrument}) performs "${m.songTitle}" at ${m.spotName}`,
+            expiresAt: Date.now() + 5800
+          };
+          broadcastTransit('miradouro-perform');
+          sendJson(res, 200, { ok: true, encore: m.lastEncore, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'cafe-toast') {
+          const speakerName = sanitizeText(
+            body.speakerName || players.get(requesterId)?.name || 'Traveler',
+            'Traveler',
+            22
+          );
+          const locationKey = sanitizeText(body.locationKey, 'venue:cafe-do-poeta', 48);
+          const locationName = sanitizeText(body.locationName, 'Cafe A Brasileira', 44);
+          const itemName = sanitizeText(body.itemName || '', '', 44);
+          const text = sanitizeText(
+            body.text ||
+              (itemName
+                ? `Saude! Raising a toast with ${itemName} at ${locationName}!`
+                : `Saude! Um brinde a Lisboa at ${locationName}!`),
+            `Saude! Um brinde a Lisboa at ${locationName}!`,
+            96
+          );
+          cafeToastSeq += 1;
+          sharedCafeToast = {
+            id: cafeToastSeq,
+            locationKey,
+            locationName,
+            speakerName,
+            itemName,
+            text,
+            expiresAt: Date.now() + 5200
+          };
+          const record = players.get(requesterId);
+          if (record) {
+            record.emoteText = 'Saude!';
+            record.lastSeen = Date.now();
+            broadcastPlayers('toast');
+          }
+          broadcastTransit('cafe-toast');
+          sendJson(res, 200, { ok: true, cafeToast: sharedCafeToast, transit: getTransitSnapshot() });
           return;
         }
 

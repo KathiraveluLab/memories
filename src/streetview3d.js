@@ -881,6 +881,27 @@ export class LisboaStreetView3DRenderer {
         spot,
         captured: state.memories.some((m) => m.id === spot.memory.id)
       });
+      const perf = (state.miradouroPerformances || []).find((m) => m.spotId === spot.id);
+      if (perf) {
+        const mx = spot.x + 30;
+        const my = spot.y + 2;
+        list.push({
+          kind: 'person',
+          x0: mx - 8,
+          y0: my - 8,
+          x1: mx + 8,
+          y1: my + 8,
+          person: {
+            x: mx,
+            y: my,
+            outfitId: perf.musicianOutfitId || spot.musicianOutfitId || 'fado-blazer',
+            walkPhase: 0,
+            isMoving: false,
+            label: `${perf.musicianName}: "${perf.songTitle}"`,
+            emoteText: state.miradouroEncore?.spotId === spot.id ? `${perf.instrument}!` : ''
+          }
+        });
+      }
     }
 
     for (const stop of ALL_STOPS) {

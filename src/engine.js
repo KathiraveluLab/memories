@@ -416,6 +416,19 @@ export function createInitialState() {
     transitAnnouncement: null,
     ferryHornSignal: null,
     metroDoorChime: null,
+    miradouroPerformances: REST_SPOTS.map((spot) => ({
+      spotId: spot.id,
+      spotName: spot.name,
+      neighborhood: spot.neighborhood,
+      musicianName: spot.musicianName || 'Musico de Lisboa',
+      instrument: spot.instrument || 'Guitarra Portuguesa',
+      musicianOutfitId: spot.musicianOutfitId || 'fado-blazer',
+      songs: Array.isArray(spot.songs) && spot.songs.length > 0 ? spot.songs : ['Serenata de Lisboa'],
+      songIndex: 0,
+      songTitle: (Array.isArray(spot.songs) && spot.songs[0]) || 'Serenata de Lisboa'
+    })),
+    miradouroEncore: null,
+    sharedToast: null,
     ridingVehicleId: null,
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
@@ -472,6 +485,46 @@ export class MemoriesGameEngine {
     this.lastLocalMetroChimeAt = 0;
     this.lastServerFerryHornIds = new Map();
     this.lastLocalFerryHornAt = 0;
+    this.lastServerEncoreIds = new Map();
+    this.lastLocalEncoreAt = 0;
+    this.lastServerToastId = 0;
+    this.lastLocalToastAt = 0;
+  }
+
+  getCurrentLocationInfo() {
+    const s = this.state;
+    if (s.mode === 'interior' && s.currentVenueId) {
+      const v = getVenueById(s.currentVenueId);
+      return {
+        locationKey: `venue:${s.currentVenueId}`,
+        locationName: v ? v.name : 'Lisboa Venue'
+      };
+    }
+    if (s.mode === 'ferry' && s.ferry?.portId) {
+      const dest = getFerryDestinationById(s.ferry.portId);
+      return {
+        locationKey: `ferry:${s.ferry.portId}`,
+        locationName: s.ferry.portId === FERRY_TERMINAL.id ? FERRY_TERMINAL.shortName : (dest?.name || 'Tagus South Bank')
+      };
+    }
+    if (s.mode === 'metro' && s.metro?.stationId) {
+      const st = getMetroStationById(s.metro.stationId);
+      return {
+        locationKey: `metro:${s.metro.stationId}`,
+        locationName: st ? st.name : 'Metropolitano de Lisboa'
+      };
+    }
+    if (s.ridingVehicleId) {
+      const veh = this.getRidingVehicle();
+      return {
+        locationKey: `vehicle:${s.ridingVehicleId}`,
+        locationName: veh ? veh.name : 'Lisboa Transit'
+      };
+    }
+    return {
+      locationKey: `overworld:${s.currentNeighborhoodId || 'chiado'}`,
+      locationName: s.currentNeighborhoodName || 'Chiado'
+    };
   }
 
   emitTransitIntent(payload) {
@@ -674,6 +727,81 @@ export class MemoriesGameEngine {
         }
         localNpc.dir = sn.dir === -1 ? -1 : 1;
         localNpc.isMoving = Boolean(sn.isMoving);
+      }
+    }
+
+    // 5. Authoritative Miradouro Street-Musician Performances (synchronized across all players at the viewpoint!)
+    if (Array.isArray(transit.miradouros)) {
+      for (const sm of transit.miradouros) {
+        const localPerf = (this.state.miradouroPerformances || []).find((m) => m.spotId === sm.spotId);
+        if (localPerf) {
+          if (Number.isFinite(sm.songIndex)) localPerf.songIndex = sm.songIndex;
+          if (typeof sm.songTitle === 'string' && sm.songTitle) localPerf.songTitle = sm.songTitle;
+          if (typeof sm.musicianName === 'string' && sm.musicianName) localPerf.musicianName = sm.musicianName;
+          if (typeof sm.instrument === 'string' && sm.instrument) localPerf.instrument = sm.instrument;
+        }
+        if (sm.lastEncore && Number.isFinite(sm.lastEncore.id)) {
+          const prevEncoreId = this.lastServerEncoreIds.get(sm.spotId) || 0;
+          if (sm.lastEncore.id > prevEncoreId) {
+            this.lastServerEncoreIds.set(sm.spotId, sm.lastEncore.id);
+            const justRequestedLocally =
+              sm.lastEncore.requestedBy === this.state.player.name &&
+              Date.now() - this.lastLocalEncoreAt < 2500;
+            const spot = getRestSpotById(sm.spotId);
+            const distToSpot = spot
+              ? distance(this.state.player.x, this.state.player.y, spot.x, spot.y)
+              : 9999;
+            const inSameMiradouroArea =
+              this.state.mode === 'overworld' &&
+              !this.state.ridingVehicleId &&
+              (distToSpot <= 520 || this.state.currentNeighborhoodId === sm.lastEncore.neighborhood);
+            if (inSameMiradouroArea && !justRequestedLocally) {
+              this.signalSeq += 1;
+              this.state.miradouroEncore = {
+                id: this.signalSeq,
+                spotId: sm.spotId,
+                spotName: sm.lastEncore.spotName || spot?.name || 'Miradouro',
+                neighborhood: sm.lastEncore.neighborhood || spot?.neighborhood || 'chiado',
+                musicianName: sm.lastEncore.musicianName || localPerf?.musicianName || 'Musico',
+                instrument: sm.lastEncore.instrument || localPerf?.instrument || 'Guitarra Portuguesa',
+                songIndex: sm.lastEncore.songIndex ?? 0,
+                songTitle: sm.lastEncore.songTitle || localPerf?.songTitle || 'Serenata',
+                requestedBy: sm.lastEncore.requestedBy || 'Companion',
+                text: sm.lastEncore.text || `${sm.lastEncore.musicianName} performs "${sm.lastEncore.songTitle}"`,
+                timer: 4.8
+              };
+              this.state.statusMessage = `${this.state.miradouroEncore.requestedBy} requested an encore: ${this.state.miradouroEncore.text}!`;
+            }
+          }
+        }
+      }
+    }
+
+    // 6. Authoritative Shared Cafe / Tavern Toast Emotes (synchronized across all companions in the same location!)
+    if (
+      transit.cafeToast &&
+      Number.isFinite(transit.cafeToast.id) &&
+      transit.cafeToast.id > this.lastServerToastId
+    ) {
+      this.lastServerToastId = transit.cafeToast.id;
+      const ct = transit.cafeToast;
+      const justToastedLocally =
+        ct.speakerName === this.state.player.name &&
+        Date.now() - this.lastLocalToastAt < 2500;
+      const myLoc = this.getCurrentLocationInfo();
+      if (myLoc.locationKey === ct.locationKey && !justToastedLocally) {
+        this.signalSeq += 1;
+        this.state.sharedToast = {
+          id: this.signalSeq,
+          locationKey: ct.locationKey,
+          locationName: ct.locationName || myLoc.locationName,
+          speakerName: ct.speakerName || 'Companion',
+          itemName: ct.itemName || '',
+          text: ct.text || `Saude! Um brinde a Lisboa at ${myLoc.locationName}!`,
+          timer: 4.5
+        };
+        this.triggerEmote('Saude!', 3.6);
+        this.state.statusMessage = `${this.state.sharedToast.speakerName} raised a toast at ${this.state.sharedToast.locationName}: "${this.state.sharedToast.text}"`;
       }
     }
   }
@@ -1884,6 +2012,20 @@ export class MemoriesGameEngine {
       }
     }
 
+    if (this.state.miradouroEncore && this.state.miradouroEncore.timer > 0) {
+      this.state.miradouroEncore.timer = Math.max(0, this.state.miradouroEncore.timer - dt);
+      if (this.state.miradouroEncore.timer === 0) {
+        this.state.miradouroEncore = null;
+      }
+    }
+
+    if (this.state.sharedToast && this.state.sharedToast.timer > 0) {
+      this.state.sharedToast.timer = Math.max(0, this.state.sharedToast.timer - dt);
+      if (this.state.sharedToast.timer === 0) {
+        this.state.sharedToast = null;
+      }
+    }
+
     if (this.state.mode === 'metro') {
       this.updateMetroSimulation(dt);
       if (this.state.mode === 'metro' && this.state.metro.phase === 'platform') {
@@ -2200,12 +2342,16 @@ export class MemoriesGameEngine {
       const d = distance(px, py, spot.x, spot.y);
       if (d <= INTERACT_DISTANCE && d < bestDist) {
         bestDist = d;
+        const perf = (state.miradouroPerformances || []).find((m) => m.spotId === spot.id);
+        const musicLine = perf
+          ? `${perf.musicianName} (${perf.instrument}): "${perf.songTitle}"`
+          : 'Live Miradouro Street Music';
         best = {
           type: 'bench',
           id: spot.id,
           spot,
-          label: `Rest at ${spot.name}`,
-          sublabel: 'Free rest (+30 Energy) & Viewpoint Memory - Press [E]'
+          label: `Rest & Listen at ${spot.name}`,
+          sublabel: `${musicLine} - Free rest (+30 Energy) & Encore [E]`
         };
       }
     }
@@ -2950,7 +3096,9 @@ export class MemoriesGameEngine {
       }
       this.advanceMinutes(18);
       unlockedMilestone = unlockMemory(this.state, MILESTONE_MEMORIES.taste);
-      this.state.statusMessage = `Enjoyed ${item.name} at ${venue.name} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
+      const purchaseMsg = `Enjoyed ${item.name} at ${venue.name} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
+      this.triggerSharedToast({ itemName: item.name });
+      this.state.statusMessage = purchaseMsg;
       recordLog(this.state, 'dining', `Tasted ${item.name} at ${venue.name} (-${item.costEur.toFixed(2)} EUR).`);
     } else {
       this.state.stats.souvenirsBought += 1;
@@ -3163,17 +3311,108 @@ export class MemoriesGameEngine {
 
     const newPhrase = recordPhrase(this.state, spot.phrase, spot.name);
     const newMemory = unlockMemory(this.state, spot.memory);
+    const perfRes = this.triggerMiradouroPerformance(spot.id);
 
-    this.state.statusMessage = `Rested at ${spot.name} (+30 Energy). ${spot.description}`;
-    recordLog(this.state, 'rest', `Rested at ${spot.name} (+30 Energy).`);
+    this.state.statusMessage = `Rested at ${spot.name} (+30 Energy) while ${perfRes.encore?.musicianName || spot.musicianName || 'the street musician'} plays "${perfRes.encore?.songTitle || 'Serenata'}".`;
+    recordLog(this.state, 'rest', `Rested at ${spot.name} (+30 Energy) listening to "${perfRes.encore?.songTitle || 'Serenata'}".`);
 
     return {
       ok: true,
       spot,
+      encore: perfRes.encore,
       newPhrase,
       newMemory,
       state: this.state
     };
+  }
+
+  triggerMiradouroPerformance(spotId = null) {
+    let targetId = spotId;
+    if (!targetId) {
+      let bestSpot = REST_SPOTS[0];
+      let bestD = Infinity;
+      for (const s of REST_SPOTS) {
+        const d = distance(this.state.player.x, this.state.player.y, s.x, s.y);
+        if (d < bestD) {
+          bestD = d;
+          bestSpot = s;
+        }
+      }
+      targetId = bestSpot.id;
+    }
+    const spot = getRestSpotById(targetId) || REST_SPOTS[0];
+    const perf = (this.state.miradouroPerformances || []).find((m) => m.spotId === spot.id);
+    const songs = perf?.songs || spot.songs || ['Serenata de Lisboa'];
+    const nextIdx = ((perf ? perf.songIndex : 0) + 1) % songs.length;
+    const nextTitle = songs[nextIdx];
+    const musicianName = perf?.musicianName || spot.musicianName || 'Musico de Lisboa';
+    const instrument = perf?.instrument || spot.instrument || 'Guitarra Portuguesa';
+    if (perf) {
+      perf.songIndex = nextIdx;
+      perf.songTitle = nextTitle;
+    }
+
+    const requester = this.state.player.name || 'Traveler';
+    this.signalSeq += 1;
+    this.lastLocalEncoreAt = Date.now();
+    this.state.miradouroEncore = {
+      id: this.signalSeq,
+      spotId: spot.id,
+      spotName: spot.name,
+      neighborhood: spot.neighborhood,
+      musicianName,
+      instrument,
+      songIndex: nextIdx,
+      songTitle: nextTitle,
+      requestedBy: requester,
+      text: `${musicianName} (${instrument}) performs "${nextTitle}" at ${spot.name}`,
+      timer: 4.8
+    };
+    this.state.statusMessage = `${musicianName} (${instrument}) strikes up "${nextTitle}" at ${spot.name}!`;
+    if (this.globalTransitSynced) {
+      this.emitTransitIntent({
+        action: 'miradouro-perform',
+        spotId: spot.id,
+        requestedBy: requester
+      });
+    }
+    return { ok: true, spot, encore: this.state.miradouroEncore, state: this.state };
+  }
+
+  triggerSharedToast({ itemName = '', customText = '' } = {}) {
+    const loc = this.getCurrentLocationInfo();
+    const speaker = this.state.player.name || 'Traveler';
+    const cleanItem = String(itemName || '').trim();
+    const text =
+      String(customText || '').trim() ||
+      (cleanItem
+        ? `Saude! Raising a toast with ${cleanItem} at ${loc.locationName}!`
+        : `Saude! Um brinde a Lisboa at ${loc.locationName}!`);
+
+    this.triggerEmote('Saude!', 4.0);
+    this.signalSeq += 1;
+    this.lastLocalToastAt = Date.now();
+    this.state.sharedToast = {
+      id: this.signalSeq,
+      locationKey: loc.locationKey,
+      locationName: loc.locationName,
+      speakerName: speaker,
+      itemName: cleanItem,
+      text,
+      timer: 4.5
+    };
+    this.state.statusMessage = text;
+    if (this.globalTransitSynced) {
+      this.emitTransitIntent({
+        action: 'cafe-toast',
+        locationKey: loc.locationKey,
+        locationName: loc.locationName,
+        speakerName: speaker,
+        itemName: cleanItem,
+        text
+      });
+    }
+    return { ok: true, toast: this.state.sharedToast, state: this.state };
   }
 
   restOvernight() {
