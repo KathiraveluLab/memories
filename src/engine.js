@@ -356,7 +356,10 @@ export function createInitialState() {
   const startHood = getNeighborhoodForX(startX);
 
   const state = {
-    mode: 'overworld', // 'overworld' | 'interior' | 'metro'
+    mode: 'overworld', // 'overworld' | 'interior' | 'metro' | 'ferry'
+    viewMode: 'street3d', // 'street3d' | 'overhead'
+    cameraYaw: 0.08, // Looking east along Largo do Chiado toward Cafe A Brasileira & Tram 28E
+    cameraPitch: 0.03,
     euros: INITIAL_EUROS,
     energy: INITIAL_ENERGY,
     fullness: INITIAL_FULLNESS,
@@ -459,13 +462,50 @@ export class MemoriesGameEngine {
     const prevName = this.state?.player?.name || 'Traveler 1';
     const prevOutfit = this.state?.player?.outfitId || PLAYER_OUTFITS[0].id;
     const prevRemotes = this.state?.remotePlayers || [];
+    const prevViewMode = this.state?.viewMode || 'street3d';
     this.state = createInitialState();
+    this.state.viewMode = prevViewMode;
     this.state.player.name = prevName;
     this.state.player.outfitId = prevOutfit;
     this.state.remotePlayers = prevRemotes;
     this.timeAccumulator = 0;
     this.doorEntryCooldown = 0;
     return this.state;
+  }
+
+  setViewMode(mode) {
+    if (mode !== 'street3d' && mode !== 'overhead') return this.state.viewMode;
+    this.state.viewMode = mode;
+    this.state.statusMessage =
+      mode === 'street3d'
+        ? 'Switched to 3D Street View. Drag to look 360 degrees, press W/S or Up/Down to walk, A/D or Left/Right to turn, or press [V] for Overhead Map.'
+        : 'Switched to 2.5D Overhead Lisboa Map. Press [V] anytime to return to 3D Street View.';
+    return this.state.viewMode;
+  }
+
+  toggleViewMode() {
+    return this.setViewMode(this.state.viewMode === 'street3d' ? 'overhead' : 'street3d');
+  }
+
+  rotateCamera(deltaYaw, deltaPitch = 0) {
+    if (Number.isFinite(deltaYaw)) {
+      const next = (this.state.cameraYaw || 0) + deltaYaw;
+      this.state.cameraYaw = Math.atan2(Math.sin(next), Math.cos(next));
+    }
+    if (Number.isFinite(deltaPitch) && deltaPitch !== 0) {
+      this.state.cameraPitch = clamp((this.state.cameraPitch || 0) + deltaPitch, -0.24, 0.34);
+    }
+    return { yaw: this.state.cameraYaw, pitch: this.state.cameraPitch };
+  }
+
+  setCameraAngles(yaw, pitch) {
+    if (Number.isFinite(yaw)) {
+      this.state.cameraYaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+    }
+    if (Number.isFinite(pitch)) {
+      this.state.cameraPitch = clamp(pitch, -0.24, 0.34);
+    }
+    return { yaw: this.state.cameraYaw, pitch: this.state.cameraPitch };
   }
 
   setPlayerProfile({ name, outfitId } = {}) {
@@ -1126,6 +1166,12 @@ export class MemoriesGameEngine {
       }
       vx = dx / dist;
       vy = dy / dist;
+      if (this.state.mode === 'overworld') {
+        const targetYaw = Math.atan2(vy, vx);
+        const curYaw = this.state.cameraYaw || 0;
+        const diff = Math.atan2(Math.sin(targetYaw - curYaw), Math.cos(targetYaw - curYaw));
+        this.state.cameraYaw = Math.atan2(Math.sin(curYaw + diff * Math.min(1, dt * 6.5)), Math.cos(curYaw + diff * Math.min(1, dt * 6.5)));
+      }
     }
 
     const mag = Math.hypot(vx, vy);
@@ -2035,6 +2081,7 @@ export class MemoriesGameEngine {
     this.state.player.overworldX = FERRY_TERMINAL.spawnOutside.x;
     this.state.player.overworldY = FERRY_TERMINAL.spawnOutside.y;
     this.state.player.facing = 'up';
+    this.state.cameraYaw = -Math.PI * 0.5;
     this.state.player.walkTarget = null;
     this.state.player.walkQueue = [];
     this.state.player.isMoving = false;
@@ -2287,6 +2334,7 @@ export class MemoriesGameEngine {
     this.state.player.x = 380;
     this.state.player.y = 355;
     this.state.player.facing = 'up';
+    this.state.cameraYaw = -Math.PI * 0.5;
     this.state.player.walkTarget = null;
     this.state.player.walkQueue = [];
     this.state.player.isMoving = false;
@@ -2327,6 +2375,7 @@ export class MemoriesGameEngine {
       this.state.player.x = venue.spawnOutside.x;
       this.state.player.y = venue.spawnOutside.y;
       this.state.player.facing = venue.doorSide === 'south' ? 'down' : 'up';
+      this.state.cameraYaw = venue.doorSide === 'south' ? Math.PI * 0.5 : -Math.PI * 0.5;
     } else {
       this.state.player.x = this.state.player.overworldX;
       this.state.player.y = this.state.player.overworldY;

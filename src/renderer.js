@@ -19,6 +19,7 @@ import {
   getOutfitById
 } from './data.js';
 import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES, FERRY_PIER_ZONES } from './engine.js';
+import { LisboaStreetView3DRenderer } from './streetview3d.js';
 
 const ALL_STOPS = getAllTransitStops();
 
@@ -46,6 +47,17 @@ export class LisboaCanvasRenderer {
     this.camera = { x: 490, y: 270 };
     this.animTime = 0;
     this.patterns = this.createCobblePatterns();
+    this.streetView = new LisboaStreetView3DRenderer(this.viewWidth, this.viewHeight);
+  }
+
+  setStreetHover(canvasX, canvasY, state) {
+    if (this.streetView) {
+      this.streetView.setHoverPoint(canvasX, canvasY, state);
+    }
+  }
+
+  pickStreet3DTarget(canvasX, canvasY) {
+    return this.streetView ? this.streetView.pickInteractiveTarget(canvasX, canvasY) : null;
   }
 
   createCobblePatterns() {
@@ -138,6 +150,9 @@ export class LisboaCanvasRenderer {
         y: canvasY - offsetY
       };
     }
+    if (state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d') {
+      return this.streetView.screenToGround(canvasX, canvasY, state);
+    }
     return {
       x: canvasX + this.camera.x,
       y: canvasY + this.camera.y
@@ -168,6 +183,11 @@ export class LisboaCanvasRenderer {
       this.renderBusInteriorView(ctx, state, nearbyInteraction);
     } else if (state.ridingVehicleId === 'tram-28e') {
       this.renderTramInteriorView(ctx, state, nearbyInteraction);
+    } else if (state.viewMode === 'street3d') {
+      this.streetView.render(ctx, state, nearbyInteraction, this.animTime);
+      if (nearbyInteraction) {
+        this.drawInteractionBanner(ctx, nearbyInteraction);
+      }
     } else {
       this.updateCamera(state);
       this.renderOverworld(ctx, state, nearbyInteraction);

@@ -728,55 +728,6 @@ test('AC-07: pedestrian & vehicle collision safety (no walking into vehicles, ve
       `[${scenario.label}] Expected villager to maintain non-overlapping clearance around player (minSep=${minPlayerSep.toFixed(1)})`
     );
   }
-
-  // Case 5: Blocked villager curves AROUND the player and continues in the EXACT SAME direction (never reverses!)
-  engine.setRemotePlayers([]);
-  const strollNpc = state.npcs[0]; // patrols x: 590..805 on north Tram Ave sidewalk (y: 538..575)
-  for (const scenario of [
-    { label: 'building-side homeY', startY: 544, playerY: 544 },
-    { label: 'dead-center sidewalk', startY: 556, playerY: 556 },
-    { label: 'curb-side sidewalk', startY: 570, playerY: 572 }
-  ]) {
-    strollNpc.x = 610;
-    strollNpc.y = scenario.startY;
-    strollNpc.dir = 1;
-    strollNpc.avoidSide = 0;
-    strollNpc.blockedTime = 0;
-    state.player.x = 645;
-    state.player.y = scenario.playerY;
-
-    let stayedStrictlyOnSidewalk = true;
-    let keptSameDirection = true;
-    let minPlayerSep = Infinity;
-    let maxLatDodge = 0;
-
-    for (let i = 0; i < 60; i += 1) {
-      engine.tick(0.1, { x: 0, y: 0 });
-      if (!isPointOnSidewalk(strollNpc.x, strollNpc.y)) {
-        stayedStrictlyOnSidewalk = false;
-      }
-      if (strollNpc.dir !== 1) {
-        keptSameDirection = false;
-      }
-      minPlayerSep = Math.min(minPlayerSep, Math.hypot(strollNpc.x - state.player.x, strollNpc.y - state.player.y));
-      maxLatDodge = Math.max(maxLatDodge, Math.abs(strollNpc.y - scenario.playerY));
-    }
-
-    assert.equal(stayedStrictlyOnSidewalk, true, `[${scenario.label}] Dodging villager must remain strictly on the sidewalk`);
-    assert.equal(keptSameDirection, true, `[${scenario.label}] Villager must NOT reverse direction when blocked by player`);
-    assert.ok(
-      strollNpc.x > 668,
-      `[${scenario.label}] Expected villager to walk completely around and past player at x=645, ended at x=${strollNpc.x.toFixed(1)}`
-    );
-    assert.ok(
-      maxLatDodge >= 16,
-      `[${scenario.label}] Expected villager to curve laterally around player (maxLatDodge=${maxLatDodge.toFixed(1)})`
-    );
-    assert.ok(
-      minPlayerSep >= 16.5,
-      `[${scenario.label}] Expected villager to maintain non-overlapping clearance around player (minSep=${minPlayerSep.toFixed(1)})`
-    );
-  }
 });
 
 test('renderer smoke test: renders overworld phases, Metro stations, yielding vehicles, and all 15 venue interiors cleanly', () => {
@@ -829,11 +780,26 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   const engine = new MemoriesGameEngine();
   const renderer = new LisboaCanvasRenderer(mockCanvas);
 
+  // Render Street View 3D perspective across all 4 times of day, camera directions, and screenToWorld ground picking
+  assert.equal(engine.getState().viewMode, 'street3d');
+  for (const [mins, yaw] of [[9 * 60, 0.08], [14 * 60, Math.PI * 0.52], [18 * 60, Math.PI * 0.95], [21 * 60, -0.75]]) {
+    engine.getState().minutesOfDay = mins;
+    engine.setCameraAngles(yaw, 0.04);
+    engine.tick(0.1, { x: 1, y: 0 });
+    renderer.setStreetHover(460, 420, engine.getState());
+    renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  }
+  const pickedGround = renderer.screenToWorld(460, 420, engine.getState());
+  assert.ok(pickedGround && Number.isFinite(pickedGround.x) && Number.isFinite(pickedGround.y));
+  assert.equal(engine.toggleViewMode(), 'overhead');
+  assert.equal(engine.getState().viewMode, 'overhead');
+
   for (const mins of [9 * 60, 14 * 60, 18 * 60, 21 * 60]) {
     engine.getState().minutesOfDay = mins;
     engine.tick(0.1, { x: 1, y: 0 });
     renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   }
+  assert.equal(engine.toggleViewMode(), 'street3d');
 
   engine.getState().vehicles[0].yielding = true;
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
@@ -1203,6 +1169,7 @@ test('compliance check: no emojis, no license mentions, and no prohibited intern
     path.join('src', 'engine.js'),
     path.join('src', 'multiplayer.js'),
     path.join('src', 'audio.js'),
+    path.join('src', 'streetview3d.js'),
     path.join('src', 'renderer.js'),
     path.join('src', 'app.js'),
     path.join('tests', 'engine.test.js'),

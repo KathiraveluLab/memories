@@ -146,6 +146,7 @@ const dom = {
   liveLanStatus: document.getElementById('live-lan-status'),
   liveTramStatus: document.getElementById('live-tram-status'),
   liveBusStatus: document.getElementById('live-bus-status'),
+  btnViewMode: document.getElementById('btn-view-mode'),
   btnSound: document.getElementById('btn-sound'),
   lanConnectionBadge: document.getElementById('lan-connection-badge'),
   lanJoinRow: document.getElementById('lan-join-row'),
@@ -191,7 +192,43 @@ function setActiveTab(tabName) {
   });
 }
 
-function getKeyboardVector() {
+const dragLook = {
+  active: false,
+  moved: false,
+  startX: 0,
+  startY: 0,
+  lastX: 0,
+  lastY: 0
+};
+
+function getKeyboardVector(dt = 0.016) {
+  const state = engine.getState();
+  const isStreet3D = state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d';
+
+  if (isStreet3D) {
+    const forward = (pressedKeys.has('ArrowUp') || pressedKeys.has('KeyW') ? 1 : 0) -
+      (pressedKeys.has('ArrowDown') || pressedKeys.has('KeyS') ? 1 : 0);
+    const turnInput = (pressedKeys.has('ArrowRight') || pressedKeys.has('KeyD') ? 1 : 0) -
+      (pressedKeys.has('ArrowLeft') || pressedKeys.has('KeyA') ? 1 : 0);
+    const strafeMode = pressedKeys.has('ShiftLeft') || pressedKeys.has('ShiftRight');
+
+    if (turnInput !== 0 && !strafeMode) {
+      engine.rotateCamera(turnInput * 1.95 * dt, 0);
+    }
+
+    const yaw = state.cameraYaw || 0;
+    const fx = Math.cos(yaw);
+    const fy = Math.sin(yaw);
+    const rx = -fy;
+    const ry = fx;
+    const strafe = strafeMode ? turnInput : 0;
+
+    return {
+      x: fx * forward + rx * strafe,
+      y: fy * forward + ry * strafe
+    };
+  }
+
   let x = 0;
   let y = 0;
   if (pressedKeys.has('ArrowLeft') || pressedKeys.has('KeyA')) x -= 1;
@@ -202,13 +239,61 @@ function getKeyboardVector() {
 }
 
 function handleCanvasClick(event) {
+  if (dragLook.moved) {
+    dragLook.moved = false;
+    return;
+  }
   const state = engine.getState();
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
   const canvasX = (event.clientX - rect.left) * scaleX;
   const canvasY = (event.clientY - rect.top) * scaleY;
+
+  if (state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d') {
+    const hit3d = renderer.pickStreet3DTarget(canvasX, canvasY);
+    if (hit3d) {
+      if (hit3d.kind === 'ferry') {
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          FERRY_TERMINAL.spawnOutside.x,
+          FERRY_TERMINAL.spawnOutside.y,
+          { type: 'openFerry' }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking along the Tagus waterfront toward ${FERRY_TERMINAL.name}...`);
+        return;
+      }
+      if (hit3d.kind === 'metro' && hit3d.station) {
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          hit3d.station.spawnOutside.x,
+          hit3d.station.spawnOutside.y,
+          { type: 'openMetro', id: hit3d.station.id }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking along the sidewalk to ${hit3d.station.name}...`);
+        return;
+      }
+      if (hit3d.kind === 'venue' && hit3d.venue) {
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          hit3d.venue.spawnOutside.x,
+          hit3d.venue.spawnOutside.y,
+          { type: 'enterVenue', id: hit3d.venue.id }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking along the sidewalk toward ${hit3d.venue.name}...`);
+        return;
+      }
+    }
+  }
+
   const worldPt = renderer.screenToWorld(canvasX, canvasY, state);
+  if (!worldPt) return;
 
   if (state.ridingVehicleId) {
     const res = engine.triggerNearbyInteraction();
@@ -912,9 +997,19 @@ function refreshUi(force = false) {
       ? `Stopped at ${riding.currentStopName}. Press [E] to step out onto the sidewalk.`
       : `Next stop: ${riding.nextStopName}. Press [E] to ring bell & hear "Proxima Paragem".`;
   } else {
-    dom.sceneTitle.textContent = `${state.currentNeighborhoodName} - Ground-Level Lisboa`;
-    dom.sceneSubtitle.textContent =
-      'Walk along sidewalks with WASD / Arrows or click anywhere. Press [E] at shops, Metro entrances, transit stops, or benches.';
+    const is3d = state.viewMode === 'street3d';
+    dom.sceneTitle.textContent = is3d
+      ? `${state.currentNeighborhoodName} - 3D Street View`
+      : `${state.currentNeighborhoodName} - Overhead Lisboa Map`;
+    dom.sceneSubtitle.textContent = is3d
+      ? 'Drag to look 360 deg, click street/door to walk, W/S (Up/Down) to stroll, A/D (Left/Right) to turn, [V] for Overhead Map.'
+      : 'Walk along sidewalks with WASD / Arrows or click anywhere. Press [V] for 3D Street View, or [E] at doors & transit.';
+  }
+
+  if (dom.btnViewMode) {
+    const is3d = state.viewMode === 'street3d';
+    dom.btnViewMode.textContent = is3d ? 'View: Street 3D [V]' : 'View: Map 2.5D [V]';
+    dom.btnViewMode.setAttribute('aria-pressed', String(is3d));
   }
 
   const tram = state.vehicles.find((v) => v.mode === 'tram');
@@ -1204,6 +1299,13 @@ window.addEventListener('keydown', (event) => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
     event.preventDefault();
   }
+  if (event.code === 'KeyV') {
+    if (!event.repeat && engine.getState().mode === 'overworld' && !engine.getState().ridingVehicleId) {
+      engine.toggleViewMode();
+      refreshUi(true);
+    }
+    return;
+  }
   if (event.code === 'KeyM') {
     if (!event.repeat) {
       const nowMuted = soundEngine.toggleMute();
@@ -1260,7 +1362,65 @@ window.addEventListener('blur', () => {
   pressedKeys.clear();
 });
 
+canvas.addEventListener('pointerdown', (event) => {
+  const state = engine.getState();
+  if (state.mode !== 'overworld' || state.ridingVehicleId || state.viewMode !== 'street3d') return;
+  dragLook.active = true;
+  dragLook.moved = false;
+  dragLook.startX = event.clientX;
+  dragLook.startY = event.clientY;
+  dragLook.lastX = event.clientX;
+  dragLook.lastY = event.clientY;
+  canvas.style.cursor = 'grabbing';
+});
+
+window.addEventListener('pointermove', (event) => {
+  const state = engine.getState();
+  const isStreet3D = state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d';
+  if (dragLook.active && isStreet3D) {
+    const dx = event.clientX - dragLook.lastX;
+    const dy = event.clientY - dragLook.lastY;
+    dragLook.lastX = event.clientX;
+    dragLook.lastY = event.clientY;
+    if (Math.hypot(event.clientX - dragLook.startX, event.clientY - dragLook.startY) > 5) {
+      dragLook.moved = true;
+    }
+    // Natural Google Street View drag-to-pan (drag right rotates world smoothly right)
+    engine.rotateCamera(-dx * 0.0052, dy * 0.0032);
+    renderer.setStreetHover(null, null, state);
+    return;
+  }
+  if (isStreet3D && event.target === canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const cx = ((event.clientX - rect.left) * canvas.width) / rect.width;
+    const cy = ((event.clientY - rect.top) * canvas.height) / rect.height;
+    renderer.setStreetHover(cx, cy, state);
+    canvas.style.cursor = 'grab';
+  }
+});
+
+window.addEventListener('pointerup', () => {
+  if (!dragLook.active) return;
+  dragLook.active = false;
+  const state = engine.getState();
+  canvas.style.cursor =
+    state.mode === 'overworld' && !state.ridingVehicleId && state.viewMode === 'street3d'
+      ? 'grab'
+      : 'pointer';
+});
+
+canvas.addEventListener('pointerleave', () => {
+  renderer.setStreetHover(null, null, engine.getState());
+});
+
 canvas.addEventListener('click', handleCanvasClick);
+
+if (dom.btnViewMode) {
+  dom.btnViewMode.addEventListener('click', () => {
+    engine.toggleViewMode();
+    refreshUi(true);
+  });
+}
 
 dom.btnContextAction.addEventListener('click', () => {
   const res = engine.triggerNearbyInteraction();
@@ -1592,7 +1752,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
-  engine.tick(dt, getKeyboardVector());
+  engine.tick(dt, getKeyboardVector(dt));
   const state = engine.getState();
 
   // Trigger subtle audio transition effects & update continuous ambient soundscapes
