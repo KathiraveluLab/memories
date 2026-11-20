@@ -3,12 +3,14 @@ export class LanMultiplayerClient {
     baseUrl = '',
     onStatusChange = () => {},
     onJoined = () => {},
-    onRemotePlayers = () => {}
+    onRemotePlayers = () => {},
+    onClockSync = () => {}
   } = {}) {
     this.baseUrl = baseUrl;
     this.onStatusChange = onStatusChange;
     this.onJoined = onJoined;
     this.onRemotePlayers = onRemotePlayers;
+    this.onClockSync = onClockSync;
 
     this.status = 'connecting'; // 'connecting' | 'connected' | 'solo' | 'reconnecting'
     this.playerId = null;
@@ -68,6 +70,9 @@ export class LanMultiplayerClient {
       this.slot = joinData.player.slot || 1;
       this.lanUrls = Array.isArray(joinData.lanUrls) ? joinData.lanUrls : this.lanUrls;
       this.status = 'connected';
+      if (joinData.clock) {
+        this.onClockSync(joinData.clock);
+      }
       this.onJoined(joinData.player, this.lanUrls);
       this.handlePlayersPayload(joinData.players || []);
       this.openEventStream();
@@ -89,6 +94,7 @@ export class LanMultiplayerClient {
     this.status = 'solo';
     this.playerId = null;
     this.allPlayers = [];
+    this.onClockSync(null);
     this.onRemotePlayers([], []);
     this.notifyStatus();
   }
@@ -117,6 +123,9 @@ export class LanMultiplayerClient {
     es.addEventListener('players', (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.clock) {
+          this.onClockSync(data.clock);
+        }
         if (Array.isArray(data.players)) {
           if (this.status !== 'connected') {
             this.status = 'connected';
@@ -156,6 +165,8 @@ export class LanMultiplayerClient {
       v: snapshot.currentVenueId,
       ms: snapshot.metroStationId,
       mp: snapshot.metroPhase,
+      fp: snapshot.ferryPortId,
+      fph: snapshot.ferryPhase,
       r: snapshot.ridingVehicleId,
       o: snapshot.outfitId,
       n: snapshot.name,
@@ -209,6 +220,26 @@ export class LanMultiplayerClient {
         this.syncState(queued, { force: true });
       }
     }
+  }
+
+  async advanceGlobalMorning() {
+    if (this.status !== 'connected' || !this.playerId) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: this.playerId, action: 'rest-morning' })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.clock) {
+        this.onClockSync(data.clock);
+        return data.clock;
+      }
+    } catch {
+      // Ignore transient network error
+    }
+    return null;
   }
 
   handleBeforeUnload() {

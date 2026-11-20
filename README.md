@@ -22,9 +22,10 @@
   - **Chiado (5)**: *Livraria Bertrand (1732)*, *Galeria Pombalina*, *Cafe A Brasileira*, *Arcadas do Chiado*, *Atelier de Cortica & Luvas*.
   - **Alfama (4)**: *Se de Lisboa (1147 Cathedral)*, *Oficina de Azulejos*, *Taberna da Sardinha*, *Mercearia & Conservas de Alfama*.
   - Walk directly into any building doorway or Metro entrance using the Arrow / `WASD` keys facing the door (or press `E` / click) to step inside its custom interior room, chat with the host, order traditional dishes or browse keepsakes, and walk back out onto the sidewalk.
-- **LAN Multiplayer & Distinct Cloth Styles**:
+- **LAN Multiplayer, Shared Global Sky Clock & Distinct Cloth Styles**:
   - Run `npm start` on one computer and share the displayed network address (such as `http://192.168.x.x:3000`) with another computer on the same Wi-Fi or LAN.
-  - Both players explore Lisboa completely independently across Bairro Alto, Chiado, and Alfama, see each other live on cobblestone sidewalks, inside shared shops, bakeries, restaurants, and underground Metro platforms, appear on the mini-map, and can wave with `[G]`.
+  - Both players explore Lisboa completely independently across Bairro Alto, Chiado, and Alfama, see each other live in 3D on cobblestone sidewalks, inside shared 3D shops, bakeries, restaurants, underground Metro platforms, and ferry piers, appear on the radar mini-map, and can wave with `[G]`.
+  - The central LAN server maintains an authoritative **Global Lisboa Clock** (`[SYNC]`) broadcast via SSE so every connected computer sees the exact same Morning, Afternoon, Golden Hour, or Starry Evening sky simultaneously (including synchronized morning sunrises).
   - Every joining player automatically receives a distinct clothing style from 6 unique Lisboa traveler outfits (*Chiado Trench & Scarf*, *Alfama Sundress & Sun Hat*, *Tagus Sailor Knit & Beret*, *Bairro Alto Woven Poncho*, *Azulejo Overalls & Flat Cap*, and *Linen Blazer & Fedora*), customizable anytime.
 - **Atmospheric Lisboa Soundscapes & Cultural Music (Web Audio API)**:
   - **Bakeries (`Casa da Rosa - Padaria` & `Arcadas do Chiado`)**: Warm rumble and crackling oak embers of a brick wood-fired bread oven.

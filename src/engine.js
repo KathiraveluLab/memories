@@ -456,6 +456,27 @@ export class MemoriesGameEngine {
     this.timeAccumulator = 0;
     this.doorEntryCooldown = 0;
     this.announcementSeq = 0;
+    this.globalClockSynced = false;
+  }
+
+  syncGlobalClock(clock) {
+    if (!clock || !Number.isFinite(clock.minutesOfDay)) return;
+    this.globalClockSynced = true;
+    this.state.globalClockSynced = true;
+    if (Number.isFinite(clock.day) && clock.day >= 1) {
+      this.state.day = Math.floor(clock.day);
+    }
+    const nextMins = ((Math.floor(clock.minutesOfDay) % 1440) + 1440) % 1440;
+    if (nextMins < EVENING_SUGGEST_MINUTES) {
+      this.state.eveningNoticeShown = false;
+    }
+    this.state.minutesOfDay = nextMins;
+    this.timeAccumulator = 0;
+  }
+
+  clearGlobalClock() {
+    this.globalClockSynced = false;
+    this.state.globalClockSynced = false;
   }
 
   reset() {
@@ -681,8 +702,10 @@ export class MemoriesGameEngine {
     this.state.player.walkQueue = [];
   }
 
-  advanceMinutes(minutes) {
+  advanceMinutes(minutes, { force = false } = {}) {
     if (!Number.isFinite(minutes) || minutes <= 0) return;
+    // In LAN multiplayer, keep every player locked to the central server's global sky clock
+    if (this.globalClockSynced && !force) return;
     this.state.minutesOfDay = Math.min(23 * 60 + 45, this.state.minutesOfDay + minutes);
     if (this.state.minutesOfDay >= EVENING_SUGGEST_MINUTES && !this.state.eveningNoticeShown) {
       this.state.eveningNoticeShown = true;

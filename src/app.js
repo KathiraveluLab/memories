@@ -989,7 +989,9 @@ function refreshUi(force = false) {
   dom.energyBar.style.width = `${Math.round(state.energy)}%`;
   dom.fullness.textContent = String(Math.round(state.fullness));
   dom.fullnessBar.style.width = `${Math.round(state.fullness)}%`;
-  dom.clock.textContent = `Day ${state.day} - ${formatClock(state.minutesOfDay)}`;
+  dom.clock.textContent = state.globalClockSynced
+    ? `Day ${state.day} - ${formatClock(state.minutesOfDay)} [SYNC]`
+    : `Day ${state.day} - ${formatClock(state.minutesOfDay)}`;
   dom.phase.textContent = phase.label;
   dom.phase.className = `phase-pill phase-${phase.id}`;
   dom.memories.textContent = `${state.memories.length} / ${state.totalMemoriesPossible}`;
@@ -1317,6 +1319,13 @@ const mpClient = new LanMultiplayerClient({
     lastLanSignature = '';
     refreshUi(true);
   },
+  onClockSync: (clock) => {
+    if (clock) {
+      engine.syncGlobalClock(clock);
+    } else {
+      engine.clearGlobalClock();
+    }
+  },
   onRemotePlayers: (remotes) => {
     const prevIds = new Set((engine.getState().remotePlayers || []).map((r) => r.id));
     engine.setRemotePlayers(remotes);
@@ -1499,6 +1508,9 @@ if (dom.btnSound) {
 
 dom.btnOvernight.addEventListener('click', () => {
   engine.restOvernight();
+  if (mpStatusInfo.status === 'connected') {
+    mpClient.advanceGlobalMorning();
+  }
   refreshUi(true);
 });
 

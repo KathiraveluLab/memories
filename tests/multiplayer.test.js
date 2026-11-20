@@ -61,18 +61,25 @@ function openSseStream(port, playerId) {
   });
 }
 
-test('LAN multiplayer server: independent movement, distinct outfits, SSE broadcast, and clean disconnect', async () => {
-  const srv = createMultiplayerServer({ host: '127.0.0.1', port: 0, staleTimeoutMs: 15000 });
+test('LAN multiplayer server: independent movement, distinct outfits, global server clock sync, SSE broadcast, and clean disconnect', async () => {
+  const srv = createMultiplayerServer({
+    host: '127.0.0.1',
+    port: 0,
+    staleTimeoutMs: 15000,
+    clockMsPerMinute: 120,
+    initialMinutesOfDay: 18 * 60 + 10 // Golden Hour sky for all players
+  });
   const { port } = await srv.start();
   const baseUrl = `http://127.0.0.1:${port}`;
 
   try {
-    // 1. Server info & static asset serving + path traversal guard
+    // 1. Server info & static asset serving + path traversal guard + global clock snapshot
     const infoRes = await fetch(`${baseUrl}/api/info`);
     assert.equal(infoRes.status, 200);
     const info = await infoRes.json();
     assert.equal(info.multiplayer, true);
     assert.equal(info.outfits.length, 6);
+    assert.ok(info.clock && info.clock.day === 1 && info.clock.minutesOfDay >= 18 * 60 + 10);
 
     const indexRes = await fetch(`${baseUrl}/`);
     assert.equal(indexRes.status, 200);
@@ -112,6 +119,9 @@ test('LAN multiplayer server: independent movement, distinct outfits, SSE broadc
       joinB.player.x,
       'Joining players should spawn at non-overlapping sidewalk positions'
     );
+    assert.ok(joinA.clock && joinB.clock, 'Both players must receive the server global clock on join');
+    assert.equal(joinA.clock.day, joinB.clock.day);
+    assert.ok(Math.abs(joinA.clock.minutesOfDay - joinB.clock.minutesOfDay) <= 2);
 
     // 3. Open real-time SSE streams for both clients
     const streamA = await openSseStream(port, joinA.player.id);
@@ -176,6 +186,28 @@ test('LAN multiplayer server: independent movement, distinct outfits, SSE broadc
       const aliceStillUnchanged = evtOnA.players.find((p) => p.id === joinA.player.id);
       assert.equal(brunoSeenByA.neighborhoodName, 'Alfama');
       assert.equal(aliceStillUnchanged.currentVenueId, 'casa-da-rosa');
+
+      // 4b. Global Server Clock ticks forward automatically AND syncs Rest-Until-Morning sunrise across all clients
+      const clockTickEvt = await streamA.waitFor(
+        (evt) => evt.clock && evt.clock.minutesOfDay > joinA.clock.minutesOfDay
+      );
+      assert.ok(clockTickEvt.clock.minutesOfDay > joinA.clock.minutesOfDay);
+
+      const morningRes = await fetch(`${baseUrl}/api/clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: joinA.player.id, action: 'rest-morning' })
+      });
+      const morningJson = await morningRes.json();
+      assert.equal(morningJson.ok, true);
+      assert.equal(morningJson.clock.day, 2);
+      assert.equal(morningJson.clock.minutesOfDay, 9 * 60);
+
+      const morningOnB = await streamB.waitFor(
+        (evt) => evt.clock && evt.clock.day === 2 && evt.clock.minutesOfDay === 9 * 60
+      );
+      assert.equal(morningOnB.clock.day, 2);
+      assert.equal(morningOnB.clock.minutesOfDay, 9 * 60);
 
       // 5. Bruno leaves cleanly -> Alice immediately receives 1-player roster
       await fetch(`${baseUrl}/api/leave`, {

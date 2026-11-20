@@ -98,7 +98,9 @@ export function createMultiplayerServer({
   rootDir = __dirname,
   host = '0.0.0.0',
   port = 3000,
-  staleTimeoutMs = 25000
+  staleTimeoutMs = 25000,
+  clockMsPerMinute = 2400,
+  initialMinutesOfDay = 9 * 60
 } = {}) {
   const resolvedRoot = path.resolve(rootDir);
   const players = new Map();
@@ -107,6 +109,38 @@ export function createMultiplayerServer({
   let boundPort = port;
   let cleanupTimer = null;
   let keepaliveTimer = null;
+  let clockTimer = null;
+
+  const worldClock = {
+    day: 1,
+    minutesOfDay: ((Math.floor(initialMinutesOfDay) % 1440) + 1440) % 1440,
+    msPerGameMinute: Math.max(50, Number(clockMsPerMinute) || 2400),
+    updatedAt: Date.now()
+  };
+
+  function getWorldClockSnapshot(now = Date.now()) {
+    const elapsedMins = Math.floor(Math.max(0, now - worldClock.updatedAt) / worldClock.msPerGameMinute);
+    if (elapsedMins > 0) {
+      const total = worldClock.minutesOfDay + elapsedMins;
+      worldClock.day += Math.floor(total / 1440);
+      worldClock.minutesOfDay = ((total % 1440) + 1440) % 1440;
+      worldClock.updatedAt += elapsedMins * worldClock.msPerGameMinute;
+    }
+    return {
+      day: worldClock.day,
+      minutesOfDay: worldClock.minutesOfDay,
+      msPerGameMinute: worldClock.msPerGameMinute,
+      serverTime: now
+    };
+  }
+
+  function advanceGlobalClockToMorning() {
+    getWorldClockSnapshot();
+    worldClock.day += 1;
+    worldClock.minutesOfDay = 9 * 60;
+    worldClock.updatedAt = Date.now();
+    return getWorldClockSnapshot();
+  }
 
   function pickDistinctOutfit(preferredId) {
     const used = new Set([...players.values()].map((p) => p.outfitId));
@@ -147,6 +181,8 @@ export function createMultiplayerServer({
       currentVenueId: p.currentVenueId,
       metroStationId: p.metroStationId,
       metroPhase: p.metroPhase,
+      ferryPortId: p.ferryPortId || null,
+      ferryPhase: p.ferryPhase || null,
       ridingVehicleId: p.ridingVehicleId,
       neighborhoodName: p.neighborhoodName,
       emoteText: p.emoteText
@@ -154,10 +190,12 @@ export function createMultiplayerServer({
   }
 
   function broadcastPlayers(reason = 'update') {
+    const clock = getWorldClockSnapshot();
     const payload = JSON.stringify({
       type: 'players',
       reason,
-      serverTime: Date.now(),
+      serverTime: clock.serverTime,
+      clock,
       players: serializePlayers()
     });
     const frame = `event: players\ndata: ${payload}\n\n`;
@@ -231,6 +269,7 @@ export function createMultiplayerServer({
         port: boundPort,
         lanUrls: getLanUrls(boundPort),
         playerCount: players.size,
+        clock: getWorldClockSnapshot(),
         outfits: PLAYER_OUTFITS.map((o) => ({ id: o.id, name: o.name }))
       });
       return;
@@ -262,6 +301,8 @@ export function createMultiplayerServer({
           currentVenueId: null,
           metroStationId: null,
           metroPhase: null,
+          ferryPortId: null,
+          ferryPhase: null,
           ridingVehicleId: null,
           neighborhoodName: 'Chiado',
           emoteText: '',
@@ -274,6 +315,7 @@ export function createMultiplayerServer({
           ok: true,
           player: serializePlayers().find((p) => p.id === id),
           players: serializePlayers(),
+          clock: getWorldClockSnapshot(),
           lanUrls: getLanUrls(boundPort)
         });
       } catch (err) {
@@ -301,10 +343,12 @@ export function createMultiplayerServer({
       }
       sseClients.set(playerId, res);
 
+      const snapClock = getWorldClockSnapshot();
       const snapshot = JSON.stringify({
         type: 'players',
         reason: 'snapshot',
-        serverTime: Date.now(),
+        serverTime: snapClock.serverTime,
+        clock: snapClock,
         players: serializePlayers()
       });
       res.write(`event: players\ndata: ${snapshot}\n\n`);
@@ -336,7 +380,7 @@ export function createMultiplayerServer({
         if (['up', 'down', 'left', 'right'].includes(st.facing)) record.facing = st.facing;
         if (Number.isFinite(st.walkPhase)) record.walkPhase = st.walkPhase;
         if (typeof st.isMoving === 'boolean') record.isMoving = st.isMoving;
-        if (['overworld', 'interior', 'metro'].includes(st.mode)) record.mode = st.mode;
+        if (['overworld', 'interior', 'metro', 'ferry'].includes(st.mode)) record.mode = st.mode;
         if (st.currentVenueId === null || typeof st.currentVenueId === 'string') {
           record.currentVenueId = st.currentVenueId;
         }
@@ -345,6 +389,12 @@ export function createMultiplayerServer({
         }
         if (st.metroPhase === null || typeof st.metroPhase === 'string') {
           record.metroPhase = st.metroPhase;
+        }
+        if (st.ferryPortId === null || typeof st.ferryPortId === 'string') {
+          record.ferryPortId = st.ferryPortId;
+        }
+        if (st.ferryPhase === null || typeof st.ferryPhase === 'string') {
+          record.ferryPhase = st.ferryPhase;
         }
         if (st.ridingVehicleId === null || typeof st.ridingVehicleId === 'string') {
           record.ridingVehicleId = st.ridingVehicleId;
@@ -364,7 +414,32 @@ export function createMultiplayerServer({
         record.lastSeen = Date.now();
 
         broadcastPlayers('sync');
-        sendJson(res, 200, { ok: true, playerCount: players.size });
+        sendJson(res, 200, { ok: true, playerCount: players.size, clock: getWorldClockSnapshot() });
+      } catch (err) {
+        sendJson(res, 400, { ok: false, error: err.message });
+      }
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/clock') {
+      try {
+        const body = await readJsonBody(req);
+        if (body.action === 'rest-morning') {
+          const clock = advanceGlobalClockToMorning();
+          broadcastPlayers('clock-morning');
+          sendJson(res, 200, { ok: true, clock });
+          return;
+        }
+        if (Number.isFinite(body.minutesOfDay)) {
+          worldClock.minutesOfDay = ((Math.floor(body.minutesOfDay) % 1440) + 1440) % 1440;
+          if (Number.isFinite(body.day) && body.day >= 1) worldClock.day = Math.floor(body.day);
+          worldClock.updatedAt = Date.now();
+          const clock = getWorldClockSnapshot();
+          broadcastPlayers('clock-set');
+          sendJson(res, 200, { ok: true, clock });
+          return;
+        }
+        sendJson(res, 200, { ok: true, clock: getWorldClockSnapshot() });
       } catch (err) {
         sendJson(res, 400, { ok: false, error: err.message });
       }
@@ -436,6 +511,14 @@ export function createMultiplayerServer({
         }, 15000);
         keepaliveTimer.unref?.();
 
+        // Broadcast authoritative global Lisboa clock periodically so all connected players share identical sky lighting
+        clockTimer = setInterval(() => {
+          if (sseClients.size > 0) {
+            broadcastPlayers('clock');
+          }
+        }, Math.max(250, worldClock.msPerGameMinute));
+        clockTimer.unref?.();
+
         resolve({
           port: boundPort,
           host,
@@ -448,8 +531,10 @@ export function createMultiplayerServer({
   function stop() {
     if (cleanupTimer) clearInterval(cleanupTimer);
     if (keepaliveTimer) clearInterval(keepaliveTimer);
+    if (clockTimer) clearInterval(clockTimer);
     cleanupTimer = null;
     keepaliveTimer = null;
+    clockTimer = null;
     for (const res of sseClients.values()) {
       try {
         res.end();
@@ -468,7 +553,8 @@ export function createMultiplayerServer({
     server,
     start,
     stop,
-    getPlayers: serializePlayers
+    getPlayers: serializePlayers,
+    getClock: getWorldClockSnapshot
   };
 }
 

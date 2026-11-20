@@ -233,11 +233,12 @@ export class LisboaScenes3DRenderer {
 
   drawPersonSprite3D(ctx, cam, opts) {
     const baseZ = opts.z || 0;
+    const personHeight = opts.behindCounter ? 44 : 38;
     const foot = this.projectWorldPt(cam, opts.x, opts.y, baseZ);
-    const head = this.projectWorldPt(cam, opts.x, opts.y, baseZ + 33);
+    const head = this.projectWorldPt(cam, opts.x, opts.y, baseZ + personHeight);
     if (!foot || !head) return;
     const h = Math.max(10, foot.y - head.y);
-    const w = h * 0.44;
+    const w = h * 0.42;
     const outfit = opts.outfitId ? getOutfitById(opts.outfitId) : null;
     const primary = opts.primaryColor || outfit?.primaryColor || '#264f73';
     const secondary = opts.secondaryColor || outfit?.secondaryColor || '#f8fafc';
@@ -688,6 +689,7 @@ export class LisboaScenes3DRenderer {
     items.push({
       dist: Math.hypot(380 - cam.camX, 154 - cam.camY),
       draw: () => {
+        const counterH = 22;
         const counterStroke = nearbyInteraction?.type === 'counter' ? '#facc15' : '#3b2414';
         this.drawBox3D(
           ctx,
@@ -697,15 +699,15 @@ export class LisboaScenes3DRenderer {
           535,
           178,
           0,
-          28,
+          counterH,
           { front: theme.counter, back: theme.counter, side: theme.counter, top: isCathedral ? '#f8fafc' : '#e7dcc8', stroke: counterStroke, lineWidth: nearbyInteraction?.type === 'counter' ? 2.4 : 1.3 },
           { kind: 'counter' }
         );
-        // Vintage Brass Cash Register on right end of counter (except Cathedral altar which has golden candlesticks)
+        // Vintage Brass Cash Register on far right end of counter (unobstructed beside cashier)
         if (isCathedral) {
           for (const cx of [270, 320, 440, 490]) {
-            this.drawLine3D(ctx, cam, [cx, 152, 28], [cx, 152, 42], '#d97706', 3);
-            const fl = this.projectWorldPt(cam, cx, 152, 45);
+            this.drawLine3D(ctx, cam, [cx, 152, counterH], [cx, 152, counterH + 14], '#d97706', 3);
+            const fl = this.projectWorldPt(cam, cx, 152, counterH + 17);
             if (fl) {
               ctx.fillStyle = '#fde047';
               ctx.beginPath();
@@ -714,11 +716,11 @@ export class LisboaScenes3DRenderer {
             }
           }
         } else {
-          this.drawBox3D(ctx, cam, 454, 140, 488, 166, 28, 41, { front: '#ca8a04', side: '#a16207', top: '#eab308', stroke: '#422006', lineWidth: 1.2 });
+          this.drawBox3D(ctx, cam, 494, 142, 524, 166, counterH, counterH + 11, { front: '#ca8a04', side: '#a16207', top: '#eab308', stroke: '#422006', lineWidth: 1.2 });
           if (layout === 'cafe') {
             // Gleaming brass espresso machine + animated steam puffs
-            this.drawBox3D(ctx, cam, 260, 138, 304, 164, 28, 46, { front: '#d97706', side: '#b45309', top: '#fde047', stroke: '#451a03' });
-            const stPt = this.projectWorldPt(cam, 282, 150, 52 + ((animTime * 14) % 16));
+            this.drawBox3D(ctx, cam, 244, 138, 286, 164, counterH, counterH + 16, { front: '#d97706', side: '#b45309', top: '#fde047', stroke: '#451a03' });
+            const stPt = this.projectWorldPt(cam, 265, 150, counterH + 22 + ((animTime * 14) % 16));
             if (stPt) {
               ctx.fillStyle = 'rgba(255,255,255,0.65)';
               ctx.beginPath();
@@ -727,8 +729,8 @@ export class LisboaScenes3DRenderer {
             }
           } else if (layout === 'bakery') {
             // Golden trays of Pasteis de Nata & Pao de Mafra loaves on the bakery counter
-            for (const bx of [266, 294, 322, 366, 396]) {
-              this.drawBox3D(ctx, cam, bx - 10, 144, bx + 10, 162, 28, 33, { front: '#d97706', side: '#b45309', top: '#f59e0b', stroke: '#78350f' });
+            for (const bx of [256, 284, 312, 386, 414]) {
+              this.drawBox3D(ctx, cam, bx - 10, 146, bx + 10, 164, counterH, counterH + 4.5, { front: '#d97706', side: '#b45309', top: '#f59e0b', stroke: '#78350f' });
             }
           }
         }
@@ -1064,9 +1066,26 @@ export class LisboaScenes3DRenderer {
       ctx.restore();
     }
 
-    // South Far Tunnel Wall across the tracks (with iconic red Lisbon Metro M sign!)
+    // South Far Tunnel Wall across the tracks (with iconic red Lisbon Metro M sign & station name!)
     this.drawPoly3D(ctx, cam, [[710, 420, -16], [50, 420, -16], [50, 420, ceilZ], [710, 420, ceilZ]], shadeColor(theme.wallPrimary, 0.78));
     this.drawPoly3D(ctx, cam, [[710, 420, 32], [50, 420, 32], [50, 420, 62], [710, 420, 62]], theme.tileAccent);
+    const metroSignPt = this.projectWorldPt(cam, 380, 418, 76);
+    if (metroSignPt) {
+      ctx.save();
+      ctx.font = '700 11px Georgia, serif';
+      const mTxt = `M  |  ${station.name.toUpperCase()}`;
+      const mtw = ctx.measureText(mTxt).width + 20;
+      drawRoundedRect(ctx, metroSignPt.x - mtw * 0.5, metroSignPt.y - 11, mtw, 22, 5);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = '#c81e32';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(mTxt, metroSignPt.x, metroSignPt.y + 4);
+      ctx.restore();
+    }
 
     // West & East End Walls with Dark Subterranean Tunnel Portals
     this.drawPoly3D(ctx, cam, [[50, 420, -16], [50, 140, -16], [50, 140, ceilZ], [50, 420, ceilZ]], shadeColor(theme.wallPrimary, 0.75));
@@ -1324,25 +1343,38 @@ export class LisboaScenes3DRenderer {
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, this.viewWidth, hy + 2);
 
-    // Horizon Tagus water plane extending out to infinity
-    const waterGrad = ctx.createLinearGradient(0, hy, 0, this.viewHeight);
-    waterGrad.addColorStop(0, isEvening ? '#0e2944' : '#1b6b96');
-    waterGrad.addColorStop(1, isEvening ? '#081a2e' : '#0e4263');
-    ctx.fillStyle = waterGrad;
+    // Base sunlit terrain (south-bank town sits on solid land north of pier y=286; Tagus River spans south of y=286!)
+    const baseGround = ctx.createLinearGradient(0, hy, 0, this.viewHeight);
+    if (isLisbon) {
+      baseGround.addColorStop(0, isEvening ? '#0e2944' : '#1b6b96');
+      baseGround.addColorStop(1, isEvening ? '#081a2e' : '#0e4263');
+    } else {
+      baseGround.addColorStop(0, isEvening ? '#394152' : '#cfc7b8');
+      baseGround.addColorStop(1, isEvening ? '#4b5263' : '#e4ddd0');
+    }
+    ctx.fillStyle = baseGround;
     ctx.fillRect(0, hy, this.viewWidth, this.viewHeight - hy);
+
+    // Explicit 3D Tagus River water plane strictly SOUTH of the pier curb (y >= 286)
+    this.drawPoly3D(
+      ctx,
+      cam,
+      [[-400, 286, -0.5], [1160, 286, -0.5], [1160, 1500, -0.5], [-400, 1500, -0.5]],
+      isEvening ? '#0d2642' : '#16628d'
+    );
 
     // 2. Walkable 3D Timber Pier (Cais do Sodre) OR Cobblestone South-Bank Promenade (y: 148..286)
     this.drawPoly3D(
       ctx,
       cam,
-      [[48, 148, 0], [712, 148, 0], [712, 286, 0], [48, 286, 0]],
+      [[48, 128, 0], [712, 128, 0], [712, 286, 0], [48, 286, 0]],
       isLisbon ? '#cbb89d' : '#e4ddd0',
       '#78716c',
       1.4
     );
     // Cobblestone / timber plank depth lines
     for (let px = 88; px < 700; px += 44) {
-      this.drawLine3D(ctx, cam, [px, 148, 0.2], [px, 286, 0.2], 'rgba(92, 74, 56, 0.22)', 1);
+      this.drawLine3D(ctx, cam, [px, 128, 0.2], [px, 286, 0.2], 'rgba(92, 74, 56, 0.22)', 1);
     }
     // Yellow safety quay edge along y = 278..286
     this.drawPoly3D(ctx, cam, [[48, 278, 0.3], [712, 278, 0.3], [712, 286, 0.3], [48, 286, 0.3]], '#facc15');
@@ -1464,39 +1496,37 @@ export class LisboaScenes3DRenderer {
       const isSeixal = destInfo.id === 'seixal';
       const [eatery, landmark, shop] = destInfo.townSpots;
 
-      // 1. Left 3D Striped-Awning South-Bank Eatery (x: 64..246, y: 54..148)
+      // 1. Left 3D Striped-Awning South-Bank Eatery (x: 56..244, y: 24..116)
       items.push({
-        dist: Math.hypot(155 - cam.camX, 118 - cam.camY),
+        dist: Math.hypot(150 - cam.camX, 92 - cam.camY),
         draw: () => {
           const accent = isCacilhas ? '#b84a32' : isSeixal ? '#0f766e' : '#9a3412';
           const hl = nearbyInteraction?.type === 'south-bank-spot' && nearbyInteraction.spotId === eatery.id;
           this.drawBox3D(
             ctx,
             cam,
-            64,
-            54,
-            246,
-            148,
+            56,
+            24,
+            244,
+            116,
             0,
-            88,
+            78,
             { front: isCacilhas ? '#f6e7d4' : '#f7f4ec', side: '#e7dcc8', top: accent, stroke: hl ? '#facc15' : '#472d1b', lineWidth: hl ? 2.4 : 1.3 },
             { kind: 'south-bank-spot', spotId: eatery.id }
           );
-          // 3D striped awning jutting onto promenade
           for (let s = 0; s < 6; s += 1) {
-            const sx0 = 76 + s * 26;
-            this.drawPoly3D(ctx, cam, [[sx0, 148, 36], [sx0 + 26, 148, 36], [sx0 + 26, 162, 28], [sx0, 162, 28]], s % 2 === 0 ? accent : '#fef3c7');
+            const sx0 = 68 + s * 27;
+            this.drawPoly3D(ctx, cam, [[sx0, 116, 34], [sx0 + 27, 116, 34], [sx0 + 27, 130, 26], [sx0, 130, 26]], s % 2 === 0 ? accent : '#fef3c7');
           }
-          // Dining windows & wooden door
-          this.drawPoly3D(ctx, cam, [[138, 148.5, 0], [172, 148.5, 0], [172, 148.5, 30], [138, 148.5, 30]], '#5c3a21', '#2d1a0f', 1.4);
-          this.drawPoly3D(ctx, cam, [[84, 148.5, 8], [124, 148.5, 8], [124, 148.5, 28], [84, 148.5, 28]], '#fff7ed', '#472d1b', 1.2);
-          this.drawPoly3D(ctx, cam, [[186, 148.5, 8], [226, 148.5, 8], [226, 148.5, 28], [186, 148.5, 28]], '#fff7ed', '#472d1b', 1.2);
-          const sp = this.projectWorldPt(cam, 155, 149, 52);
+          this.drawPoly3D(ctx, cam, [[133, 116.5, 0], [167, 116.5, 0], [167, 116.5, 29], [133, 116.5, 29]], '#5c3a21', '#2d1a0f', 1.4);
+          this.drawPoly3D(ctx, cam, [[78, 116.5, 8], [120, 116.5, 8], [120, 116.5, 26], [78, 116.5, 26]], '#fff7ed', '#472d1b', 1.2);
+          this.drawPoly3D(ctx, cam, [[180, 116.5, 8], [222, 116.5, 8], [222, 116.5, 26], [180, 116.5, 26]], '#fff7ed', '#472d1b', 1.2);
+          const sp = this.projectWorldPt(cam, 150, 117, 50);
           if (sp) {
             ctx.save();
-            ctx.font = '700 10px Georgia, serif';
+            ctx.font = '700 9.5px Georgia, serif';
             const txt = eatery.name.toUpperCase();
-            const tw = ctx.measureText(txt).width + 14;
+            const tw = ctx.measureText(txt).width + 12;
             drawRoundedRect(ctx, sp.x - tw * 0.5, sp.y - 9, tw, 18, 4);
             ctx.fillStyle = accent;
             ctx.fill();
@@ -1510,73 +1540,83 @@ export class LisboaScenes3DRenderer {
         }
       });
 
-      // 2. Center 3D Signature South-Bank Landmark (x: 290..470, y: 54..144)
+      // 2. Center 3D Signature South-Bank Landmark (x: 290..470, y: 24..112)
       items.push({
-        dist: Math.hypot(380 - cam.camX, 114 - cam.camY),
+        dist: Math.hypot(380 - cam.camX, 86 - cam.camY),
         draw: () => {
           const hl = nearbyInteraction?.type === 'south-bank-spot' && nearbyInteraction.spotId === landmark.id;
           if (isCacilhas) {
-            // Iconic 1886 Red Farol de Cacilhas Cast-Iron 3D Lighthouse!
+            // Iconic 1886 Red Farol de Cacilhas Cast-Iron 3D Lighthouse (slender proportions + lantern dome!)
             this.drawBox3D(
               ctx,
               cam,
-              362,
+              364,
+              64,
+              396,
               96,
-              398,
-              132,
               0,
-              98,
+              14,
+              { front: '#d6cfc0', side: '#bfb7a6', top: '#e5ded0', stroke: '#57534e' },
+              { kind: 'south-bank-spot', spotId: landmark.id }
+            );
+            this.drawBox3D(
+              ctx,
+              cam,
+              370,
+              70,
+              390,
+              90,
+              14,
+              74,
               { front: '#dc2626', side: '#b91c1c', top: '#1e293b', stroke: hl ? '#facc15' : '#7f1d1d', lineWidth: hl ? 2.4 : 1.4 },
               { kind: 'south-bank-spot', spotId: landmark.id }
             );
-            const lamp = this.projectWorldPt(cam, 380, 114, 108);
+            const lamp = this.projectWorldPt(cam, 380, 80, 82);
             if (lamp) {
-              const r = clamp((10 * this.focal) / lamp.cz, 5, 22);
+              const r = clamp((9 * this.focal) / lamp.cz, 5, 18);
               ctx.fillStyle = '#fef08a';
               ctx.beginPath();
               ctx.arc(lamp.x, lamp.y, r, 0, Math.PI * 2);
               ctx.fill();
             }
           } else if (isSeixal) {
-            // Restored 15th-Century Whitewashed Moinho de Mare (Tide Mill) + Fragata Sail!
             this.drawBox3D(
               ctx,
               cam,
               318,
-              72,
+              46,
               442,
-              142,
+              114,
               0,
-              76,
+              68,
               { front: '#f8fafc', side: '#e2e8f0', top: '#b84a32', stroke: hl ? '#facc15' : '#0f766e', lineWidth: hl ? 2.4 : 1.4 },
               { kind: 'south-bank-spot', spotId: landmark.id }
             );
             for (const wx of [342, 380, 418]) {
-              this.drawPoly3D(ctx, cam, [[wx - 11, 142.5, 0], [wx + 11, 142.5, 0], [wx + 11, 142.5, 26], [wx - 11, 142.5, 26]], '#0284c7');
+              this.drawPoly3D(ctx, cam, [[wx - 11, 114.5, 0], [wx + 11, 114.5, 0], [wx + 11, 114.5, 24], [wx - 11, 114.5, 24]], '#0284c7');
             }
-            this.drawPoly3D(ctx, cam, [[284, 128, 6], [312, 128, 6], [296, 128, 72]], '#f59e0b', '#b45309', 1.2);
+            this.drawPoly3D(ctx, cam, [[282, 102, 4], [312, 102, 4], [296, 102, 66]], '#f59e0b', '#b45309', 1.2);
           } else {
-            // Historic Montijo 3D Windmill with Rotating Wooden Sails & Pink Flamingos!
             this.drawBox3D(
               ctx,
               cam,
-              358,
-              86,
-              402,
-              130,
+              362,
+              58,
+              398,
+              94,
               0,
-              88,
+              76,
               { front: '#f8fafc', side: '#e2e8f0', top: '#1d4ed8', stroke: hl ? '#facc15' : '#1e3a5f', lineWidth: hl ? 2.4 : 1.4 },
               { kind: 'south-bank-spot', spotId: landmark.id }
             );
-            const hub = this.projectWorldPt(cam, 380, 131, 74);
+            const hub = this.projectWorldPt(cam, 380, 95, 64);
             if (hub) {
-              const bladeLen = clamp((38 * this.focal) / hub.cz, 12, 74);
+              const bladeLen = clamp((34 * this.focal) / hub.cz, 12, 64);
               ctx.save();
               ctx.translate(hub.x, hub.y);
               ctx.rotate(animTime * 0.9);
               ctx.strokeStyle = '#7c2d12';
-              ctx.lineWidth = 3.2;
+              ctx.lineWidth = 3;
               for (let b = 0; b < 4; b += 1) {
                 ctx.rotate(Math.PI / 2);
                 ctx.beginPath();
@@ -1587,8 +1627,8 @@ export class LisboaScenes3DRenderer {
               ctx.restore();
             }
             for (const fx of [314, 336, 442]) {
-              this.drawLine3D(ctx, cam, [fx, 134, 0], [fx, 134, 16], '#be185d', 1.6);
-              const fp = this.projectWorldPt(cam, fx, 134, 19);
+              this.drawLine3D(ctx, cam, [fx, 106, 0], [fx, 106, 14], '#be185d', 1.6);
+              const fp = this.projectWorldPt(cam, fx, 106, 17);
               if (fp) {
                 ctx.fillStyle = '#f472b6';
                 ctx.beginPath();
@@ -1597,12 +1637,12 @@ export class LisboaScenes3DRenderer {
               }
             }
           }
-          const lp = this.projectWorldPt(cam, 380, 140, 38);
+          const lp = this.projectWorldPt(cam, 380, 106, 26);
           if (lp) {
             ctx.save();
-            ctx.font = '700 9.5px "Segoe UI", sans-serif';
+            ctx.font = '700 9px "Segoe UI", sans-serif';
             const txt = `${landmark.name.toUpperCase()} [REST +25]`;
-            const tw = ctx.measureText(txt).width + 14;
+            const tw = ctx.measureText(txt).width + 12;
             drawRoundedRect(ctx, lp.x - tw * 0.5, lp.y - 9, tw, 18, 4);
             ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
             ctx.fill();
@@ -1616,33 +1656,33 @@ export class LisboaScenes3DRenderer {
         }
       });
 
-      // 3. Right 3D Regional Artisan Shop / Kiosk (x: 514..696, y: 54..148)
+      // 3. Right 3D Regional Artisan Shop / Kiosk (x: 516..704, y: 24..116)
       items.push({
-        dist: Math.hypot(605 - cam.camX, 118 - cam.camY),
+        dist: Math.hypot(610 - cam.camX, 92 - cam.camY),
         draw: () => {
           const accent = isCacilhas ? '#1f6e58' : isSeixal ? '#7c4f2b' : '#1b4d89';
           const hl = nearbyInteraction?.type === 'south-bank-spot' && nearbyInteraction.spotId === shop.id;
           this.drawBox3D(
             ctx,
             cam,
-            514,
-            54,
-            696,
-            148,
+            516,
+            24,
+            704,
+            116,
             0,
-            86,
+            76,
             { front: isCacilhas ? '#d8e6dc' : isSeixal ? '#e7d5bc' : '#eaf2fb', side: '#dbe4ec', top: accent, stroke: hl ? '#facc15' : '#1e3a5f', lineWidth: hl ? 2.4 : 1.3 },
             { kind: 'south-bank-spot', spotId: shop.id }
           );
-          this.drawPoly3D(ctx, cam, [[588, 148.5, 0], [622, 148.5, 0], [622, 148.5, 30], [588, 148.5, 30]], '#5c3a21', '#2d1a0f', 1.4);
-          this.drawPoly3D(ctx, cam, [[530, 148.5, 8], [574, 148.5, 8], [574, 148.5, 28], [530, 148.5, 28]], '#fff7ed', '#1e3a5f', 1.2);
-          this.drawPoly3D(ctx, cam, [[636, 148.5, 8], [680, 148.5, 8], [680, 148.5, 28], [636, 148.5, 28]], '#fff7ed', '#1e3a5f', 1.2);
-          const sp = this.projectWorldPt(cam, 605, 149, 52);
+          this.drawPoly3D(ctx, cam, [[593, 116.5, 0], [627, 116.5, 0], [627, 116.5, 29], [593, 116.5, 29]], '#5c3a21', '#2d1a0f', 1.4);
+          this.drawPoly3D(ctx, cam, [[534, 116.5, 8], [578, 116.5, 8], [578, 116.5, 26], [534, 116.5, 26]], '#fff7ed', '#1e3a5f', 1.2);
+          this.drawPoly3D(ctx, cam, [[642, 116.5, 8], [686, 116.5, 8], [686, 116.5, 26], [642, 116.5, 26]], '#fff7ed', '#1e3a5f', 1.2);
+          const sp = this.projectWorldPt(cam, 610, 117, 50);
           if (sp) {
             ctx.save();
-            ctx.font = '700 10px Georgia, serif';
+            ctx.font = '700 9.5px Georgia, serif';
             const txt = shop.name.toUpperCase();
-            const tw = ctx.measureText(txt).width + 14;
+            const tw = ctx.measureText(txt).width + 12;
             drawRoundedRect(ctx, sp.x - tw * 0.5, sp.y - 9, tw, 18, 4);
             ctx.fillStyle = accent;
             ctx.fill();
