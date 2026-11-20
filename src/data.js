@@ -84,6 +84,131 @@ export const DECORATIVE_STRUCTURES = [
   }
 ];
 
+export const FADO_TRACKS = [
+  {
+    id: 'fado-sentimental-1922',
+    title: 'Fado Sentimental (1922)',
+    performer: 'Eugenio Cibelli & Salgado do Carmo',
+    year: 1922,
+    source: 'Public Domain (Library of Congress National Jukebox)',
+    src: './assets/audio/fado-sentimental-1922.mp3'
+  },
+  {
+    id: 'fado-1919',
+    title: 'Fado (1919)',
+    performer: 'Jose Coelho da Cunha',
+    year: 1919,
+    source: 'Public Domain (Library of Congress National Jukebox)',
+    src: './assets/audio/fado-1919.mp3'
+  },
+  {
+    id: 'fado-hilario-1916',
+    title: 'Fado do Hilario (1916)',
+    performer: 'Manuel Carvalho',
+    year: 1916,
+    source: 'Public Domain (Library of Congress National Jukebox)',
+    src: './assets/audio/fado-hilario-1916.mp3'
+  }
+];
+
+export const FERRY_TERMINAL = {
+  id: 'cais-do-sodre',
+  name: 'Cais do Sodre Ferry Terminal',
+  shortName: 'Cais do Sodre',
+  operator: 'Transtejo',
+  badge: '[FERRY PORT]',
+  neighborhood: 'bairro-alto',
+  x: 620,
+  y: 1008,
+  w: 190,
+  h: 66,
+  doorSide: 'north',
+  doorX: 715,
+  doorY: 1008,
+  spawnOutside: { x: 715, y: 988 },
+  note: 'Lisbon historic Transtejo riverfront terminal on the Tagus embankment, connecting Cais do Sodre across the river to Cacilhas, Seixal, and Montijo.',
+  phrase: {
+    pt: 'Qual e o proximo barco da Transtejo a partir do Cais do Sodre?',
+    pronunciation: 'Kwahl eh oo proh-see-moo bahr-koo dah Trahnsh-teh-zhoo ah pahr-teer doo Kah-eesh doo Soh-dreh?',
+    en: 'Which is the next Transtejo ferry departing from Cais do Sodre?'
+  }
+};
+
+export const FERRY_DESTINATIONS = [
+  {
+    id: 'cacilhas',
+    name: 'Cacilhas (Almada)',
+    shortName: 'Cacilhas',
+    fareEur: 1.55,
+    travelMinutes: 10,
+    sailDurationSec: 4.2,
+    skylineStyle: 'cacilhas',
+    accentColor: '#c84b31',
+    description: 'Cross the Tagus straight to Almada waterfront, Farol de Cacilhas lighthouse, and panoramic views beneath Cristo Rei and Ponte 25 de Abril.',
+    pierNote: 'Warm seafood aroma drifts along Rua Candido dos Reis while the red suspension bridge towers to the west and Lisbon seven hills gleam across the river.',
+    phrase: {
+      pt: 'Um bilhete de barco para Cacilhas, ida e volta, por favor.',
+      pronunciation: 'Oom bee-lyeh-teh deh bahr-koo pah-rah Kah-see-lyash, ee-dah ee vohl-tah, poor fah-vohr.',
+      en: 'One round-trip ferry ticket to Cacilhas, please.'
+    },
+    memory: {
+      id: 'mem-ferry-cacilhas',
+      title: 'Tagus Crossing to Cacilhas',
+      category: 'transit',
+      neighborhood: 'Cais do Sodre & Cacilhas',
+      caption: 'Salt spray from the Transtejo catamaran as Lisbon terracotta hills and Ponte 25 de Abril framed the south bank.'
+    }
+  },
+  {
+    id: 'seixal',
+    name: 'Seixal Bay',
+    shortName: 'Seixal',
+    fareEur: 2.65,
+    travelMinutes: 20,
+    sailDurationSec: 4.8,
+    skylineStyle: 'seixal',
+    accentColor: '#0f766e',
+    description: 'Sail across the wide Tagus into tranquil Baia do Seixal past historic tide mills, traditional painted river fragatas, and waterfront promenade.',
+    pierNote: 'Calm tidal waters mirror whitewashed Seixal boatyards and traditional wooden sailboats moored along the south bay.',
+    phrase: {
+      pt: 'A travessia de barco para o Seixal tem uma vista linda!',
+      pronunciation: 'Ah trah-veh-see-ah deh bahr-koo pah-rah oo Say-shahl teym oo-mah veesh-tah leen-dah!',
+      en: 'The ferry crossing to Seixal has a beautiful view!'
+    },
+    memory: {
+      id: 'mem-ferry-seixal',
+      title: 'Calm Waters of Baia do Seixal',
+      category: 'transit',
+      neighborhood: 'Cais do Sodre & Seixal',
+      caption: 'Gliding into Seixal bay past wooden fragata sails and shimmering tide-mill waters across the Tagus.'
+    }
+  },
+  {
+    id: 'montijo',
+    name: 'Montijo Riverfront',
+    shortName: 'Montijo',
+    fareEur: 3.0,
+    travelMinutes: 25,
+    sailDurationSec: 5.2,
+    skylineStyle: 'montijo',
+    accentColor: '#1d4ed8',
+    description: 'Journey across the broad Tagus estuary toward Montijo sunlit marshlands, salt pans, soaring estuary birds, and open Ribatejo skies.',
+    pierNote: 'Wide silver estuary horizons open east of Lisbon where flocks of flamingos and seagulls skim the Montijo tidal flats.',
+    phrase: {
+      pt: 'A que horas sai o barco de regresso do Montijo para Lisboa?',
+      pronunciation: 'Ah keh oh-rash sah-ee oo bahr-koo deh heh-greh-soo doo Mohn-tee-zhoo pah-rah Leesh-boh-ah?',
+      en: 'What time does the return ferry from Montijo to Lisbon depart?'
+    },
+    memory: {
+      id: 'mem-ferry-montijo',
+      title: 'Estuary Horizon at Montijo',
+      category: 'transit',
+      neighborhood: 'Cais do Sodre & Montijo',
+      caption: 'Open Tagus estuary winds and bright golden light stretching all the way back toward Alfama and Chiado.'
+    }
+  }
+];
+
 export const METRO_LINE = {
   id: 'metro-linha-azul',
   name: 'Metropolitano de Lisboa (Linha Azul)',
@@ -1310,7 +1435,7 @@ export const TRANSIT_LINES = [
     operator: 'Carris',
     badge: '[TRAM 28E]',
     fareEur: 3.1,
-    speedPxPerSec: 138,
+    speedPxPerSec: 148,
     dwellSeconds: 4.0,
     color: '#e6a817',
     trimColor: '#ffffff',
@@ -1342,7 +1467,7 @@ export const TRANSIT_LINES = [
     operator: 'Carris',
     badge: '[BUS 737]',
     fareEur: 2.1,
-    speedPxPerSec: 155,
+    speedPxPerSec: 192,
     dwellSeconds: 3.8,
     color: '#1b7a5c',
     trimColor: '#f3c623',
@@ -1535,6 +1660,9 @@ export function getAllMemoryCatalog() {
     catalog.push(line.memory);
   }
   catalog.push(METRO_LINE.memory);
+  for (const ferryDest of FERRY_DESTINATIONS) {
+    catalog.push(ferryDest.memory);
+  }
   for (const spot of REST_SPOTS) {
     catalog.push(spot.memory);
   }

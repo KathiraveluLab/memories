@@ -1,5 +1,7 @@
 import {
   NEIGHBORHOODS,
+  FERRY_TERMINAL,
+  FERRY_DESTINATIONS,
   METRO_LINE,
   METRO_STATIONS,
   VENUES,
@@ -13,6 +15,7 @@ import {
   MemoriesGameEngine,
   INTERIOR_STATIONS,
   METRO_PLATFORM_ZONES,
+  FERRY_PIER_ZONES,
   formatClock,
   getDayPhase,
   isOverworldPositionValid,
@@ -115,6 +118,7 @@ const soundEngine = new LisboaSoundEngine();
 let prevAudioMode = 'overworld';
 let prevAudioVenueId = null;
 let prevAudioRidingId = null;
+let prevAudioFerryPhase = null;
 
 const pressedKeys = new Set();
 let activeTab = 'guide';
@@ -229,6 +233,24 @@ function handleCanvasClick(event) {
     return;
   }
 
+  if (state.mode === 'ferry') {
+    if (state.ferry.phase !== 'terminal') return;
+    if (
+      state.ferry.portId === FERRY_TERMINAL.id &&
+      worldPt.y <= FERRY_PIER_ZONES.exitY + 14 &&
+      Math.abs(worldPt.x - 380) <= FERRY_PIER_ZONES.exitHalfWidth + 16
+    ) {
+      engine.setWalkTarget(380, FERRY_PIER_ZONES.exitY, { type: 'exitFerry' });
+      return;
+    }
+    if (worldPt.y >= 242 && Math.abs(worldPt.x - 380) <= FERRY_PIER_ZONES.gangwayHalfWidth) {
+      engine.setWalkTarget(380, 256, { type: 'boardDefaultFerry' });
+      return;
+    }
+    engine.setWalkTarget(worldPt.x, Math.max(170, Math.min(268, worldPt.y)), null);
+    return;
+  }
+
   if (state.mode === 'interior') {
     const counterDist = Math.hypot(worldPt.x - INTERIOR_STATIONS.counter.x, worldPt.y - INTERIOR_STATIONS.counter.y);
     if (counterDist <= 78 || (worldPt.y <= 195 && worldPt.x >= 220 && worldPt.x <= 540)) {
@@ -246,6 +268,25 @@ function handleCanvasClick(event) {
       return;
     }
     engine.setWalkTarget(worldPt.x, worldPt.y, null);
+    return;
+  }
+
+  // Overworld clicks: check Cais do Sodre Ferry Terminal
+  const hitFerry =
+    worldPt.x >= FERRY_TERMINAL.x - 14 &&
+    worldPt.x <= FERRY_TERMINAL.x + FERRY_TERMINAL.w + 14 &&
+    worldPt.y >= FERRY_TERMINAL.y - 16 &&
+    worldPt.y <= FERRY_TERMINAL.y + FERRY_TERMINAL.h + 44;
+  if (hitFerry) {
+    const path = buildOverworldPath(
+      state.player.x,
+      state.player.y,
+      FERRY_TERMINAL.spawnOutside.x,
+      FERRY_TERMINAL.spawnOutside.y,
+      { type: 'openFerry' }
+    );
+    engine.setWalkPath(path);
+    setStatusBanner(`Walking along the Tagus waterfront toward ${FERRY_TERMINAL.name}...`);
     return;
   }
 
@@ -347,6 +388,10 @@ function renderActiveContextPanel(state) {
     metroId: metroStation?.id || null,
     metroPhase: state.metro?.phase || null,
     metroTo: state.metro?.toStationId || null,
+    ferryPort: state.ferry?.portId || null,
+    ferryPhase: state.ferry?.phase || null,
+    ferryTo: state.ferry?.toPortId || null,
+    fadoTrackId: soundEngine.getCurrentFadoTrack()?.id || null,
     ridingId: riding?.id || null,
     stopId: riding?.currentStopId || null,
     nextStop: riding?.nextStopName || null,
@@ -440,6 +485,73 @@ function renderActiveContextPanel(state) {
     return;
   }
 
+  if (state.mode === 'ferry') {
+    dom.activeContextPanel.classList.remove('hidden');
+    const f = state.ferry;
+    const isSailing = f.phase === 'sailing';
+    const isLisbon = f.portId === FERRY_TERMINAL.id;
+    const curDest = FERRY_DESTINATIONS.find((d) => d.id === f.portId);
+    const toDestLabel =
+      f.toPortId === FERRY_TERMINAL.id
+        ? FERRY_TERMINAL.shortName
+        : (FERRY_DESTINATIONS.find((d) => d.id === f.toPortId)?.name || 'South Bank');
+
+    const routesHtml = isLisbon
+      ? FERRY_DESTINATIONS.map((dest) => {
+          const affordable = state.euros >= dest.fareEur && !isSailing;
+          const visited = state.visitedFerryPorts.includes(dest.id);
+          return `
+            <div class="item-card">
+              <div>
+                <h4>${escapeHtml(dest.name)}${visited ? ' (Visited)' : ''}</h4>
+                <div class="item-meta">${escapeHtml(dest.description)}</div>
+                <div class="item-meta"><strong>${dest.fareEur.toFixed(2)} EUR</strong> | ~${dest.travelMinutes} min Tagus crossing (+6 Energy)</div>
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" data-board-ferry="${escapeHtml(dest.id)}" ${affordable ? '' : 'disabled'}>
+                Board Ferry
+              </button>
+            </div>
+          `;
+        }).join('')
+      : `
+          <div class="item-card">
+            <div>
+              <h4>Return Ferry to ${escapeHtml(FERRY_TERMINAL.shortName)} (Lisboa)</h4>
+              <div class="item-meta">Sail back across the Tagus River to Cais do Sodre waterfront.</div>
+              <div class="item-meta"><strong>${(curDest?.fareEur || 1.55).toFixed(2)} EUR</strong> | ~${curDest?.travelMinutes || 12} min crossing (+6 Energy)</div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" data-board-ferry="${escapeHtml(FERRY_TERMINAL.id)}" ${state.euros >= (curDest?.fareEur || 1.55) && !isSailing ? '' : 'disabled'}>
+              Sail to Lisbon
+            </button>
+          </div>
+        `;
+
+    const phraseObj = curDest ? curDest.phrase : FERRY_TERMINAL.phrase;
+    const noteText = isSailing
+      ? `Sailing aboard the Transtejo catamaran toward ${toDestLabel}...`
+      : curDest
+        ? curDest.pierNote
+        : FERRY_TERMINAL.note;
+
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>${escapeHtml(isLisbon ? FERRY_TERMINAL.name : (curDest?.name || 'South Bank Pier'))}</h3>
+          <div class="item-meta">Transtejo Tagus Ferries | ${isSailing ? 'Crossing in Progress' : isLisbon ? 'Lisboa Waterfront' : 'Tagus South Bank'}</div>
+        </div>
+        ${isLisbon ? `<button type="button" class="btn btn-secondary btn-sm" data-ferry-exit="true" ${isSailing ? 'disabled' : ''}>Exit to Street</button>` : ''}
+      </div>
+      <p class="helper-text">${escapeHtml(noteText)}</p>
+      <div class="phrase-callout">
+        <span class="pt">${escapeHtml(phraseObj.pt)}</span>
+        <span class="pron">${escapeHtml(phraseObj.pronunciation)}</span>
+        <span>${escapeHtml(phraseObj.en)}</span>
+      </div>
+      ${routesHtml}
+    `;
+    return;
+  }
+
   if (venue) {
     dom.activeContextPanel.classList.remove('hidden');
     const itemsHtml = venue.items
@@ -473,6 +585,23 @@ function renderActiveContextPanel(state) {
       ? `${escapeHtml(venue.proprietor)} (${escapeHtml(venue.proprietorRole)}) | ${escapeHtml(venue.cashierName)} (${escapeHtml(venue.cashierRole || 'Cashier')})`
       : `${escapeHtml(venue.proprietor)} (${escapeHtml(venue.proprietorRole)})`;
 
+    const isFadoVenue =
+      venue.id === 'tasca-do-fado' ||
+      venue.id === 'vinil-do-alto' ||
+      venue.id === 'taberna-sardinha';
+    const currentFado = isFadoVenue ? soundEngine.getCurrentFadoTrack() : null;
+    const fadoBarHtml = currentFado
+      ? `
+        <div class="item-card">
+          <div>
+            <h4>Now Playing: ${escapeHtml(currentFado.title)}</h4>
+            <div class="item-meta">${escapeHtml(currentFado.performer)} | ${escapeHtml(currentFado.source)}</div>
+          </div>
+          <button type="button" class="btn btn-sm" data-next-fado="true">Next Track</button>
+        </div>
+      `
+      : '';
+
     dom.activeContextPanel.innerHTML = `
       <div class="context-header">
         <div>
@@ -482,6 +611,7 @@ function renderActiveContextPanel(state) {
         <button type="button" class="btn btn-secondary btn-sm" data-venue-action="exit">Step Outside</button>
       </div>
       <div class="context-quote">"${escapeHtml(venue.greeting)}"</div>
+      ${fadoBarHtml}
       <div class="phrase-callout">
         <span class="pt">${escapeHtml(venue.phrase.pt)}</span>
         <span class="pron">${escapeHtml(venue.phrase.pronunciation)}</span>
@@ -556,6 +686,20 @@ function renderLists(state) {
       `);
     }
   }
+
+  guideParts.push('<div class="hood-group-title">Tagus River Ferries (Cais do Sodre Port)</div>');
+  const visitedPorts = state.visitedFerryPorts || [];
+  guideParts.push(`
+    <div class="guide-card ${visitedPorts.length === FERRY_DESTINATIONS.length ? 'visited' : ''}">
+      <div>
+        <div class="guide-card-title">${escapeHtml(FERRY_TERMINAL.name)} <span class="badge-muted">${escapeHtml(FERRY_TERMINAL.badge)}</span></div>
+        <div class="guide-card-sub">Transtejo ferries to Cacilhas, Seixal &amp; Montijo (${visitedPorts.length} / ${FERRY_DESTINATIONS.length} ports visited)</div>
+      </div>
+      <button type="button" class="btn btn-sm" data-walk-ferry="true" ${state.ridingVehicleId ? 'disabled' : ''}>
+        Walk Here
+      </button>
+    </div>
+  `);
 
   guideParts.push('<div class="hood-group-title">Metropolitano de Lisboa (Available Stations)</div>');
   for (const station of METRO_STATIONS) {
@@ -670,7 +814,24 @@ function refreshUi(force = false) {
   const venue = engine.getCurrentVenue();
   const riding = engine.getRidingVehicle();
   const metroStation = engine.getActiveMetroStation();
-  if (state.mode === 'metro') {
+  if (state.mode === 'ferry') {
+    const f = state.ferry;
+    const portInfo = FERRY_DESTINATIONS.find((d) => d.id === f.portId);
+    const toName =
+      f.toPortId === FERRY_TERMINAL.id
+        ? FERRY_TERMINAL.shortName
+        : (FERRY_DESTINATIONS.find((d) => d.id === f.toPortId)?.name || 'South Bank');
+    if (f.phase === 'sailing') {
+      dom.sceneTitle.textContent = `Transtejo Tagus Ferry -> ${toName}`;
+      dom.sceneSubtitle.textContent = 'Sailing across the Tagus River aboard the Transtejo catamaran.';
+    } else if (f.portId === FERRY_TERMINAL.id) {
+      dom.sceneTitle.textContent = 'Cais do Sodre Ferry Terminal (Transtejo)';
+      dom.sceneSubtitle.textContent = 'Choose a ferry to Cacilhas, Seixal, or Montijo in the Ferry panel, or walk up to exit to the waterfront.';
+    } else {
+      dom.sceneTitle.textContent = `${portInfo ? portInfo.name : 'South Bank'} Ferry Pier`;
+      dom.sceneSubtitle.textContent = 'Enjoy the Tagus south-bank view, then board the return Transtejo ferry to Cais do Sodre.';
+    }
+  } else if (state.mode === 'metro') {
     const destStation = METRO_STATIONS.find((s) => s.id === state.metro.toStationId);
     if (state.metro.phase === 'riding') {
       dom.sceneTitle.textContent = `Underground Metro (Linha Azul) -> ${destStation ? destStation.name : 'Next Station'}`;
@@ -689,10 +850,13 @@ function refreshUi(force = false) {
     dom.sceneTitle.textContent = `Inside ${venue.name} (${venue.memory.neighborhood})`;
     dom.sceneSubtitle.textContent = `Walk to ${venue.proprietor}'s counter, browse the display, or walk to EXIT TO STREET.`;
   } else if (riding) {
-    dom.sceneTitle.textContent = `Riding ${riding.name} through ${state.currentNeighborhoodName}`;
+    dom.sceneTitle.textContent =
+      riding.mode === 'bus'
+        ? `Inside ${riding.name} - Lisboa Cityscape (${state.currentNeighborhoodName})`
+        : `Riding ${riding.name} through ${state.currentNeighborhoodName}`;
     dom.sceneSubtitle.textContent = riding.currentStopId
       ? `Stopped at ${riding.currentStopName}. Press [E] to step out onto the sidewalk.`
-      : `Next stop: ${riding.nextStopName}. Press [E] to ring the bell.`;
+      : `Next stop: ${riding.nextStopName}. Enjoy the window view or press [E] to ring STOP.`;
   } else {
     dom.sceneTitle.textContent = `${state.currentNeighborhoodName} - Ground-Level Lisboa`;
     dom.sceneSubtitle.textContent =
@@ -726,7 +890,9 @@ function refreshUi(force = false) {
         ? 'Walk to counter, display, or EXIT mat'
         : state.mode === 'metro'
           ? 'Walk to BOARD METRO zone or ESCALATOR TO STREET'
-          : 'Walk near a shop, Metro entrance, transit stop, or bench';
+          : state.mode === 'ferry'
+            ? 'Walk to BOARD FERRY gangway or pick destination'
+            : 'Walk near a shop, Metro, Cais do Sodre Port, transit stop, or bench';
   }
 
   if (state.mode === 'interior') {
@@ -737,6 +903,15 @@ function refreshUi(force = false) {
     dom.btnSecondaryAction.classList.remove('hidden');
     dom.btnSecondaryAction.textContent = 'Take Escalator to Street (Esc)';
     dom.btnSecondaryAction.dataset.action = 'exit-metro';
+  } else if (state.mode === 'ferry' && state.ferry.phase === 'terminal') {
+    dom.btnSecondaryAction.classList.remove('hidden');
+    if (state.ferry.portId === FERRY_TERMINAL.id) {
+      dom.btnSecondaryAction.textContent = 'Exit to Waterfront (Esc)';
+      dom.btnSecondaryAction.dataset.action = 'exit-ferry';
+    } else {
+      dom.btnSecondaryAction.textContent = 'Return Ferry to Cais do Sodre';
+      dom.btnSecondaryAction.dataset.action = 'return-ferry';
+    }
   } else if (state.ridingVehicleId) {
     dom.btnSecondaryAction.classList.remove('hidden');
     dom.btnSecondaryAction.textContent = 'Hop Off at Next Stop Now';
@@ -772,7 +947,12 @@ function updateAudioIndicator() {
     } else if (!unlocked) {
       dom.liveAudioStatus.textContent = '[AUDIO] Click or Move';
     } else if (profile.badgeTone === 'warm') {
-      dom.liveAudioStatus.textContent = `[AUDIO] ${profile.activeLabel}`;
+      const fadoTrack = profile.fadoMusic >= 0.4 ? soundEngine.getCurrentFadoTrack() : null;
+      const audioText =
+        fadoTrack && soundEngine.isUsingRealFadoAudio()
+          ? `[AUDIO] ${fadoTrack.title}`
+          : `[AUDIO] ${profile.activeLabel}`;
+      dom.liveAudioStatus.textContent = audioText;
       dom.liveAudioStatus.classList.add('active');
     } else if (profile.badgeTone === 'water') {
       dom.liveAudioStatus.textContent = `[AUDIO] ${profile.activeLabel}`;
@@ -1005,6 +1185,13 @@ window.addEventListener('keydown', (event) => {
     } else if (engine.getState().mode === 'metro' && engine.getState().metro.phase === 'platform') {
       engine.exitMetroStation();
       refreshUi(true);
+    } else if (
+      engine.getState().mode === 'ferry' &&
+      engine.getState().ferry.phase === 'terminal' &&
+      engine.getState().ferry.portId === FERRY_TERMINAL.id
+    ) {
+      engine.exitFerryTerminal();
+      refreshUi(true);
     }
     return;
   }
@@ -1035,6 +1222,11 @@ dom.btnSecondaryAction.addEventListener('click', () => {
     engine.exitVenue();
   } else if (action === 'exit-metro') {
     engine.exitMetroStation();
+  } else if (action === 'exit-ferry') {
+    engine.exitFerryTerminal();
+  } else if (action === 'return-ferry') {
+    const res = engine.boardFerry(FERRY_TERMINAL.id);
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
   } else if (action === 'alight-now') {
     engine.disembarkTransit({ immediateToNextStop: true });
   }
@@ -1069,6 +1261,27 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 });
 
 dom.activeContextPanel.addEventListener('click', (event) => {
+  const ferryBtn = event.target.closest('[data-board-ferry]');
+  if (ferryBtn) {
+    const res = engine.boardFerry(ferryBtn.dataset.boardFerry);
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
+  if (event.target.closest('[data-ferry-exit]')) {
+    engine.exitFerryTerminal();
+    refreshUi(true);
+    return;
+  }
+  if (event.target.closest('[data-next-fado]')) {
+    const nextTrack = soundEngine.nextFadoTrack();
+    if (nextTrack) {
+      setStatusBanner(`Now playing Public Domain Fado: ${nextTrack.title} (${nextTrack.performer}).`);
+    }
+    lastContextSignature = '';
+    refreshUi(true);
+    return;
+  }
   const rideMetroBtn = event.target.closest('[data-ride-metro]');
   if (rideMetroBtn) {
     const originId = engine.getState().activeMetroStationId;
@@ -1115,6 +1328,21 @@ dom.guideList.addEventListener('click', (event) => {
   } else if (state.mode === 'metro') {
     if (state.metro.phase === 'riding') return;
     engine.exitMetroStation({ immediate: true });
+  } else if (state.mode === 'ferry') {
+    if (state.ferry.phase === 'sailing') return;
+    engine.exitFerryTerminal({ immediate: true });
+  }
+  if (event.target.closest('[data-walk-ferry]')) {
+    const path = buildOverworldPath(
+      engine.getState().player.x,
+      engine.getState().player.y,
+      FERRY_TERMINAL.spawnOutside.x,
+      FERRY_TERMINAL.spawnOutside.y,
+      { type: 'openFerry' }
+    );
+    engine.setWalkPath(path);
+    setStatusBanner(`Walking along the Tagus waterfront toward ${FERRY_TERMINAL.name}...`);
+    return;
   }
   const metroBtn = event.target.closest('[data-walk-metro]');
   if (metroBtn) {
@@ -1304,12 +1532,16 @@ function frame(now) {
   if (state.mode === 'metro' && prevAudioMode !== 'metro') {
     soundEngine.playEffect('metro-chime');
   }
+  if (state.mode === 'ferry' && state.ferry.phase === 'sailing' && prevAudioFerryPhase !== 'sailing') {
+    soundEngine.playEffect('ferry-horn');
+  }
   if (state.ridingVehicleId === 'tram-28e' && prevAudioRidingId !== 'tram-28e') {
     soundEngine.playEffect('tram-bell');
   }
   prevAudioMode = state.mode;
   prevAudioVenueId = state.currentVenueId;
   prevAudioRidingId = state.ridingVehicleId;
+  prevAudioFerryPhase = state.mode === 'ferry' ? state.ferry.phase : null;
   soundEngine.update(state);
 
   mpClient.syncState(engine.getNetworkSnapshot());

@@ -1,4 +1,4 @@
-import { VENUES, WATERFRONT_Y } from './data.js';
+import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS } from './data.js';
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -12,6 +12,7 @@ const EMPTY_PROFILE = {
   cafeSteam: 0,
   metroRumble: 0,
   metroRiding: false,
+  ferryEngine: 0,
   cathedralOrgan: 0,
   vinylCrackle: 0,
   riverWater: 0,
@@ -21,8 +22,8 @@ const EMPTY_PROFILE = {
 
 /**
  * Pure, headless calculation of active Lisboa soundscape intensities based on player state.
- * Every building interior, underground Metro phase, transit ride, and the Tagus riverfront
- * maps to a distinct background soundscape or Portuguese cultural / Fado musical motif.
+ * Every building interior, underground Metro phase, Transtejo ferry crossing, surface transit ride,
+ * and the Tagus riverfront maps to a distinct background soundscape or Portuguese cultural / Fado motif.
  */
 export function computeSoundscapeProfile(state) {
   if (!state) {
@@ -33,7 +34,6 @@ export function computeSoundscapeProfile(state) {
     const venue = VENUES.find((v) => v.id === state.currentVenueId);
     if (!venue) return { ...EMPTY_PROFILE, activeLabel: 'Indoors' };
 
-    // 1. Fado Tavern (Tasca do Fado): traditional minor-key Lisbon Fado music
     if (venue.id === 'tasca-do-fado') {
       return {
         ...EMPTY_PROFILE,
@@ -43,18 +43,16 @@ export function computeSoundscapeProfile(state) {
       };
     }
 
-    // 2. Alfama Charcoal Grill Restaurant (Taberna da Sardinha): sizzling charcoal sardine grill + tavern Fado
     if (venue.id === 'taberna-sardinha') {
       return {
         ...EMPTY_PROFILE,
         grillSizzle: 1,
-        fadoMusic: 0.45,
+        fadoMusic: 0.42,
         badgeTone: 'warm',
         activeLabel: 'Charcoal Grill & Fado'
       };
     }
 
-    // 3. Bakeries & Confeitaria (Casa da Rosa - Padaria, Arcadas do Chiado): brick wood-fired oven & fire crackle
     if (venue.interiorTheme?.layout === 'bakery') {
       return {
         ...EMPTY_PROFILE,
@@ -65,7 +63,6 @@ export function computeSoundscapeProfile(state) {
       };
     }
 
-    // 4. Historic Cafes (Cafe A Brasileira, Quiosque de Sao Pedro): espresso machine steam, porcelain clinks & soft guitar
     if (venue.interiorTheme?.layout === 'cafe') {
       return {
         ...EMPTY_PROFILE,
@@ -76,7 +73,6 @@ export function computeSoundscapeProfile(state) {
       };
     }
 
-    // 5. Se de Lisboa (1147 Cathedral): resonant limestone nave pipe organ
     if (venue.interiorTheme?.layout === 'cathedral') {
       return {
         ...EMPTY_PROFILE,
@@ -86,18 +82,16 @@ export function computeSoundscapeProfile(state) {
       };
     }
 
-    // 6. Vinyl & Print Shop (Vinil & Gravuras do Alto): warm spinning Fado vinyl record with needle crackle
     if (venue.interiorTheme?.layout === 'vinyl') {
       return {
         ...EMPTY_PROFILE,
-        fadoMusic: 0.82,
+        fadoMusic: 0.85,
         vinylCrackle: 0.9,
         badgeTone: 'warm',
         activeLabel: 'Fado Vinyl & Crackle'
       };
     }
 
-    // 7. Ceramic Tile Workshop (Oficina de Azulejos): sunlit Portuguese folk guitar & warm ceramic kiln hum
     if (venue.interiorTheme?.layout === 'azulejo') {
       return {
         ...EMPTY_PROFILE,
@@ -108,7 +102,6 @@ export function computeSoundscapeProfile(state) {
       };
     }
 
-    // 8. Bookshop, Galleries, Cork Atelier, Grocer & Guesthouse: warm Portuguese cultural folk guitar
     return {
       ...EMPTY_PROFILE,
       folkGuitar: 0.78,
@@ -117,7 +110,6 @@ export function computeSoundscapeProfile(state) {
     };
   }
 
-  // Underground Metropolitano de Lisboa: subterranean station vault hum / escalator whirr & full tunnel train rumble
   if (state.mode === 'metro') {
     const isRiding = state.metro?.phase === 'riding';
     return {
@@ -129,7 +121,22 @@ export function computeSoundscapeProfile(state) {
     };
   }
 
-  // Overworld: smooth spatial swell as the traveler approaches the Tagus Riverfront (WATERFRONT_Y = 1030)
+  if (state.mode === 'ferry') {
+    const isSailing = state.ferry?.phase === 'sailing';
+    const portId = state.ferry?.portId;
+    const portLabel =
+      portId === FERRY_TERMINAL.id
+        ? 'Cais do Sodre Pier'
+        : `${FERRY_DESTINATIONS.find((d) => d.id === portId)?.shortName || 'South Bank'} Pier`;
+    return {
+      ...EMPTY_PROFILE,
+      riverWater: isSailing ? 1 : 0.86,
+      ferryEngine: isSailing ? 1 : 0.42,
+      badgeTone: 'water',
+      activeLabel: isSailing ? 'Tagus Ferry Crossing' : portLabel
+    };
+  }
+
   const py = Number.isFinite(state.player?.y) ? state.player.y : 544;
   const riverStartY = WATERFRONT_Y - 240; // y = 790
   const riverPeakY = WATERFRONT_Y - 38;   // y = 992
@@ -140,7 +147,7 @@ export function computeSoundscapeProfile(state) {
     const isTram = state.ridingVehicleId === 'tram-28e';
     return {
       ...EMPTY_PROFILE,
-      metroRumble: isTram ? 0.42 : 0.35,
+      metroRumble: isTram ? 0.42 : 0.48,
       metroRiding: isTram,
       riverWater,
       badgeTone: riverWater >= 0.35 ? 'water' : 'metro',
@@ -156,7 +163,7 @@ export function computeSoundscapeProfile(state) {
   };
 }
 
-// Traditional Lisbon Fado Menor progression in A minor (Am - Dm - E7 - Am - F - Dm - E7 - Am)
+// Fallback procedural Fado Menor progression (used seamlessly if MP3 playback is unavailable)
 const FADO_MELODY_STEPS = [
   { freq: 440.0, dur: 0.72, vel: 0.9 },
   { freq: 523.25, dur: 0.36, vel: 0.75 },
@@ -173,74 +180,53 @@ const FADO_MELODY_STEPS = [
   { freq: 440.0, dur: 0.95, vel: 0.95 },
   { freq: 523.25, dur: 0.38, vel: 0.72 },
   { freq: 493.88, dur: 0.38, vel: 0.7 },
-  { freq: 440.0, dur: 0.55, vel: 0.65 },
-  { freq: 698.46, dur: 0.75, vel: 0.95 },
-  { freq: 659.25, dur: 0.38, vel: 0.82 },
-  { freq: 587.33, dur: 0.42, vel: 0.8 },
-  { freq: 523.25, dur: 0.7, vel: 0.86 },
-  { freq: 587.33, dur: 0.72, vel: 0.92 },
-  { freq: 523.25, dur: 0.38, vel: 0.8 },
-  { freq: 493.88, dur: 0.42, vel: 0.78 },
-  { freq: 440.0, dur: 0.62, vel: 0.84 },
-  { freq: 493.88, dur: 0.45, vel: 0.85 },
-  { freq: 523.25, dur: 0.36, vel: 0.78 },
-  { freq: 493.88, dur: 0.42, vel: 0.82 },
-  { freq: 415.30, dur: 0.86, vel: 0.95 },
-  { freq: 440.0, dur: 1.15, vel: 1.0 },
-  { freq: 329.63, dur: 0.48, vel: 0.68 },
-  { freq: 392.0, dur: 0.32, vel: 0.55 },
-  { freq: 440.0, dur: 0.95, vel: 0.85 }
+  { freq: 440.0, dur: 0.55, vel: 0.65 }
 ];
 
 const FADO_CHORDS = [
   { bass: 110.0, notes: [220.0, 261.63, 329.63] },
   { bass: 146.83, notes: [220.0, 293.66, 349.23] },
   { bass: 82.41, notes: [207.65, 246.94, 329.63] },
-  { bass: 110.0, notes: [220.0, 261.63, 329.63] },
-  { bass: 87.31, notes: [220.0, 261.63, 349.23] },
-  { bass: 146.83, notes: [220.0, 293.66, 349.23] },
-  { bass: 82.41, notes: [207.65, 246.94, 293.66] },
   { bass: 110.0, notes: [220.0, 261.63, 329.63] }
 ];
 
-// Sunlit Portuguese cultural folk guitar progression (G major - Em - C - D7) for bookshops, ateliers & galleries
 const FOLK_MELODY_STEPS = [
-  { freq: 392.0, dur: 0.55, vel: 0.82 },  // G4
-  { freq: 493.88, dur: 0.42, vel: 0.78 }, // B4
-  { freq: 587.33, dur: 0.68, vel: 0.9 },  // D5
-  { freq: 523.25, dur: 0.38, vel: 0.75 }, // C5
-  { freq: 493.88, dur: 0.65, vel: 0.85 }, // B4
-  { freq: 440.0, dur: 0.4, vel: 0.75 },   // A4
-  { freq: 392.0, dur: 0.62, vel: 0.8 },   // G4
-  { freq: 329.63, dur: 0.48, vel: 0.7 },  // E4
-  { freq: 523.25, dur: 0.66, vel: 0.88 }, // C5
-  { freq: 587.33, dur: 0.42, vel: 0.82 }, // D5
-  { freq: 659.25, dur: 0.72, vel: 0.92 }, // E5
-  { freq: 587.33, dur: 0.4, vel: 0.76 },  // D5
-  { freq: 587.33, dur: 0.62, vel: 0.85 }, // D5
-  { freq: 523.25, dur: 0.42, vel: 0.78 }, // C5
-  { freq: 440.0, dur: 0.55, vel: 0.8 },   // A4
-  { freq: 392.0, dur: 0.85, vel: 0.88 }   // G4
+  { freq: 392.0, dur: 0.55, vel: 0.82 },
+  { freq: 493.88, dur: 0.42, vel: 0.78 },
+  { freq: 587.33, dur: 0.68, vel: 0.9 },
+  { freq: 523.25, dur: 0.38, vel: 0.75 },
+  { freq: 493.88, dur: 0.65, vel: 0.85 },
+  { freq: 440.0, dur: 0.4, vel: 0.75 },
+  { freq: 392.0, dur: 0.62, vel: 0.8 },
+  { freq: 329.63, dur: 0.48, vel: 0.7 },
+  { freq: 523.25, dur: 0.66, vel: 0.88 },
+  { freq: 587.33, dur: 0.42, vel: 0.82 },
+  { freq: 659.25, dur: 0.72, vel: 0.92 },
+  { freq: 587.33, dur: 0.4, vel: 0.76 },
+  { freq: 587.33, dur: 0.62, vel: 0.85 },
+  { freq: 523.25, dur: 0.42, vel: 0.78 },
+  { freq: 440.0, dur: 0.55, vel: 0.8 },
+  { freq: 392.0, dur: 0.85, vel: 0.88 }
 ];
 
 const FOLK_CHORDS = [
-  { bass: 98.0, notes: [196.0, 246.94, 293.66] },   // G
-  { bass: 82.41, notes: [196.0, 246.94, 329.63] },  // Em
-  { bass: 130.81, notes: [196.0, 261.63, 329.63] }, // C
-  { bass: 146.83, notes: [220.0, 293.66, 369.99] }  // D
+  { bass: 98.0, notes: [196.0, 246.94, 293.66] },
+  { bass: 82.41, notes: [196.0, 246.94, 329.63] },
+  { bass: 130.81, notes: [196.0, 261.63, 329.63] },
+  { bass: 146.83, notes: [220.0, 293.66, 369.99] }
 ];
 
-// Resonant 12th-century Se de Lisboa modal pipe organ progression (Dm - C - Bb - A)
 const CATHEDRAL_ORGAN_CHORDS = [
-  [146.83, 220.0, 293.66, 349.23], // Dm
-  [130.81, 196.0, 261.63, 329.63], // C
-  [116.54, 174.61, 233.08, 293.66], // Bb
-  [110.0, 164.81, 220.0, 277.18]   // A
+  [146.83, 220.0, 293.66, 349.23],
+  [130.81, 196.0, 261.63, 329.63],
+  [116.54, 174.61, 233.08, 293.66],
+  [110.0, 164.81, 220.0, 277.18]
 ];
 
 export class LisboaSoundEngine {
-  constructor({ audioContextFactory = null } = {}) {
+  constructor({ audioContextFactory = null, audioElementFactory = null } = {}) {
     this.audioContextFactory = audioContextFactory;
+    this.audioElementFactory = audioElementFactory;
     this.ctx = null;
     this.muted = false;
     this.unlocked = false;
@@ -248,7 +234,13 @@ export class LisboaSoundEngine {
 
     this.profile = { ...EMPTY_PROFILE };
 
-    // Master & soundscape buses created lazily on unlock()
+    // Real Public Domain Portuguese Fado MP3 playlist player (Library of Congress 1916-1922)
+    this.fadoAudioEl = null;
+    this.fadoTrackIndex = 0;
+    this.realFadoFailed = false;
+    this.realFadoActive = false;
+
+    // Web Audio buses
     this.masterGain = null;
     this.bakeryBus = null;
     this.fadoBus = null;
@@ -256,6 +248,7 @@ export class LisboaSoundEngine {
     this.grillBus = null;
     this.cafeBus = null;
     this.metroBus = null;
+    this.ferryBus = null;
     this.organBus = null;
     this.vinylBus = null;
     this.riverBus = null;
@@ -287,6 +280,14 @@ export class LisboaSoundEngine {
     return this.profile;
   }
 
+  getCurrentFadoTrack() {
+    return FADO_TRACKS[this.fadoTrackIndex % FADO_TRACKS.length] || null;
+  }
+
+  isUsingRealFadoAudio() {
+    return this.realFadoActive && !this.realFadoFailed;
+  }
+
   createAudioContext() {
     if (typeof this.audioContextFactory === 'function') {
       return this.audioContextFactory();
@@ -296,12 +297,91 @@ export class LisboaSoundEngine {
     return Ctor ? new Ctor() : null;
   }
 
+  ensureFadoAudioElement() {
+    if (this.fadoAudioEl || this.realFadoFailed) return this.fadoAudioEl;
+    let el = null;
+    if (typeof this.audioElementFactory === 'function') {
+      el = this.audioElementFactory();
+    } else if (typeof Audio === 'function') {
+      el = new Audio();
+    }
+    if (!el) return null;
+
+    el.preload = 'auto';
+    el.loop = false;
+    el.volume = 0;
+    if (typeof el.addEventListener === 'function') {
+      el.addEventListener('ended', () => {
+        this.fadoTrackIndex = (this.fadoTrackIndex + 1) % FADO_TRACKS.length;
+        if (!this.disposed && !this.muted && this.profile.fadoMusic >= 0.05) {
+          this.loadAndPlayFadoTrack(true);
+        }
+      });
+      el.addEventListener('error', () => {
+        this.realFadoFailed = true;
+        this.realFadoActive = false;
+        this.applyGains();
+      });
+    }
+
+    this.fadoAudioEl = el;
+    return el;
+  }
+
+  loadAndPlayFadoTrack(forceReload = false) {
+    const el = this.ensureFadoAudioElement();
+    const track = this.getCurrentFadoTrack();
+    if (!el || !track || this.realFadoFailed) return false;
+
+    if (forceReload || !el.src || !el.src.endsWith(track.src.replace('./', ''))) {
+      el.src = track.src;
+    }
+
+    el.volume = this.muted ? 0 : clamp(this.profile.fadoMusic * 0.72, 0, 0.82);
+    this.realFadoActive = true;
+
+    try {
+      const p = el.play?.();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // Fallback cleanly to procedural Fado if play() rejected
+          this.realFadoActive = false;
+          this.applyGains();
+        });
+      }
+    } catch {
+      this.realFadoActive = false;
+    }
+    this.applyGains();
+    return true;
+  }
+
+  nextFadoTrack() {
+    this.fadoTrackIndex = (this.fadoTrackIndex + 1) % FADO_TRACKS.length;
+    if (this.unlocked && !this.muted && this.profile.fadoMusic >= 0.05) {
+      this.loadAndPlayFadoTrack(true);
+    }
+    return this.getCurrentFadoTrack();
+  }
+
+  syncFadoMediaElement() {
+    if (!this.fadoAudioEl || this.realFadoFailed) return;
+    if (this.muted || !this.unlocked || this.profile.fadoMusic < 0.05) {
+      this.fadoAudioEl.volume = 0;
+      if (typeof this.fadoAudioEl.pause === 'function' && !this.fadoAudioEl.paused) {
+        this.fadoAudioEl.pause();
+      }
+      this.realFadoActive = false;
+      return;
+    }
+    this.loadAndPlayFadoTrack(false);
+  }
+
   buildNoiseBuffer(ctx, durationSeconds = 3.5) {
     const sampleRate = ctx.sampleRate || 44100;
     const length = Math.floor(sampleRate * durationSeconds);
     const buffer = ctx.createBuffer(1, length, sampleRate);
     const data = buffer.getChannelData(0);
-    // Warm pink-weighted noise (Paul Kellet filter) for rich fire, sizzle, steam, rumble & river textures
     let b0 = 0;
     let b1 = 0;
     let b2 = 0;
@@ -331,6 +411,7 @@ export class LisboaSoundEngine {
       this.ctx = ctx;
       this.initGraph(ctx);
     }
+    this.ensureFadoAudioElement();
     if (typeof this.ctx.resume === 'function' && this.ctx.state === 'suspended') {
       try {
         this.ctx.resume();
@@ -339,6 +420,7 @@ export class LisboaSoundEngine {
       }
     }
     this.unlocked = true;
+    this.syncFadoMediaElement();
     this.applyGains();
     return true;
   }
@@ -361,6 +443,7 @@ export class LisboaSoundEngine {
     this.grillBus = this.createBus(ctx, 0);
     this.cafeBus = this.createBus(ctx, 0);
     this.metroBus = this.createBus(ctx, 0);
+    this.ferryBus = this.createBus(ctx, 0);
     this.organBus = this.createBus(ctx, 0);
     this.vinylBus = this.createBus(ctx, 0);
     this.riverBus = this.createBus(ctx, 0);
@@ -372,13 +455,13 @@ export class LisboaSoundEngine {
     this.setupGrillSizzleBed(ctx);
     this.setupCafeBed(ctx);
     this.setupMetroRumbleBed(ctx);
+    this.setupFerryEngineBed(ctx);
     this.setupVinylBed(ctx);
     this.setupRiverWaterBed(ctx);
     this.startSchedulers();
   }
 
   setupBakeryOvenBed(ctx) {
-    // 1. Deep brick wood-fired oven rumble modulated by slow flame draft LFO
     const hearthSrc = ctx.createBufferSource();
     hearthSrc.buffer = this.noiseBuffer;
     hearthSrc.loop = true;
@@ -405,7 +488,6 @@ export class LisboaSoundEngine {
     hearthSrc.start();
     draftLfo.start();
 
-    // 2. Warm glowing flame air wash
     const flameSrc = ctx.createBufferSource();
     flameSrc.buffer = this.noiseBuffer;
     flameSrc.loop = true;
@@ -425,7 +507,6 @@ export class LisboaSoundEngine {
   }
 
   setupGrillSizzleBed(ctx) {
-    // 1. High-frequency sizzling charcoal sardine hiss
     const hissSrc = ctx.createBufferSource();
     hissSrc.buffer = this.noiseBuffer;
     hissSrc.loop = true;
@@ -452,7 +533,6 @@ export class LisboaSoundEngine {
     hissSrc.start();
     sizzleLfo.start();
 
-    // 2. Warm low charcoal ember glow
     const coalSrc = ctx.createBufferSource();
     coalSrc.buffer = this.noiseBuffer;
     coalSrc.loop = true;
@@ -471,7 +551,6 @@ export class LisboaSoundEngine {
   }
 
   setupCafeBed(ctx) {
-    // Warm low-mid coffeehouse atmosphere hum (soft espresso boiler & cozy salon murmur)
     const salonSrc = ctx.createBufferSource();
     salonSrc.buffer = this.noiseBuffer;
     salonSrc.loop = true;
@@ -489,7 +568,6 @@ export class LisboaSoundEngine {
     salonGain.connect(this.cafeBus);
     salonSrc.start();
 
-    // Subtle brass espresso boiler simmer
     const boilerOsc = ctx.createOscillator();
     boilerOsc.type = 'sine';
     boilerOsc.frequency.value = 118;
@@ -501,7 +579,6 @@ export class LisboaSoundEngine {
   }
 
   setupMetroRumbleBed(ctx) {
-    // 1. Subterranean cavernous low-frequency rumble (55-140 Hz)
     const rumbleSrc = ctx.createBufferSource();
     rumbleSrc.buffer = this.noiseBuffer;
     rumbleSrc.loop = true;
@@ -519,7 +596,6 @@ export class LisboaSoundEngine {
     rumbleGain.connect(this.metroBus);
     rumbleSrc.start();
 
-    // 2. Tunnel airflow & electric traction motor hum
     const motorOsc = ctx.createOscillator();
     motorOsc.type = 'triangle';
     motorOsc.frequency.value = 64;
@@ -536,7 +612,6 @@ export class LisboaSoundEngine {
     motorGain.connect(this.metroBus);
     motorOsc.start();
 
-    // 3. Vaulted tunnel wind whoosh
     const windSrc = ctx.createBufferSource();
     windSrc.buffer = this.noiseBuffer;
     windSrc.loop = true;
@@ -564,8 +639,43 @@ export class LisboaSoundEngine {
     windLfo.start();
   }
 
+  setupFerryEngineBed(ctx) {
+    // Low marine catamaran engine pulse + foaming bow wake spray
+    const engOsc = ctx.createOscillator();
+    engOsc.type = 'sawtooth';
+    engOsc.frequency.value = 50;
+
+    const engFilter = ctx.createBiquadFilter();
+    engFilter.type = 'lowpass';
+    engFilter.frequency.value = 110;
+
+    const engGain = ctx.createGain();
+    engGain.gain.value = 0.16;
+
+    engOsc.connect(engFilter);
+    engFilter.connect(engGain);
+    engGain.connect(this.ferryBus);
+    engOsc.start();
+
+    const wakeSrc = ctx.createBufferSource();
+    wakeSrc.buffer = this.noiseBuffer;
+    wakeSrc.loop = true;
+
+    const wakeFilter = ctx.createBiquadFilter();
+    wakeFilter.type = 'bandpass';
+    wakeFilter.frequency.value = 880;
+    wakeFilter.Q.value = 0.8;
+
+    const wakeGain = ctx.createGain();
+    wakeGain.gain.value = 0.28;
+
+    wakeSrc.connect(wakeFilter);
+    wakeFilter.connect(wakeGain);
+    wakeGain.connect(this.ferryBus);
+    wakeSrc.start();
+  }
+
   setupVinylBed(ctx) {
-    // Warm analog vinyl surface noise bed inside Vinil & Gravuras do Alto
     const vinylSrc = ctx.createBufferSource();
     vinylSrc.buffer = this.noiseBuffer;
     vinylSrc.loop = true;
@@ -585,7 +695,6 @@ export class LisboaSoundEngine {
   }
 
   setupRiverWaterBed(ctx) {
-    // 1. Wide Tagus River steady current bed
     const currentSrc = ctx.createBufferSource();
     currentSrc.buffer = this.noiseBuffer;
     currentSrc.loop = true;
@@ -603,7 +712,6 @@ export class LisboaSoundEngine {
     currentGain.connect(this.riverBus);
     currentSrc.start();
 
-    // 2. Gently swelling waves lapping against Cais de Alfama stone quay
     const waveSrc = ctx.createBufferSource();
     waveSrc.buffer = this.noiseBuffer;
     waveSrc.loop = true;
@@ -639,7 +747,6 @@ export class LisboaSoundEngine {
     waveLfo.start();
     ampLfo.start();
 
-    // 3. Soft shimmering river surface ripple
     const shimmerSrc = ctx.createBufferSource();
     shimmerSrc.buffer = this.noiseBuffer;
     shimmerSrc.loop = true;
@@ -659,7 +766,6 @@ export class LisboaSoundEngine {
   }
 
   startSchedulers() {
-    // 1. Organic fire crackles, charcoal sardine sizzle pops & vinyl ticks
     if (!this.crackleTimer) {
       this.crackleTimer = setInterval(() => {
         if (this.disposed || this.muted || !this.ctx) return;
@@ -676,16 +782,23 @@ export class LisboaSoundEngine {
       this.crackleTimer.unref?.();
     }
 
-    // 2. Lyrical Portuguese Guitar & Viola de Fado sequencer (~73 BPM)
+    // Procedural Fado sequencer acts as seamless fallback only when real Fado MP3s are not actively playing
     if (!this.fadoTimer) {
       this.fadoTimer = setInterval(() => {
-        if (this.disposed || this.muted || !this.ctx || this.profile.fadoMusic < 0.05) return;
+        if (
+          this.disposed ||
+          this.muted ||
+          !this.ctx ||
+          this.profile.fadoMusic < 0.05 ||
+          this.isUsingRealFadoAudio()
+        ) {
+          return;
+        }
         this.playNextFadoStep();
       }, 410);
       this.fadoTimer.unref?.();
     }
 
-    // 3. Sunlit Portuguese folk guitar sequencer for bookshops, galleries & ateliers
     if (!this.folkTimer) {
       this.folkTimer = setInterval(() => {
         if (this.disposed || this.muted || !this.ctx || this.profile.folkGuitar < 0.05) return;
@@ -694,7 +807,6 @@ export class LisboaSoundEngine {
       this.folkTimer.unref?.();
     }
 
-    // 4. Espresso steam wand bursts & porcelain cup clinks in cafes
     if (!this.cafeTimer) {
       this.cafeTimer = setInterval(() => {
         if (this.disposed || this.muted || !this.ctx || this.profile.cafeSteam < 0.05) return;
@@ -708,7 +820,6 @@ export class LisboaSoundEngine {
       this.cafeTimer.unref?.();
     }
 
-    // 5. Rhythmic underground Metro & Tram 28E rail-joint clack-clack
     if (!this.railTimer) {
       this.railTimer = setInterval(() => {
         if (this.disposed || this.muted || !this.ctx || this.profile.metroRumble < 0.05) return;
@@ -719,7 +830,6 @@ export class LisboaSoundEngine {
       this.railTimer.unref?.();
     }
 
-    // 6. Slow resonant pipe organ chords inside Se de Lisboa Cathedral
     if (!this.organTimer) {
       this.organTimer = setInterval(() => {
         if (this.disposed || this.muted || !this.ctx || this.profile.cathedralOrgan < 0.05) return;
@@ -752,7 +862,6 @@ export class LisboaSoundEngine {
     src.connect(bp);
     bp.connect(env);
     env.connect(this.bakeryBus);
-
     src.start(now, Math.random() * 2.5, decay + 0.02);
   }
 
@@ -761,7 +870,6 @@ export class LisboaSoundEngine {
     if (!ctx || !this.noiseBuffer || !this.grillBus) return;
     const now = ctx.currentTime;
 
-    // Bright sea-salt & sardine-oil sizzle burst over hot charcoal
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
 
@@ -780,7 +888,6 @@ export class LisboaSoundEngine {
     src.connect(hp);
     hp.connect(env);
     env.connect(this.grillBus);
-
     src.start(now, Math.random() * 2.4, decay + 0.02);
   }
 
@@ -789,7 +896,6 @@ export class LisboaSoundEngine {
     if (!ctx || !this.noiseBuffer || !this.cafeBus) return;
     const now = ctx.currentTime;
 
-    // Authentic pressurized espresso wand steam hiss rising and tapering cleanly
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
 
@@ -810,7 +916,6 @@ export class LisboaSoundEngine {
     src.connect(filter);
     filter.connect(env);
     env.connect(this.cafeBus);
-
     src.start(now, Math.random() * 1.8, 1.25);
   }
 
@@ -819,7 +924,6 @@ export class LisboaSoundEngine {
     if (!ctx || !this.cafeBus) return;
     const now = ctx.currentTime;
 
-    // Delicate porcelain bica espresso cup & saucer clink
     const baseFreq = 2500 + Math.random() * 900;
     const osc = ctx.createOscillator();
     osc.type = 'sine';
@@ -841,7 +945,6 @@ export class LisboaSoundEngine {
     if (!ctx || !this.noiseBuffer || !this.metroBus) return;
     const now = ctx.currentTime;
 
-    // Classic double steel rail-joint "clack-clack" cadence
     for (const offset of [0, 0.12]) {
       const t = now + offset;
       const src = ctx.createBufferSource();
@@ -923,7 +1026,6 @@ export class LisboaSoundEngine {
     if (!ctx || !targetBus) return;
     const now = ctx.currentTime;
 
-    // 12-string Guitarra Portuguesa: twin subtly detuned courses for signature Lisbon shimmer
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(Math.min(4800, freq * 6.5), now);
@@ -1033,6 +1135,7 @@ export class LisboaSoundEngine {
 
   setMuted(muted) {
     this.muted = Boolean(muted);
+    this.syncFadoMediaElement();
     this.applyGains();
     return this.muted;
   }
@@ -1041,6 +1144,7 @@ export class LisboaSoundEngine {
     if (!this.unlocked) {
       this.unlock();
       this.muted = false;
+      this.syncFadoMediaElement();
       this.applyGains();
       return this.muted;
     }
@@ -1061,11 +1165,14 @@ export class LisboaSoundEngine {
 
     ramp(this.masterGain.gain, masterTarget, 0.12);
     ramp(this.bakeryBus.gain, this.profile.bakeryFire * 0.62, 0.28);
-    ramp(this.fadoBus.gain, this.profile.fadoMusic * 0.78, 0.32);
+    // Mute procedural Fado synth bus whenever the real 1916-1922 Portuguese Fado MP3 is playing
+    const proceduralFadoLevel = this.isUsingRealFadoAudio() ? 0 : this.profile.fadoMusic * 0.78;
+    ramp(this.fadoBus.gain, proceduralFadoLevel, 0.25);
     ramp(this.folkBus.gain, this.profile.folkGuitar * 0.62, 0.32);
     ramp(this.grillBus.gain, this.profile.grillSizzle * 0.58, 0.25);
     ramp(this.cafeBus.gain, this.profile.cafeSteam * 0.68, 0.28);
     ramp(this.metroBus.gain, this.profile.metroRumble * 0.66, 0.3);
+    ramp(this.ferryBus.gain, this.profile.ferryEngine * 0.56, 0.32);
     ramp(this.organBus.gain, this.profile.cathedralOrgan * 0.72, 0.42);
     ramp(this.vinylBus.gain, this.profile.vinylCrackle * 0.55, 0.25);
     ramp(this.riverBus.gain, this.profile.riverWater * 0.52, 0.35);
@@ -1081,6 +1188,7 @@ export class LisboaSoundEngine {
       Math.abs(next.grillSizzle - prev.grillSizzle) > 0.015 ||
       Math.abs(next.cafeSteam - prev.cafeSteam) > 0.015 ||
       Math.abs(next.metroRumble - prev.metroRumble) > 0.015 ||
+      Math.abs(next.ferryEngine - prev.ferryEngine) > 0.015 ||
       Math.abs(next.cathedralOrgan - prev.cathedralOrgan) > 0.015 ||
       Math.abs(next.vinylCrackle - prev.vinylCrackle) > 0.015 ||
       Math.abs(next.riverWater - prev.riverWater) > 0.015 ||
@@ -1088,6 +1196,7 @@ export class LisboaSoundEngine {
       next.activeLabel !== prev.activeLabel;
 
     const enteredFado = prev.fadoMusic < 0.05 && next.fadoMusic >= 0.3;
+    const leftFado = prev.fadoMusic >= 0.05 && next.fadoMusic < 0.05;
     const enteredFolk = prev.folkGuitar < 0.05 && next.folkGuitar >= 0.25;
     const enteredOrgan = prev.cathedralOrgan < 0.05 && next.cathedralOrgan >= 0.5;
     const enteredCafe = prev.cafeSteam < 0.05 && next.cafeSteam >= 0.5;
@@ -1095,8 +1204,13 @@ export class LisboaSoundEngine {
     this.profile = next;
 
     if (changed) {
+      if (leftFado) {
+        // Rotate to the next historical Portuguese Fado track for the player's next visit
+        this.fadoTrackIndex = (this.fadoTrackIndex + 1) % FADO_TRACKS.length;
+      }
+      this.syncFadoMediaElement();
       if (this.unlocked && !this.muted && this.ctx) {
-        if (enteredFado) {
+        if (enteredFado && !this.isUsingRealFadoAudio()) {
           this.fadoStepIndex = 0;
           this.playNextFadoStep();
         }
@@ -1122,6 +1236,29 @@ export class LisboaSoundEngine {
     if (this.disposed || this.muted || !this.unlocked || !this.ctx || !this.sfxBus) return;
     const ctx = this.ctx;
     const now = ctx.currentTime;
+
+    if (kind === 'ferry-horn') {
+      // Deep warm Tagus Transtejo catamaran departure horn (C3 + E3 twin brass blast)
+      for (const freq of [130.81, 164.81]) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now);
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 420;
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.0001, now);
+        env.gain.linearRampToValueAtTime(0.11, now + 0.14);
+        env.gain.linearRampToValueAtTime(0.09, now + 0.85);
+        env.gain.exponentialRampToValueAtTime(0.0001, now + 1.25);
+        osc.connect(lp);
+        lp.connect(env);
+        env.connect(this.sfxBus);
+        osc.start(now);
+        osc.stop(now + 1.3);
+      }
+      return;
+    }
 
     if (kind === 'register') {
       for (const [freq, gainVal, dur] of [[1568, 0.16, 0.55], [3136, 0.07, 0.35]]) {
@@ -1158,7 +1295,6 @@ export class LisboaSoundEngine {
     }
 
     if (kind === 'metro-chime') {
-      // Lisbon Metro three-note descending platform door chime (G5 -> E5 -> C5)
       for (const [idx, freq] of [783.99, 659.25, 523.25].entries()) {
         const t = now + idx * 0.14;
         const osc = ctx.createOscillator();
@@ -1201,6 +1337,14 @@ export class LisboaSoundEngine {
         clearInterval(this[key]);
         this[key] = null;
       }
+    }
+    if (this.fadoAudioEl) {
+      try {
+        this.fadoAudioEl.pause?.();
+      } catch {
+        // Ignore
+      }
+      this.fadoAudioEl = null;
     }
     if (this.ctx && typeof this.ctx.close === 'function') {
       try {

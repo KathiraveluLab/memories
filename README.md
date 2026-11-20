@@ -9,11 +9,12 @@
 ## Features
 
 - **Authentic Lisboa Architecture & Cobblestone Streets**: Explore a continuous street-level map linking Bairro Alto (west), Chiado and Praca Luis de Camoes (center), and Alfama with Se de Lisboa and the Tagus waterfront (east) using `WASD` / Arrow keys or click-to-walk. Includes procedural cobalt *azulejo* tile facades, scalloped terracotta barrel-tile roofs with Pombaline dormers, wrought-iron Juliet balconies, *calcada portuguesa* Mar Largo plazas, bespoke landmarks (such as the octagonal *Quiosque de Sao Pedro*, Art Nouveau *Cafe A Brasileira* with Fernando Pessoa's terrace statue, *Livraria Bertrand 1732*, and *Se de Lisboa*), granite curbs, zebra crosswalks, and hand-laid cobblestone streets.
-- **Live Street-Level Public Transit & Metro de Lisboa**:
-  - **Eletrico 28E (Carris Tram)**: Glides along steel rails between Rua do Loreto, Praca Luis de Camoes, Largo do Chiado, Se de Lisboa, and Portas do Sol (`3.10 EUR`).
-  - **Carris Bus 737 / 758**: Loops past Miradouro de Sao Pedro de Alcantara, Rua Garrett, Miradouro de Santa Luzia, and the Tagus waterfront (`2.10 EUR`).
-  - **Metropolitano de Lisboa (`Linha Azul` & `Linha Verde`)**: Placed accurately where Metro stations exist in Lisbon (**Metro Baixa-Chiado** beside Cafe A Brasileira, **Metro Terreiro do Paco**, and **Metro Santa Apolonia** along the Alfama waterfront; `1.80 EUR`), reflecting that hilltop Bairro Alto and upper Alfama rely on trams, buses, and footwalks. Entering a station rides the escalators down to a tiled underground platform, boards the silver-and-crimson Lisbon Metro train for an animated underground tunnel ride with live station progress, and ascends the escalators back to the destination sidewalk.
-  - **Sidewalk & Pedestrian Safety**: Pedestrians walk on sidewalks and cross at crosswalks, cannot walk into passing vehicles or clip through other people, and trams and buses automatically brake and yield rather than crashing into pedestrians.
+- **Live Street-Level Public Transit, Inside-the-Bus Cityscape, Metro & Cais do Sodre Ferries**:
+  - **Eletrico 28E (Carris Tram)**: Glides along steel rails between Rua do Loreto, Praca Luis de Camoes, Largo do Chiado, Se de Lisboa, and Portas do Sol (`3.10 EUR`), faster than walking on foot.
+  - **Carris Bus 737 / 758 (Inside-the-Bus Cityscape View)**: Loops past Miradouro de Sao Pedro de Alcantara, Rua Garrett, Miradouro de Santa Luzia, and the Tagus waterfront (`2.10 EUR`, twice walking speed). Boarding shifts into an immersive inside-the-bus perspective with parallax Lisbon hills, scrolling azulejo avenues or Tagus riverfront vistas, swaying yellow grab straps, an illuminated STOP button, and an amber-LED next-stop display.
+  - **Metropolitano de Lisboa (`Linha Azul` & `Linha Verde`)**: Placed accurately where Metro stations exist in Lisbon (**Metro Baixa-Chiado** beside Cafe A Brasileira, **Metro Terreiro do Paco**, and **Metro Santa Apolonia** along the Alfama waterfront; `1.80 EUR`). Entering rides the escalators down to a tiled underground platform, boards the silver-and-crimson Lisbon Metro train for an animated underground tunnel ride, and ascends back to the destination sidewalk.
+  - **Cais do Sodre Ferry Terminal (Transtejo)**: Located on the Tagus riverfront embankment, allowing passengers to board a Transtejo catamaran across the Tagus to **Cacilhas (Almada)** (`1.55 EUR`), **Seixal Bay** (`2.65 EUR`), or **Montijo** (`3.00 EUR`) with animated river crossings featuring Ponte 25 de Abril, Cristo Rei, Farol de Cacilhas, Seixal fragata boats, and Montijo estuary horizons.
+  - **Sidewalk & Pedestrian Safety**: Pedestrians stroll at a realistic walking pace on sidewalks and cross at crosswalks, cannot walk into passing vehicles or clip through other people, and trams and buses automatically brake and yield rather than crashing into pedestrians.
 - **All 15 Buildings Fully Enterable & Explorable**:
   - **Bairro Alto (6)**: *Quiosque de Sao Pedro*, *Pensao Residencial do Alto*, *Tasca do Fado*, *Casa da Rosa - Padaria*, *Palacete do Loreto*, *Vinil & Gravuras do Alto*.
   - **Chiado (5)**: *Livraria Bertrand (1732)*, *Galeria Pombalina*, *Cafe A Brasileira*, *Arcadas do Chiado*, *Atelier de Cortica & Luvas*.
@@ -25,7 +26,7 @@
   - Every joining player automatically receives a distinct clothing style from 6 unique Lisboa traveler outfits (*Chiado Trench & Scarf*, *Alfama Sundress & Sun Hat*, *Tagus Sailor Knit & Beret*, *Bairro Alto Woven Poncho*, *Azulejo Overalls & Flat Cap*, and *Linen Blazer & Fedora*), customizable anytime.
 - **Atmospheric Lisboa Soundscapes & Cultural Music (Web Audio API)**:
   - **Bakeries (`Casa da Rosa - Padaria` & `Arcadas do Chiado`)**: Warm rumble and crackling oak embers of a brick wood-fired bread oven.
-  - **Fado Tavern (`Tasca do Fado`) & Vinyl Shop (`Vinil & Gravuras do Alto`)**: Procedural minor-key Lisbon **Fado music** (*Guitarra Portuguesa* 12-string melody and *Viola de Fado* accompaniment), paired with warm analog turntable crackle inside the vinyl shop.
+  - **Fado Tavern (`Tasca do Fado`) & Vinyl Shop (`Vinil & Gravuras do Alto`)**: Rotates through three authentic Public Domain 1916-1922 Portuguese Fado recordings (*Fado Sentimental*, *Fado*, and *Fado do Hilario*, cited in [assets/SOURCES.md](./assets/SOURCES.md)) with a `Next Track` control and seamless procedural Web Audio fallback, paired with warm analog turntable crackle inside the vinyl shop.
   - **Alfama Sardine Grill (`Taberna da Sardinha`)**: Sizzling charcoal sardine grill pops and sea-salt hiss blended with warm tavern Fado guitar.
   - **Historic Cafes (`Cafe A Brasileira` & `Quiosque de Sao Pedro`)**: Pressurized espresso steam wand bursts, delicate porcelain teacup clinks, and cozy salon murmur.
   - **Underground Metro & Streetcars**: Subterranean station vault hum and 3-note platform chime shifting into deep tunnel train rumble and rhythmic rail-joint clacks while riding *Linha Azul* (plus streetcar rail hum and brass bell aboard Tram 28E).
@@ -33,7 +34,7 @@
 - **Gentle Memories Collection Loop**:
   - Manage **Wallet (EUR)**, **Energy**, and **Fullness** as Lisbon shifts from Morning through Afternoon, Golden Hour, and Lantern Evening.
   - Rest free at three scenic **Miradouro Benches** or take a gentle overnight stay at a neighborhood pensao without harsh game-over lockouts.
-  - Capture **23 Memories** and unlock contextual **European Portuguese phrases** with phonetic pronunciation guides.
+  - Capture **26 Memories** and unlock contextual **European Portuguese phrases** with phonetic pronunciation guides.
 
 ## Project Structure
 

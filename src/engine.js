@@ -6,6 +6,8 @@ import {
   WATERFRONT_Y,
   NEIGHBORHOODS,
   DECORATIVE_STRUCTURES,
+  FERRY_TERMINAL,
+  FERRY_DESTINATIONS,
   METRO_LINE,
   METRO_STATIONS,
   VENUES,
@@ -32,12 +34,13 @@ export const PERSON_SEPARATION_DIST = PLAYER_RADIUS * 2 + 2;
 export const VEHICLE_HALF_LEN = 38;
 export const VEHICLE_HALF_WIDTH = 17;
 export const VEHICLE_BRAKE_LOOKAHEAD = 76;
-export const BASE_WALK_SPEED = 165;
-export const INTERIOR_WALK_SPEED = 155;
+export const BASE_WALK_SPEED = 96;
+export const INTERIOR_WALK_SPEED = 105;
 export const INTERACT_DISTANCE = 76;
 
 const VENUE_MAP = new Map(VENUES.map((v) => [v.id, v]));
 const METRO_MAP = new Map(METRO_STATIONS.map((m) => [m.id, m]));
+const FERRY_DEST_MAP = new Map(FERRY_DESTINATIONS.map((d) => [d.id, d]));
 const REST_SPOT_MAP = new Map(REST_SPOTS.map((s) => [s.id, s]));
 const TRANSIT_LINE_MAP = new Map(TRANSIT_LINES.map((l) => [l.id, l]));
 const ALL_STOPS = getAllTransitStops();
@@ -47,8 +50,16 @@ const ALL_MEMORIES = getAllMemoryCatalog();
 const SOLID_OVERWORLD_RECTS = [
   ...VENUES.map((v) => ({ x: v.x, y: v.y, w: v.w, h: v.h, id: v.id })),
   ...DECORATIVE_STRUCTURES.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, id: d.id })),
-  ...METRO_STATIONS.map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h, id: m.id }))
+  ...METRO_STATIONS.map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h, id: m.id })),
+  { x: FERRY_TERMINAL.x, y: FERRY_TERMINAL.y, w: FERRY_TERMINAL.w, h: FERRY_TERMINAL.h, id: FERRY_TERMINAL.id }
 ];
+
+export const FERRY_PIER_ZONES = {
+  exitY: 168,
+  exitHalfWidth: 68,
+  gangwayY: 266,
+  gangwayHalfWidth: 165
+};
 
 export const INTERIOR_STATIONS = {
   counter: { x: 380, y: 205, radius: 74, label: 'Proprietor Counter' },
@@ -108,6 +119,10 @@ export function getVenueById(venueId) {
 
 export function getMetroStationById(stationId) {
   return METRO_MAP.get(stationId) || null;
+}
+
+export function getFerryDestinationById(destId) {
+  return FERRY_DEST_MAP.get(destId) || null;
 }
 
 export function getRestSpotById(spotId) {
@@ -196,6 +211,13 @@ export function isMetroPlatformPositionValid(x, y, radius = PLAYER_RADIUS) {
   // Walkable tiled concourse & platform safely behind the yellow track safety line
   if (x < 64 + radius || x > INTERIOR_WIDTH - 64 - radius) return false;
   if (y < 156 + radius || y > 286 - radius) return false;
+  return true;
+}
+
+export function isFerryPierPositionValid(x, y, radius = PLAYER_RADIUS) {
+  // Walkable Transtejo timber & limestone pier safely north of the Tagus water edge
+  if (x < 64 + radius || x > INTERIOR_WIDTH - 64 - radius) return false;
+  if (y < 156 + radius || y > 282 - radius) return false;
   return true;
 }
 
@@ -360,6 +382,17 @@ export function createInitialState() {
       trainX: 380,
       tunnelOffset: 0
     },
+    ferry: {
+      portId: null, // 'cais-do-sodre' | 'cacilhas' | 'seixal' | 'montijo'
+      phase: null, // 'terminal' | 'sailing'
+      phaseProgress: 0,
+      fromPortId: null,
+      toPortId: null,
+      sailDuration: 4.5,
+      waveOffset: 0
+    },
+    visitedFerryPorts: [],
+    busScrollOffset: 0,
     ridingVehicleId: null,
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
@@ -385,6 +418,7 @@ export function createInitialState() {
       tramRides: 0,
       busRides: 0,
       metroRides: 0,
+      ferryRides: 0,
       venuesEntered: 0,
       mealsEaten: 0,
       souvenirsBought: 0,
@@ -528,6 +562,8 @@ export class MemoriesGameEngine {
       currentVenueId: s.currentVenueId,
       metroStationId: s.mode === 'metro' ? s.metro.stationId : null,
       metroPhase: s.mode === 'metro' ? s.metro.phase : null,
+      ferryPortId: s.mode === 'ferry' ? s.ferry.portId : null,
+      ferryPhase: s.mode === 'ferry' ? s.ferry.phase : null,
       ridingVehicleId: s.ridingVehicleId,
       neighborhoodName: s.currentNeighborhoodName,
       outfitId: s.player.outfitId,
@@ -622,6 +658,13 @@ export class MemoriesGameEngine {
         rp.metroPhase !== 'riding'
       );
     }
+    if (this.state.mode === 'ferry') {
+      return (
+        rp.mode === 'ferry' &&
+        rp.ferryPortId === this.state.ferry.portId &&
+        rp.ferryPhase === 'terminal'
+      );
+    }
     return false;
   }
 
@@ -665,6 +708,12 @@ export class MemoriesGameEngine {
     }
     if (this.state.mode === 'metro') {
       if (!isMetroPlatformPositionValid(x, y)) return { ok: false, blocker: null };
+      const blockingPeer = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
+      if (blockingPeer) return { ok: false, blocker: blockingPeer };
+      return { ok: true, blocker: null };
+    }
+    if (this.state.mode === 'ferry') {
+      if (!isFerryPierPositionValid(x, y)) return { ok: false, blocker: null };
       const blockingPeer = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
       if (blockingPeer) return { ok: false, blocker: blockingPeer };
       return { ok: true, blocker: null };
@@ -887,6 +936,10 @@ export class MemoriesGameEngine {
           this.openMetroStation(doorMatch.id);
           return;
         }
+        if (doorMatch.type === 'ferry') {
+          this.openFerryTerminal();
+          return;
+        }
       }
     }
 
@@ -947,6 +1000,15 @@ export class MemoriesGameEngine {
           Math.abs(player.x - 380) <= METRO_PLATFORM_ZONES.escalatorHalfWidth
         ) {
           this.exitMetroStation();
+        }
+      } else if (this.state.mode === 'ferry' && this.state.ferry.phase === 'terminal') {
+        if (
+          this.state.ferry.portId === FERRY_TERMINAL.id &&
+          vy < -0.25 &&
+          player.y <= FERRY_PIER_ZONES.exitY &&
+          Math.abs(player.x - 380) <= FERRY_PIER_ZONES.exitHalfWidth
+        ) {
+          this.exitFerryTerminal();
         }
       }
     } else {
@@ -1025,6 +1087,16 @@ export class MemoriesGameEngine {
       }
     }
 
+    // Cais do Sodre Ferry Terminal (walk DOWN into north waterfront entrance)
+    if (
+      vy > 0.25 &&
+      Math.abs(px - FERRY_TERMINAL.doorX) <= doorwayHalfW + 14 &&
+      py <= FERRY_TERMINAL.doorY + 2 &&
+      py >= FERRY_TERMINAL.doorY - approachReach
+    ) {
+      return { type: 'ferry', id: FERRY_TERMINAL.id };
+    }
+
     return null;
   }
 
@@ -1051,6 +1123,43 @@ export class MemoriesGameEngine {
       const dest = METRO_STATIONS.find((s) => s.id !== origin);
       if (origin && dest) {
         this.rideMetro(origin, dest.id);
+      }
+    } else if (action.type === 'openFerry') {
+      this.openFerryTerminal();
+    } else if (action.type === 'exitFerry') {
+      this.exitFerryTerminal();
+    } else if (action.type === 'boardDefaultFerry') {
+      const target = this.state.ferry.portId === FERRY_TERMINAL.id ? 'cacilhas' : FERRY_TERMINAL.id;
+      this.boardFerry(target);
+    }
+  }
+
+  updateFerrySimulation(dt) {
+    if (this.state.mode !== 'ferry') return;
+    const f = this.state.ferry;
+    f.waveOffset = (f.waveOffset + dt * (f.phase === 'sailing' ? 210 : 38)) % 1200;
+
+    if (f.phase === 'sailing') {
+      f.phaseProgress = Math.min(1, f.phaseProgress + dt / Math.max(1.5, f.sailDuration || 4.2));
+      this.state.player.isMoving = false;
+
+      if (f.phaseProgress >= 1) {
+        f.portId = f.toPortId;
+        f.phase = 'terminal';
+        f.phaseProgress = 0;
+        this.state.player.x = 380;
+        this.state.player.y = 228;
+        this.state.player.facing = 'up';
+
+        if (f.portId === FERRY_TERMINAL.id) {
+          this.state.statusMessage =
+            'Transtejo ferry docked back at Cais do Sodre. Walk up to the waterfront gate (or press Esc) to return to Lisbon streets.';
+        } else {
+          const dest = getFerryDestinationById(f.portId);
+          this.state.statusMessage = dest
+            ? `Arrived across the Tagus at ${dest.name}! ${dest.pierNote}`
+            : 'Arrived at the Tagus south-bank ferry pier.';
+        }
       }
     }
   }
@@ -1201,9 +1310,20 @@ export class MemoriesGameEngine {
       return this.state;
     }
 
+    if (this.state.mode === 'ferry') {
+      this.updateFerrySimulation(dt);
+      if (this.state.mode === 'ferry' && this.state.ferry.phase === 'terminal') {
+        this.movePlayerByInput(input.x || 0, input.y || 0, dt);
+      }
+      return this.state;
+    }
+
     if (this.state.ridingVehicleId) {
       const vehicle = this.getRidingVehicle();
       if (vehicle) {
+        if (vehicle.mode === 'bus' && !vehicle.yielding && vehicle.dwellRemaining <= 0) {
+          this.state.busScrollOffset = (this.state.busScrollOffset + dt * 210) % 100000;
+        }
         this.state.player.x = vehicle.x;
         this.state.player.y = vehicle.y;
         this.state.player.overworldX = vehicle.x;
@@ -1288,6 +1408,52 @@ export class MemoriesGameEngine {
       return null;
     }
 
+    if (state.mode === 'ferry') {
+      const f = state.ferry;
+      const curDest = getFerryDestinationById(f.portId);
+      if (f.phase === 'sailing') {
+        const toLabel =
+          f.toPortId === FERRY_TERMINAL.id
+            ? FERRY_TERMINAL.shortName
+            : (getFerryDestinationById(f.toPortId)?.name || 'South Bank');
+        return {
+          type: 'ferry-transition',
+          label: `Sailing Transtejo Ferry across the Tagus -> ${toLabel}`,
+          sublabel: 'Enjoy the river breeze and Lisbon skyline crossing'
+        };
+      }
+      const px = state.player.x;
+      const py = state.player.y;
+      if (
+        f.portId === FERRY_TERMINAL.id &&
+        py <= FERRY_PIER_ZONES.exitY + 18 &&
+        Math.abs(px - 380) <= FERRY_PIER_ZONES.exitHalfWidth + 14
+      ) {
+        return {
+          type: 'ferry-exit',
+          label: 'Exit Cais do Sodre Terminal to Waterfront',
+          sublabel: 'Press [E] or walk up to return to Avenida Ribeira'
+        };
+      }
+      if (py >= 236 && Math.abs(px - 380) <= FERRY_PIER_ZONES.gangwayHalfWidth) {
+        if (f.portId === FERRY_TERMINAL.id) {
+          return {
+            type: 'ferry-board',
+            targetPortId: 'cacilhas',
+            label: 'Board Transtejo Ferry -> Cacilhas (1.55 EUR)',
+            sublabel: 'Press [E] for Cacilhas, or choose Cacilhas, Seixal, or Montijo in the Ferry panel'
+          };
+        }
+        return {
+          type: 'ferry-board',
+          targetPortId: FERRY_TERMINAL.id,
+          label: `Return Ferry from ${curDest ? curDest.shortName : 'South Bank'} -> Cais do Sodre`,
+          sublabel: 'Press [E] to sail back across the Tagus to Lisbon'
+        };
+      }
+      return null;
+    }
+
     if (state.mode === 'interior') {
       const venue = this.getCurrentVenue();
       if (!venue) return null;
@@ -1342,6 +1508,18 @@ export class MemoriesGameEngine {
           sublabel: `${station.lines.join(' & ')} - Walk UP into entrance or press [E]`
         };
       }
+    }
+
+    // Cais do Sodre Transtejo Ferry Port along Tagus riverfront
+    const ferryDist = distance(px, py, FERRY_TERMINAL.doorX, FERRY_TERMINAL.doorY);
+    if (ferryDist <= INTERACT_DISTANCE + 12 && ferryDist < bestDist) {
+      bestDist = ferryDist;
+      best = {
+        type: 'ferry',
+        id: FERRY_TERMINAL.id,
+        label: `Enter ${FERRY_TERMINAL.name} ${FERRY_TERMINAL.badge}`,
+        sublabel: 'Transtejo ferries to Cacilhas, Seixal & Montijo - Walk DOWN or press [E]'
+      };
     }
 
     for (const venue of VENUES) {
@@ -1432,8 +1610,17 @@ export class MemoriesGameEngine {
     if (nearby.type === 'metro-board' && nearby.destId) {
       return this.rideMetro(this.state.metro.stationId, nearby.destId);
     }
-    if (nearby.type === 'metro-transition') {
+    if (nearby.type === 'metro-transition' || nearby.type === 'ferry-transition') {
       return { ok: true, state: this.state };
+    }
+    if (nearby.type === 'ferry') {
+      return this.openFerryTerminal();
+    }
+    if (nearby.type === 'ferry-exit') {
+      return this.exitFerryTerminal();
+    }
+    if (nearby.type === 'ferry-board' && nearby.targetPortId) {
+      return this.boardFerry(nearby.targetPortId);
     }
     if (nearby.type === 'venue') {
       return this.enterVenue(nearby.id);
@@ -1454,6 +1641,152 @@ export class MemoriesGameEngine {
       return this.exitVenue();
     }
     return { ok: false, error: 'No action available.' };
+  }
+
+  openFerryTerminal() {
+    if (this.state.ridingVehicleId) {
+      return { ok: false, error: 'Step off surface transit before entering Cais do Sodre Ferry Terminal.' };
+    }
+    if (this.state.mode === 'interior' || this.state.mode === 'metro') {
+      return { ok: false, error: 'Return to the street before entering Cais do Sodre Ferry Terminal.' };
+    }
+
+    this.state.mode = 'ferry';
+    this.state.activeMetroStationId = null;
+    this.state.player.overworldX = FERRY_TERMINAL.spawnOutside.x;
+    this.state.player.overworldY = FERRY_TERMINAL.spawnOutside.y;
+    this.state.player.x = 380;
+    this.state.player.y = 200;
+    this.state.player.facing = 'down';
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+
+    this.state.ferry = {
+      portId: FERRY_TERMINAL.id,
+      phase: 'terminal',
+      phaseProgress: 0,
+      fromPortId: FERRY_TERMINAL.id,
+      toPortId: null,
+      sailDuration: 4.5,
+      waveOffset: 0
+    };
+
+    recordPhrase(this.state, FERRY_TERMINAL.phrase, FERRY_TERMINAL.name);
+    this.state.statusMessage =
+      'Stepped onto Cais do Sodre Transtejo Pier. Board a ferry across the Tagus to Cacilhas, Seixal, or Montijo!';
+    recordLog(this.state, 'ferry', 'Entered Cais do Sodre Transtejo Ferry Terminal.');
+    return { ok: true, terminal: FERRY_TERMINAL, state: this.state };
+  }
+
+  boardFerry(targetPortId) {
+    if (this.state.ridingVehicleId || this.state.mode === 'interior' || this.state.mode === 'metro') {
+      return { ok: false, error: 'Visit Cais do Sodre Ferry Terminal before boarding a ferry.' };
+    }
+    if (this.state.mode === 'ferry' && this.state.ferry.phase === 'sailing') {
+      return { ok: false, error: 'Already sailing across the Tagus River.' };
+    }
+
+    const fromPortId = this.state.mode === 'ferry' ? this.state.ferry.portId : FERRY_TERMINAL.id;
+    if (fromPortId === targetPortId) {
+      return { ok: false, error: 'You are already at this ferry pier.' };
+    }
+
+    const isReturningToLisbon = targetPortId === FERRY_TERMINAL.id;
+    const routeDef = isReturningToLisbon
+      ? getFerryDestinationById(fromPortId) || FERRY_DESTINATIONS[0]
+      : getFerryDestinationById(targetPortId);
+
+    if (!routeDef) {
+      return { ok: false, error: `Unknown Transtejo destination: ${targetPortId}` };
+    }
+
+    const fareEur = routeDef.fareEur;
+    if (this.state.euros < fareEur) {
+      this.state.statusMessage = `Need ${fareEur.toFixed(2)} EUR for the Transtejo ferry to ${isReturningToLisbon ? 'Cais do Sodre' : routeDef.shortName} (you have ${this.state.euros.toFixed(2)} EUR).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    this.state.euros = roundMoney(this.state.euros - fareEur);
+    this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + fareEur);
+    this.state.stats.ferryRides += 1;
+    this.state.energy = clamp(this.state.energy + 6, 0, 100);
+    this.advanceMinutes(routeDef.travelMinutes);
+
+    this.state.mode = 'ferry';
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+    this.state.ferry = {
+      portId: fromPortId,
+      phase: 'sailing',
+      phaseProgress: 0,
+      fromPortId,
+      toPortId: targetPortId,
+      sailDuration: routeDef.sailDurationSec,
+      waveOffset: this.state.ferry.waveOffset || 0
+    };
+
+    let newPhrase = false;
+    let newMemory = false;
+    if (!isReturningToLisbon) {
+      if (!this.state.visitedFerryPorts.includes(routeDef.id)) {
+        this.state.visitedFerryPorts.push(routeDef.id);
+      }
+      newPhrase = recordPhrase(this.state, routeDef.phrase, `Transtejo Ferry - ${routeDef.shortName}`);
+      newMemory = unlockMemory(this.state, routeDef.memory);
+    }
+
+    const destLabel = isReturningToLisbon ? FERRY_TERMINAL.shortName : routeDef.name;
+    const fromLabel =
+      fromPortId === FERRY_TERMINAL.id
+        ? FERRY_TERMINAL.shortName
+        : (getFerryDestinationById(fromPortId)?.shortName || 'South Bank');
+
+    this.state.statusMessage = `Sailing aboard Transtejo Catamaran from ${fromLabel} to ${destLabel} (-${fareEur.toFixed(2)} EUR, +6 Energy).`;
+    recordLog(this.state, 'ferry', `Boarded Transtejo ferry from ${fromLabel} to ${destLabel} (-${fareEur.toFixed(2)} EUR).`);
+
+    return {
+      ok: true,
+      fromPortId,
+      toPortId: targetPortId,
+      fareEur,
+      newPhrase,
+      newMemory,
+      state: this.state
+    };
+  }
+
+  exitFerryTerminal({ immediate = false } = {}) {
+    if (this.state.mode !== 'ferry') {
+      return { ok: false, error: 'You are not currently at a ferry terminal.' };
+    }
+    if (this.state.ferry.phase === 'sailing') {
+      return { ok: false, error: 'Wait until the Transtejo ferry docks before stepping ashore.' };
+    }
+    if (!immediate && this.state.ferry.portId !== FERRY_TERMINAL.id) {
+      const portName = getFerryDestinationById(this.state.ferry.portId)?.shortName || 'the South Bank';
+      this.state.statusMessage = `You are across the Tagus in ${portName}. Board the return Transtejo ferry to sail back to Cais do Sodre!`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    this.state.mode = 'overworld';
+    this.doorEntryCooldown = 0.55;
+    this.state.ferry.phase = null;
+    this.state.ferry.portId = null;
+    this.state.ferry.phaseProgress = 0;
+    this.state.player.x = FERRY_TERMINAL.spawnOutside.x;
+    this.state.player.y = FERRY_TERMINAL.spawnOutside.y;
+    this.state.player.overworldX = FERRY_TERMINAL.spawnOutside.x;
+    this.state.player.overworldY = FERRY_TERMINAL.spawnOutside.y;
+    this.state.player.facing = 'up';
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+    this.updateNeighborhoodTracking();
+
+    this.state.statusMessage = 'Stepped back onto the sunlit Tagus promenade outside Cais do Sodre Ferry Terminal.';
+    return { ok: true, state: this.state };
   }
 
   openMetroStation(stationId) {

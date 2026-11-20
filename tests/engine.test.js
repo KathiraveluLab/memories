@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import {
   NEIGHBORHOODS,
   DECORATIVE_STRUCTURES,
+  FADO_TRACKS,
+  FERRY_TERMINAL,
+  FERRY_DESTINATIONS,
   METRO_LINE,
   METRO_STATIONS,
   VENUES,
@@ -27,10 +30,12 @@ import {
   OVERNIGHT_COST_EUR,
   LOW_FUND_STIPEND_AMOUNT,
   INTERIOR_STATIONS,
+  BASE_WALK_SPEED,
   PLAYER_RADIUS,
   PERSON_SEPARATION_DIST,
   isOverworldPositionValid,
   isInteriorPositionValid,
+  isFerryPierPositionValid,
   isPointInVehicleLane,
   pointIntersectsVehicle,
   formatClock,
@@ -43,7 +48,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stations, valid sidewalk spawns, and 23 memories', () => {
+test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stations, Cais do Sodre Ferry Port, realistic speeds, and 26 memories', () => {
   assert.deepEqual(
     NEIGHBORHOODS.map((n) => n.id),
     ['bairro-alto', 'chiado', 'alfama']
@@ -57,9 +62,33 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
   assert.equal(VENUES.length, 15);
   assert.ok(VENUES.some((v) => v.id === 'se-de-lisboa'), 'Se de Lisboa must be an enterable venue');
   assert.equal(METRO_STATIONS.length, 3);
+  assert.equal(FERRY_DESTINATIONS.length, 3);
+  assert.deepEqual(FERRY_DESTINATIONS.map((d) => d.id), ['cacilhas', 'seixal', 'montijo']);
   assert.equal(REST_SPOTS.length, 3);
   assert.equal(TRANSIT_LINES.length, 2);
-  assert.equal(getAllMemoryCatalog().length, 23);
+  assert.equal(getAllMemoryCatalog().length, 26);
+
+  // Realistic speeds: walking must be slower than both Tram 28E and Carris Bus 737/758
+  const tramLine = TRANSIT_LINES.find((l) => l.mode === 'tram');
+  const busLine = TRANSIT_LINES.find((l) => l.mode === 'bus');
+  assert.ok(
+    BASE_WALK_SPEED < tramLine.speedPxPerSec && tramLine.speedPxPerSec < busLine.speedPxPerSec,
+    `Expected walk (${BASE_WALK_SPEED}) < tram (${tramLine.speedPxPerSec}) < bus (${busLine.speedPxPerSec})`
+  );
+
+  // Cais do Sodre Ferry Terminal sits cleanly at the Tagus riverfront with valid sidewalk approach
+  assert.equal(isOverworldPositionValid(FERRY_TERMINAL.spawnOutside.x, FERRY_TERMINAL.spawnOutside.y), true);
+  assert.equal(isPointInVehicleLane(FERRY_TERMINAL.spawnOutside.x, FERRY_TERMINAL.spawnOutside.y), false);
+  assert.equal(isFerryPierPositionValid(380, 220), true);
+
+  // Public Domain Portuguese Fado MP3s exist on disk and are cited in assets/SOURCES.md
+  assert.ok(FADO_TRACKS.length >= 3);
+  for (const track of FADO_TRACKS) {
+    const absAudio = path.join(ROOT_DIR, track.src.replace(/^\.\//, ''));
+    assert.ok(fs.existsSync(absAudio), `Missing Fado audio file: ${absAudio}`);
+    assert.ok(fs.statSync(absAudio).size > 100000, `Expected non-empty Fado MP3: ${absAudio}`);
+  }
+  assert.ok(fs.existsSync(path.join(ROOT_DIR, 'assets', 'SOURCES.md')), 'assets/SOURCES.md citation file must exist');
 
   // Authentic Lisbon geography: no Metro station inside hilltop Bairro Alto
   assert.equal(
@@ -197,8 +226,8 @@ test('AC-01: initial state, continuous sidewalk walking, collision safety, and n
   assert.ok(state.fullness < INITIAL_FULLNESS);
   assert.ok(state.stats.distanceWalkedPx > 200);
 
-  // Walk east along the sidewalk all the way into Alfama
-  for (let i = 0; i < 95; i += 1) {
+  // Walk east along the sidewalk all the way into Alfama (at realistic pedestrian strolling speed)
+  for (let i = 0; i < 120; i += 1) {
     engine.tick(0.1, { x: 1, y: 0 });
   }
   assert.equal(state.currentNeighborhoodId, 'alfama');
@@ -301,7 +330,7 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 });
 
-test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, and 23-memory completion', () => {
+test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, Transtejo ferries, and 26-memory completion', () => {
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
 
@@ -388,7 +417,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(paidNight.paidEur, OVERNIGHT_COST_EUR);
   assert.equal(state.euros, 80.0 - OVERNIGHT_COST_EUR);
 
-  // Collecting all 23 memories marks albumCompleted = true
+  // Collecting all 26 memories (including all 3 Transtejo Tagus ferry routes) marks albumCompleted = true
   for (const venue of VENUES) {
     engine.enterVenue(venue.id);
     if (venue.id === 'cafe-do-poeta') engine.purchaseVenueItem('item-bica-nata');
@@ -403,7 +432,26 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   engine.boardTransitAtStop('stop-bus-garrett', { waitIfApproaching: true });
   engine.disembarkTransit({ immediateToNextStop: true });
 
-  assert.equal(state.memories.length, 23);
+  // Board Transtejo ferries from Cais do Sodre to Cacilhas, Seixal, and Montijo and sail back
+  engine.openFerryTerminal();
+  assert.equal(state.mode, 'ferry');
+  assert.equal(state.ferry.portId, 'cais-do-sodre');
+  for (const destId of ['cacilhas', 'seixal', 'montijo']) {
+    const sailOut = engine.boardFerry(destId);
+    assert.equal(sailOut.ok, true);
+    assert.equal(state.ferry.phase, 'sailing');
+    for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+    assert.equal(state.ferry.phase, 'terminal');
+    assert.equal(state.ferry.portId, destId);
+
+    const sailBack = engine.boardFerry('cais-do-sodre');
+    assert.equal(sailBack.ok, true);
+    for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+    assert.equal(state.ferry.portId, 'cais-do-sodre');
+  }
+  assert.equal(engine.exitFerryTerminal().ok, true);
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.memories.length, 26);
   assert.equal(state.albumCompleted, true);
 });
 
@@ -580,6 +628,7 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
     clip: noop,
     translate: noop,
     rotate: noop,
+    scale: noop,
     clearRect: () => { drawCalls += 1; },
     fillRect: () => { drawCalls += 1; },
     strokeRect: () => { drawCalls += 1; },
@@ -632,6 +681,28 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   engine.boardTransitAtStop('stop-tram-camoes', { waitIfApproaching: true });
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   engine.disembarkTransit({ immediateToNextStop: true });
+
+  // Render panoramic inside-the-bus Lisboa cityscape view (hillside avenue + waterfront)
+  engine.boardTransitAtStop('stop-bus-garrett', { waitIfApproaching: true });
+  engine.tick(0.1, { x: 0, y: 0 });
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.getState().vehicles.find((v) => v.mode === 'bus').y = 932;
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.disembarkTransit({ immediateToNextStop: true });
+
+  // Render Cais do Sodre Ferry Terminal & animated Tagus crossings to Cacilhas, Seixal & Montijo
+  engine.openFerryTerminal();
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  for (const destId of ['cacilhas', 'seixal', 'montijo']) {
+    engine.boardFerry(destId);
+    engine.tick(0.5, { x: 0, y: 0 });
+    renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+    for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+    renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+    engine.boardFerry('cais-do-sodre');
+    for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  }
+  engine.exitFerryTerminal();
 
   // Render full underground Metro experience (escalator descent, platform, tunnel ride, ascent)
   engine.openMetroStation('metro-baixa-chiado');
@@ -896,6 +967,48 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   sound.playEffect('register');
   sound.playEffect('tram-bell');
   sound.playEffect('metro-chime');
+  sound.playEffect('ferry-horn');
+
+  // Verify Ferry soundscape profile (pier + Tagus crossing) and real Public Domain Fado MP3 playlist rotation
+  engine.openFerryTerminal();
+  const ferryPierProfile = computeSoundscapeProfile(state);
+  assert.ok(ferryPierProfile.riverWater >= 0.8);
+  assert.ok(ferryPierProfile.ferryEngine >= 0.35);
+  engine.boardFerry('cacilhas');
+  const ferrySailProfile = computeSoundscapeProfile(state);
+  assert.equal(ferrySailProfile.riverWater, 1);
+  assert.equal(ferrySailProfile.ferryEngine, 1);
+  sound.update(state);
+  assert.ok(sound.ferryBus.gain.value > 0.4);
+  engine.exitFerryTerminal({ immediate: true });
+
+  // Test MP3 playlist auto-rotation with mock HTMLAudioElement
+  const listeners = {};
+  const mockAudioEl = {
+    src: '',
+    volume: 0,
+    paused: true,
+    preload: '',
+    loop: false,
+    addEventListener(evt, fn) { listeners[evt] = fn; },
+    play() { this.paused = false; return Promise.resolve(); },
+    pause() { this.paused = true; }
+  };
+  const mp3Sound = new LisboaSoundEngine({
+    audioContextFactory: () => mockAudioCtx,
+    audioElementFactory: () => mockAudioEl
+  });
+  mp3Sound.unlock();
+  engine.enterVenue('tasca-do-fado');
+  mp3Sound.update(state);
+  assert.equal(mp3Sound.isUsingRealFadoAudio(), true);
+  const firstTrack = mp3Sound.getCurrentFadoTrack().id;
+  assert.ok(mockAudioEl.src.includes('.mp3'));
+  listeners.ended?.();
+  const secondTrack = mp3Sound.getCurrentFadoTrack().id;
+  assert.notEqual(firstTrack, secondTrack, 'Fado playlist must advance to the next recording instead of repeating the same track');
+  mp3Sound.dispose();
+  engine.exitVenue();
 
   assert.equal(sound.toggleMute(), true);
   assert.equal(sound.masterGain.gain.value, 0);

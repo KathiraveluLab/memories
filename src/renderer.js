@@ -8,6 +8,8 @@ import {
   STREETS,
   CROSSWALKS,
   DECORATIVE_STRUCTURES,
+  FERRY_TERMINAL,
+  FERRY_DESTINATIONS,
   METRO_LINE,
   METRO_STATIONS,
   VENUES,
@@ -16,7 +18,7 @@ import {
   getAllTransitStops,
   getOutfitById
 } from './data.js';
-import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES } from './engine.js';
+import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES, FERRY_PIER_ZONES } from './engine.js';
 
 const ALL_STOPS = getAllTransitStops();
 
@@ -128,7 +130,7 @@ export class LisboaCanvasRenderer {
   }
 
   screenToWorld(canvasX, canvasY, state) {
-    if (state.mode === 'interior' || state.mode === 'metro') {
+    if (state.mode === 'interior' || state.mode === 'metro' || state.mode === 'ferry') {
       const offsetX = (this.viewWidth - INTERIOR_WIDTH) / 2;
       const offsetY = (this.viewHeight - INTERIOR_HEIGHT) / 2;
       return {
@@ -160,6 +162,10 @@ export class LisboaCanvasRenderer {
       this.renderInterior(ctx, state, nearbyInteraction);
     } else if (state.mode === 'metro') {
       this.renderMetro(ctx, state, nearbyInteraction);
+    } else if (state.mode === 'ferry') {
+      this.renderFerry(ctx, state, nearbyInteraction);
+    } else if (state.ridingVehicleId === 'bus-737-758') {
+      this.renderBusInteriorView(ctx, state, nearbyInteraction);
     } else {
       this.updateCamera(state);
       this.renderOverworld(ctx, state, nearbyInteraction);
@@ -185,8 +191,9 @@ export class LisboaCanvasRenderer {
     this.drawStreetsAndPlazas(ctx);
     this.drawCrosswalks(ctx);
 
-    // 3. Tagus River Waterfront
+    // 3. Tagus River Waterfront & Cais do Sodre Transtejo Ferry Terminal
     this.drawTagusWaterfront(ctx);
+    this.drawFerryTerminal(ctx, nearbyInteraction?.type === 'ferry', isEvening);
 
     // 4. Transit corridors (Bus road markings + Steel Tram 28E Rails)
     this.drawTransitInfrastructure(ctx);
@@ -2754,6 +2761,10 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(mx + st.doorX * sx - 2.5, my + st.doorY * sy - 2.5, 5, 5);
     }
 
+    // Cais do Sodre Transtejo Ferry Terminal marker on waterfront
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fillRect(mx + FERRY_TERMINAL.doorX * sx - 3, my + FERRY_TERMINAL.doorY * sy - 2.5, 6, 5);
+
     for (const v of state.vehicles) {
       ctx.fillStyle = v.mode === 'tram' ? '#fde047' : '#34d399';
       ctx.beginPath();
@@ -2779,6 +2790,9 @@ export class LisboaCanvasRenderer {
             rx = st.doorX;
             ry = st.doorY;
           }
+        } else if (rp.mode === 'ferry') {
+          rx = FERRY_TERMINAL.doorX;
+          ry = FERRY_TERMINAL.doorY;
         }
         ctx.fillStyle = outfit.ringColor;
         ctx.beginPath();
@@ -4612,6 +4626,980 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 2;
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  drawFerryTerminal(ctx, isHighlighted, isEvening) {
+    const t = FERRY_TERMINAL;
+    ctx.save();
+
+    if (isHighlighted) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 4;
+      drawRoundedRect(ctx, t.x - 5, t.y - 5, t.w + 10, t.h + 10, 10);
+      ctx.stroke();
+    }
+
+    // Wooden ferry boarding piers extending into the Tagus River
+    ctx.fillStyle = '#785134';
+    ctx.fillRect(t.x + 14, t.y + t.h - 4, 24, 46);
+    ctx.fillRect(t.x + t.w - 38, t.y + t.h - 4, 24, 46);
+    ctx.strokeStyle = '#472d1b';
+    ctx.lineWidth = 1.2;
+    for (let py = t.y + t.h + 4; py < t.y + t.h + 40; py += 8) {
+      ctx.beginPath();
+      ctx.moveTo(t.x + 14, py);
+      ctx.lineTo(t.x + 38, py);
+      ctx.moveTo(t.x + t.w - 38, py);
+      ctx.lineTo(t.x + t.w - 14, py);
+      ctx.stroke();
+    }
+
+    // Moored orange-and-white Transtejo Catamaran gently bobbing beside pier
+    const bob = Math.sin(this.animTime * 2.4) * 2;
+    const fx = t.x + 56;
+    const fy = t.y + t.h + 12 + bob;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(fx + 38, fy + 16, 44, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f97316';
+    drawRoundedRect(ctx, fx, fy, 78, 26, 9);
+    ctx.fill();
+    ctx.strokeStyle = '#7c2d12';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.fillStyle = '#f8fafc';
+    drawRoundedRect(ctx, fx + 8, fy + 4, 58, 18, 5);
+    ctx.fill();
+    ctx.fillStyle = '#0369a1';
+    ctx.fillRect(fx + 14, fy + 7, 42, 6);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '700 7.5px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('TRANSTEJO', fx + 38, fy + 20);
+
+    // Emerald & glass Cais do Sodre Ferry Terminal pavilion sitting on the seawall
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.26)';
+    drawRoundedRect(ctx, t.x + 4, t.y + 6, t.w, t.h, 8);
+    ctx.fill();
+
+    ctx.fillStyle = '#0f5c52';
+    drawRoundedRect(ctx, t.x, t.y, t.w, t.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#083a34';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Skylight glass bays across roof
+    ctx.fillStyle = isEvening ? '#fde68a' : '#bae6fd';
+    for (let gx = t.x + 14; gx < t.x + t.w - 28; gx += 34) {
+      drawRoundedRect(ctx, gx, t.y + 24, 24, 18, 3);
+      ctx.fill();
+    }
+
+    // North-facing entrance arch along Avenida Ribeira promenade
+    ctx.fillStyle = '#e5ded0';
+    ctx.fillRect(t.doorX - 18, t.y - 2, 36, 12);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(t.doorX - 13, t.y, 26, 8);
+
+    // Header badge
+    drawRoundedRect(ctx, t.x + 12, t.y + 44, t.w - 24, 18, 4);
+    ctx.fillStyle = 'rgba(12, 30, 48, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 9.5px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CAIS DO SODRE - FERRY PORT', t.x + t.w / 2, t.y + 56);
+
+    ctx.restore();
+  }
+
+  renderBusInteriorView(ctx, state, nearbyInteraction) {
+    const vehicle = state.vehicles.find((v) => v.id === state.ridingVehicleId) || state.vehicles[1];
+    const phase = getDayPhase(state.minutesOfDay);
+    const isEvening = phase.id === 'evening';
+    const isGolden = phase.id === 'golden';
+    const onWaterfront = (vehicle?.y || 285) >= 780;
+    const isStopped = Boolean(vehicle?.currentStopId || vehicle?.yielding);
+    const scroll = state.busScrollOffset || 0;
+    const hum = isStopped ? 0 : Math.sin(this.animTime * 18) * 1.1;
+
+    // 1. Panoramic Lisboa Sky outside bus windows
+    const skyGrad = ctx.createLinearGradient(0, 62, 0, 390);
+    if (isEvening) {
+      skyGrad.addColorStop(0, '#0f1b38');
+      skyGrad.addColorStop(0.65, '#1e355e');
+      skyGrad.addColorStop(1, '#31446b');
+    } else if (isGolden) {
+      skyGrad.addColorStop(0, '#4f6d9a');
+      skyGrad.addColorStop(0.55, '#e89654');
+      skyGrad.addColorStop(1, '#fbd38d');
+    } else {
+      skyGrad.addColorStop(0, '#3b82c4');
+      skyGrad.addColorStop(0.65, '#8ecae6');
+      skyGrad.addColorStop(1, '#dff2fb');
+    }
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 62, this.viewWidth, 350);
+
+    // Stars or sun/moon
+    if (isEvening) {
+      ctx.fillStyle = 'rgba(255, 250, 220, 0.85)';
+      for (const [sx, sy] of [[120, 95], [240, 118], [390, 88], [560, 108], [710, 92], [830, 115]]) {
+        ctx.fillRect(sx, sy, 2.5, 2.5);
+      }
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath();
+      ctx.arc(780, 112, 16, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = isGolden ? '#fed7aa' : '#fef08a';
+      ctx.beginPath();
+      ctx.arc(isGolden ? 760 : 730, isGolden ? 158 : 118, 22, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. Slow-parallax distant 7-hills Lisboa skyline silhouette (Castelo de Sao Jorge & domes)
+    const hillOffset = (scroll * 0.14) % 460;
+    ctx.fillStyle = isEvening ? '#182844' : isGolden ? '#8c5646' : '#6c8ba8';
+    ctx.beginPath();
+    ctx.moveTo(0, 290);
+    for (let x = -460; x <= this.viewWidth + 460; x += 230) {
+      const bx = x - hillOffset;
+      ctx.lineTo(bx + 40, 224);
+      ctx.lineTo(bx + 115, 206);
+      ctx.lineTo(bx + 185, 232);
+      ctx.lineTo(bx + 230, 248);
+    }
+    ctx.lineTo(this.viewWidth, 340);
+    ctx.lineTo(0, 340);
+    ctx.closePath();
+    ctx.fill();
+
+    // Distant Castelo battlements & church dome silhouette
+    for (let cx = -460; cx <= this.viewWidth + 460; cx += 460) {
+      const sx = cx - hillOffset + 102;
+      ctx.fillStyle = isEvening ? '#1e3050' : isGolden ? '#7a4538' : '#587694';
+      ctx.fillRect(sx, 192, 46, 22);
+      ctx.fillRect(sx + 6, 184, 9, 10);
+      ctx.fillRect(sx + 28, 184, 9, 10);
+      ctx.beginPath();
+      ctx.arc(sx + 250, 224, 18, Math.PI, 0);
+      ctx.fill();
+    }
+
+    // 3. Mid-ground Lisboa Cityscape (Tagus Riverfront OR Historic Azulejo Pombaline Avenues)
+    if (onWaterfront) {
+      // Ponte 25 de Abril red suspension bridge & Cristo Rei silhouette across the Tagus
+      const bridgeOffset = (scroll * 0.25) % 920;
+      const bCenter = 480 - bridgeOffset * 0.25;
+      ctx.strokeStyle = isEvening ? '#7f1d1d' : '#b91c1c';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, 248);
+      ctx.lineTo(this.viewWidth, 248);
+      ctx.stroke();
+      for (const tx of [bCenter - 170, bCenter + 170]) {
+        ctx.fillStyle = isEvening ? '#7f1d1d' : '#b91c1c';
+        ctx.fillRect(tx - 6, 166, 12, 114);
+        ctx.fillRect(tx - 10, 198, 20, 4);
+      }
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bCenter - 360, 246);
+      ctx.quadraticCurveTo(bCenter - 265, 220, bCenter - 170, 172);
+      ctx.quadraticCurveTo(bCenter, 242, bCenter + 170, 172);
+      ctx.quadraticCurveTo(bCenter + 265, 220, bCenter + 360, 246);
+      ctx.stroke();
+
+      // Shimmering Tagus River water
+      const waterGrad = ctx.createLinearGradient(0, 276, 0, 380);
+      waterGrad.addColorStop(0, isEvening ? '#122b49' : isGolden ? '#3b6b8c' : '#1d6f9e');
+      waterGrad.addColorStop(1, isEvening ? '#0a1c33' : '#144e73');
+      ctx.fillStyle = waterGrad;
+      ctx.fillRect(0, 276, this.viewWidth, 108);
+
+      // Animated sailboats & water glints
+      const waveShift = (scroll * 0.65) % 140;
+      ctx.strokeStyle = isGolden ? 'rgba(254, 215, 170, 0.45)' : 'rgba(224, 242, 254, 0.35)';
+      ctx.lineWidth = 1.6;
+      for (let wx = -140; wx < this.viewWidth + 140; wx += 70) {
+        const rx = wx - waveShift;
+        ctx.beginPath();
+        ctx.moveTo(rx, 304);
+        ctx.lineTo(rx + 28, 304);
+        ctx.moveTo(rx + 20, 336);
+        ctx.lineTo(rx + 52, 336);
+        ctx.stroke();
+      }
+      // White Tagus sailboat scrolling past
+      const boatX = ((780 - (scroll * 0.35)) % 1040 + 1040) % 1040 - 60;
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(boatX, 294);
+      ctx.lineTo(boatX + 18, 294);
+      ctx.lineTo(boatX + 6, 268);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#b84a32';
+      ctx.fillRect(boatX - 2, 294, 24, 6);
+
+      // Limestone waterfront promenade railing & bollards scrolling in foreground
+      ctx.fillStyle = '#d8d0c1';
+      ctx.fillRect(0, 356, this.viewWidth, 42);
+      const railShift = (scroll * 1.05) % 64;
+      ctx.fillStyle = '#8b8275';
+      for (let bx = -64; bx < this.viewWidth + 64; bx += 64) {
+        ctx.fillRect(bx - railShift, 344, 9, 20);
+      }
+    } else {
+      // Historic Lisboa Azulejo & Pombaline Avenue scrolling outside the bus windows!
+      const blockW = 152;
+      const totalSpan = blockW * 8;
+      const bldgShift = (scroll * 0.78) % totalSpan;
+      const facades = [
+        { wall: '#f2f6fb', roof: '#b54c32', trim: '#1b4d89', azulejo: true, h: 162 },
+        { wall: '#f1d6a7', roof: '#a8442a', trim: '#7a3324', azulejo: false, h: 148 },
+        { wall: '#ebd2d8', roof: '#b85035', trim: '#6f3224', azulejo: false, h: 170 },
+        { wall: '#e4f0ec', roof: '#9e4736', trim: '#1f7062', azulejo: true, h: 154 },
+        { wall: '#f7f3eb', roof: '#bf5530', trim: '#1b558a', azulejo: false, h: 142 },
+        { wall: '#efe6d5', roof: '#8d5324', trim: '#1f4d3a', azulejo: false, h: 166 },
+        { wall: '#f2f6fb', roof: '#1f4975', trim: '#1b4d89', azulejo: true, h: 158 },
+        { wall: '#eed7c5', roof: '#a63e2e', trim: '#7a251a', azulejo: false, h: 150 }
+      ];
+
+      for (let rep = -1; rep <= 1; rep += 1) {
+        facades.forEach((f, idx) => {
+          const x = rep * totalSpan + idx * blockW - bldgShift;
+          if (x + blockW < -20 || x > this.viewWidth + 20) return;
+          const baseY = 368;
+          const topY = baseY - f.h;
+
+          // Building wall
+          ctx.fillStyle = f.wall;
+          ctx.fillRect(x + 2, topY + 26, blockW - 4, f.h - 26);
+          if (f.azulejo) {
+            ctx.fillStyle = 'rgba(27, 77, 137, 0.16)';
+            for (let ty = topY + 34; ty < baseY - 26; ty += 16) {
+              for (let tx = x + 10; tx < x + blockW - 14; tx += 16) {
+                ctx.fillRect(tx, ty, 6, 6);
+              }
+            }
+          }
+          // Terracotta pitched roof + eaves
+          ctx.fillStyle = f.roof;
+          ctx.beginPath();
+          ctx.moveTo(x - 2, topY + 28);
+          ctx.lineTo(x + 14, topY);
+          ctx.lineTo(x + blockW - 14, topY);
+          ctx.lineTo(x + blockW + 2, topY + 28);
+          ctx.closePath();
+          ctx.fill();
+
+          // Two rows of tall shuttered Lisbon windows + wrought-iron Juliet balconies
+          for (let row = 0; row < 2; row += 1) {
+            const wy = topY + 42 + row * 46;
+            for (let col = 0; col < 3; col += 1) {
+              const wx = x + 18 + col * 42;
+              ctx.fillStyle = f.trim;
+              ctx.fillRect(wx - 4, wy, 26, 32);
+              ctx.fillStyle = isEvening ? '#fde68a' : '#2c4159';
+              ctx.fillRect(wx, wy + 2, 18, 28);
+              ctx.strokeStyle = '#1e293b';
+              ctx.lineWidth = 1.4;
+              ctx.strokeRect(wx - 3, wy + 24, 24, 10);
+            }
+          }
+          // Ground-floor arched shopfront awning
+          ctx.fillStyle = f.trim;
+          ctx.fillRect(x + 22, baseY - 30, blockW - 44, 10);
+          ctx.fillStyle = isEvening ? '#fcd34d' : '#334155';
+          ctx.fillRect(x + 30, baseY - 20, blockW - 60, 20);
+        });
+      }
+
+      // Blooming purple Jacaranda trees & Lisbon streetlamps scrolling along sidewalk
+      const treeShift = (scroll * 0.98) % 240;
+      for (let tx = -240; tx < this.viewWidth + 240; tx += 240) {
+        const px = tx - treeShift;
+        ctx.fillStyle = '#5c4028';
+        ctx.fillRect(px + 34, 306, 9, 64);
+        ctx.fillStyle = isEvening ? '#5b3b78' : '#9b6bc7';
+        for (const [cx, cy, r] of [[px + 38, 294, 28], [px + 18, 304, 20], [px + 58, 304, 20]]) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Classic wrought-iron Lisbon streetlamp
+        ctx.fillStyle = '#1f2937';
+        ctx.fillRect(px + 150, 272, 4, 98);
+        ctx.fillStyle = isEvening || isGolden ? '#fef08a' : '#e2e8f0';
+        ctx.beginPath();
+        ctx.arc(px + 152, 268, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Cobblestone sidewalk strip
+      ctx.fillStyle = '#d9d1c2';
+      ctx.fillRect(0, 366, this.viewWidth, 34);
+    }
+
+    // 4. Carris Bus Stop Shelter visible outside window when stopped at a stop
+    if (vehicle?.currentStopId) {
+      ctx.fillStyle = 'rgba(20, 83, 61, 0.92)';
+      drawRoundedRect(ctx, 595, 256, 175, 118, 6);
+      ctx.fill();
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(595, 256, 175, 18);
+      ctx.fillStyle = '#143326';
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`CARRIS STOP - ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`, 682, 269);
+      ctx.fillStyle = 'rgba(226, 242, 254, 0.45)';
+      ctx.fillRect(606, 282, 153, 84);
+      ctx.textAlign = 'left';
+    }
+
+    // 5. FOREGROUND: Authentic Carris Bus Interior Frame, Windows, Straps & Next-Stop LED
+    ctx.save();
+    ctx.translate(0, hum);
+
+    // Overhead dark Carris green ceiling & luggage cove
+    ctx.fillStyle = '#143b2e';
+    ctx.fillRect(0, 0, this.viewWidth, 72);
+    ctx.fillStyle = '#1b5743';
+    ctx.fillRect(0, 62, this.viewWidth, 12);
+
+    // Window side frames & vertical pillars separating 3 wide panoramic bus windows
+    ctx.fillStyle = '#1b4d3c';
+    ctx.fillRect(0, 62, 26, 360);
+    ctx.fillRect(this.viewWidth - 26, 62, 26, 360);
+    for (const px of [304, 614]) {
+      ctx.fillStyle = '#1f5442';
+      ctx.fillRect(px, 68, 22, 336);
+      ctx.fillStyle = '#0f2d23';
+      ctx.fillRect(px + 9, 68, 4, 336);
+    }
+
+    // Horizontal overhead steel grab rail + swaying yellow hand straps
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(26, 86, this.viewWidth - 52, 6);
+    const sway = isStopped ? 0 : Math.sin(this.animTime * 4.2) * 0.14;
+    for (const sx of [120, 230, 400, 520, 700, 815]) {
+      ctx.save();
+      ctx.translate(sx, 92);
+      ctx.rotate(sway);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, 26);
+      ctx.stroke();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, 34, 9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Vertical yellow Carris stanchion pole with glowing red STOP bell button
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(310, 72, 10, 340);
+    drawRoundedRect(ctx, 304, 238, 22, 34, 4);
+    ctx.fillStyle = '#1e293b';
+    ctx.fill();
+    ctx.fillStyle = state.alightAtNextStop ? '#ef4444' : '#b91c1c';
+    drawRoundedRect(ctx, 308, 244, 14, 18, 3);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 6px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('STOP', 315, 256);
+
+    // Overhead Amber-LED Next-Stop Electronic Sign
+    drawRoundedRect(ctx, 210, 12, 500, 44, 8);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = state.alightAtNextStop ? '#f87171' : '#fbbf24';
+    ctx.font = '700 13px "Consolas", monospace';
+    ctx.textAlign = 'center';
+    const ledText = vehicle?.currentStopId
+      ? `CARRIS 737  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
+      : state.alightAtNextStop
+        ? `STOP REQUESTED  |  NEXT: ${vehicle.nextStopName.split(' (')[0].toUpperCase()}`
+        : `CARRIS 737  |  ${state.currentNeighborhoodName.toUpperCase()} -> ${vehicle.nextStopName.split(' (')[0].toUpperCase()}`;
+    ctx.fillText(ledText, this.viewWidth / 2, 31);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    ctx.fillText(
+      onWaterfront ? 'SCENIC TAGUS RIVERFRONT VIEW  -  AVENIDA RIBEIRA' : 'HISTORIC LISBOA HILLSIDE CITYSCAPE VIEW',
+      this.viewWidth / 2,
+      47
+    );
+
+    // Lower bus window sill & patterned Carris passenger seats
+    ctx.fillStyle = '#1e3a32';
+    ctx.fillRect(0, 386, this.viewWidth, 174);
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(0, 386, this.viewWidth, 10);
+
+    // Classic blue-green patterned Carris seat tops along foreground
+    for (const sx of [56, 176, 364, 484, 672, 792]) {
+      ctx.fillStyle = '#155e4a';
+      drawRoundedRect(ctx, sx, 398, 92, 48, 10);
+      ctx.fill();
+      ctx.strokeStyle = '#0d3c2f';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(sx + 16, 412, 60, 4);
+      ctx.fillRect(sx + 24, 424, 44, 4);
+    }
+
+    // Bottom Bus Route Progress Strip cleanly positioned above the interaction prompt banner
+    const busLine = TRANSIT_LINES.find((l) => l.id === 'bus-737-758');
+    const busStops = busLine ? busLine.waypoints.filter((w) => w.stopId) : [];
+    const stripY = 466;
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(110, stripY);
+    ctx.lineTo(810, stripY);
+    ctx.stroke();
+    busStops.forEach((st, idx) => {
+      const sx = 110 + (idx / Math.max(1, busStops.length - 1)) * 700;
+      const isCur = vehicle?.currentStopId === st.stopId;
+      const isNext = vehicle?.nextStopName === st.stopName;
+      ctx.fillStyle = isCur ? '#facc15' : isNext ? '#34d399' : '#e2e8f0';
+      ctx.beginPath();
+      ctx.arc(sx, stripY, isCur || isNext ? 7 : 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#064e3b';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '600 9.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(st.stopName.split(' (')[0], sx, stripY + 18);
+    });
+
+    ctx.restore();
+
+    if (nearbyInteraction) {
+      this.drawInteractionBanner(ctx, nearbyInteraction);
+    }
+  }
+
+  renderFerry(ctx, state, nearbyInteraction) {
+    const f = state.ferry;
+    ctx.fillStyle = '#0e2236';
+    ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+
+    const offsetX = Math.round((this.viewWidth - INTERIOR_WIDTH) / 2);
+    const offsetY = Math.round((this.viewHeight - INTERIOR_HEIGHT) / 2);
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+
+    if (f.phase === 'sailing') {
+      this.renderFerryCrossingScene(ctx, state);
+    } else {
+      this.renderFerryTerminalScene(ctx, state, nearbyInteraction);
+    }
+
+    ctx.restore();
+
+    if (nearbyInteraction) {
+      this.drawInteractionBanner(ctx, nearbyInteraction);
+    }
+  }
+
+  renderFerryTerminalScene(ctx, state, nearbyInteraction) {
+    const f = state.ferry;
+    const isLisbon = f.portId === FERRY_TERMINAL.id;
+    const destInfo = FERRY_DESTINATIONS.find((d) => d.id === f.portId);
+    const phase = getDayPhase(state.minutesOfDay);
+    const isEvening = phase.id === 'evening';
+    const isGolden = phase.id === 'golden';
+
+    drawRoundedRect(ctx, 0, 0, INTERIOR_WIDTH, INTERIOR_HEIGHT, 12);
+    ctx.fillStyle = '#143752';
+    ctx.fill();
+    ctx.strokeStyle = '#0f5c52';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // 1. Upper waterfront horizon sky & Transtejo terminal canopy
+    const skyGrad = ctx.createLinearGradient(0, 6, 0, 154);
+    if (isEvening) {
+      skyGrad.addColorStop(0, '#102040');
+      skyGrad.addColorStop(1, '#263e66');
+    } else if (isGolden) {
+      skyGrad.addColorStop(0, '#5a78a3');
+      skyGrad.addColorStop(1, '#f3b178');
+    } else {
+      skyGrad.addColorStop(0, '#3b82c4');
+      skyGrad.addColorStop(1, '#b8e3f5');
+    }
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(6, 6, INTERIOR_WIDTH - 12, 148);
+
+    // Terminal header plaque
+    drawRoundedRect(ctx, 180, 16, 400, 52, 8);
+    ctx.fillStyle = '#0f5c52';
+    ctx.fill();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 15px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      isLisbon ? 'CAIS DO SODRE - TRANSTEJO PORT' : `${destInfo ? destInfo.name.toUpperCase() : 'SOUTH BANK'} PIER`,
+      380,
+      39
+    );
+    ctx.fillStyle = '#fde68a';
+    ctx.font = '700 10px "Segoe UI", sans-serif';
+    ctx.fillText(
+      isLisbon ? 'FERRIES TO CACILHAS  -  SEIXAL  -  MONTIJO' : 'TAGUS SOUTH BANK  -  RETURN FERRY TO CAIS DO SODRE',
+      380,
+      57
+    );
+
+    // Top Waterfront Gate (at Cais do Sodre) OR South-Bank Viewpoint Plaque
+    if (isLisbon) {
+      drawRoundedRect(ctx, 304, 114, 152, 38, 6);
+      ctx.fillStyle = nearbyInteraction?.type === 'ferry-exit' ? '#d97706' : '#1e3a5f';
+      ctx.fill();
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 10.5px "Segoe UI", sans-serif';
+      ctx.fillText('EXIT TO WATERFRONT', 380, 137);
+    } else {
+      // Distant Lisbon terracotta hillside skyline visible across the river from South Bank!
+      ctx.fillStyle = isEvening ? '#1f2e4a' : '#b85c42';
+      ctx.fillRect(36, 98, 120, 44);
+      ctx.fillRect(604, 98, 120, 44);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '700 9px "Segoe UI", sans-serif';
+      ctx.fillText('LISBOA ACROSS THE TAGUS', 380, 126);
+    }
+
+    // 2. Walkable Timber & Limestone Transtejo Pier Deck (y: 154..288)
+    ctx.fillStyle = '#cbb89d';
+    ctx.fillRect(8, 154, INTERIOR_WIDTH - 16, 134);
+    ctx.strokeStyle = 'rgba(92, 68, 46, 0.25)';
+    ctx.lineWidth = 1.2;
+    for (let px = 28; px < INTERIOR_WIDTH - 12; px += 22) {
+      ctx.beginPath();
+      ctx.moveTo(px, 154);
+      ctx.lineTo(px, 288);
+      ctx.stroke();
+    }
+
+    // Yellow nautical safety curb & iron mooring bollards along the water edge
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(8, 280, INTERIOR_WIDTH - 16, 8);
+    for (const bx of [90, 220, 540, 670]) {
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(bx, 274, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(bx, 272, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Boarding Gangway Marker
+    this.drawInteriorMarker(
+      ctx,
+      380,
+      250,
+      isLisbon ? 'BOARD FERRY [E]' : 'RETURN FERRY [E]',
+      nearbyInteraction?.type === 'ferry-board'
+    );
+
+    // 3. Tagus River Water & Docked Transtejo Catamaran Ferry (y: 288..452)
+    const waterGrad = ctx.createLinearGradient(0, 288, 0, 452);
+    waterGrad.addColorStop(0, isEvening ? '#0f2744' : '#15608a');
+    waterGrad.addColorStop(1, isEvening ? '#09192e' : '#0d3f5e');
+    ctx.fillStyle = waterGrad;
+    ctx.fillRect(8, 288, INTERIOR_WIDTH - 16, 164);
+
+    // Animated Tagus waves
+    const waveShift = (f.waveOffset || 0) % 60;
+    ctx.strokeStyle = 'rgba(186, 230, 253, 0.35)';
+    ctx.lineWidth = 1.6;
+    for (let wy = 304; wy < 444; wy += 24) {
+      for (let wx = 18 - waveShift; wx < INTERIOR_WIDTH - 18; wx += 60) {
+        ctx.beginPath();
+        ctx.moveTo(wx, wy);
+        ctx.quadraticCurveTo(wx + 14, wy - 4, wx + 28, wy);
+        ctx.stroke();
+      }
+    }
+
+    // Boarding gangway bridge from pier onto catamaran
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(352, 278, 56, 44);
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(352, 278, 56, 44);
+
+    // Docked Transtejo Catamaran gently bobbing on the Tagus
+    const bob = Math.sin(this.animTime * 2.3) * 3;
+    this.drawTranstejoCatamaran(ctx, 380, 368 + bob, { direction: 1, showWake: false });
+
+    // Walk target on pier
+    if (state.player.walkTarget) {
+      ctx.strokeStyle = '#0ea5e9';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(state.player.walkTarget.x, state.player.walkTarget.y, 9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Local traveler & any LAN peers sharing the same pier
+    const pierActors = [
+      {
+        x: state.player.x,
+        y: state.player.y,
+        facing: state.player.facing,
+        walkPhase: state.player.walkPhase,
+        isMoving: state.player.isMoving,
+        outfitId: state.player.outfitId,
+        label: (state.remotePlayers || []).length > 0 ? state.player.name : '',
+        emoteText: state.player.emoteText || '',
+        isPlayer: true
+      }
+    ];
+    for (const rp of state.remotePlayers || []) {
+      if (rp.mode === 'ferry' && rp.ferryPortId === f.portId && rp.ferryPhase === 'terminal') {
+        pierActors.push({
+          x: rp.x,
+          y: rp.y,
+          facing: rp.facing,
+          walkPhase: rp.walkPhase,
+          isMoving: rp.isMoving,
+          outfitId: rp.outfitId,
+          label: rp.name,
+          emoteText: rp.emoteText || '',
+          isPlayer: false,
+          isRemotePlayer: true
+        });
+      }
+    }
+    pierActors.sort((a, b) => a.y - b.y);
+    for (const actor of pierActors) {
+      this.drawCharacterSprite(ctx, actor.x, actor.y, actor);
+    }
+  }
+
+  renderFerryCrossingScene(ctx, state) {
+    const f = state.ferry;
+    const phase = getDayPhase(state.minutesOfDay);
+    const isEvening = phase.id === 'evening';
+    const isGolden = phase.id === 'golden';
+    const destInfo = FERRY_DESTINATIONS.find((d) => d.id === f.toPortId);
+    const fromLabel =
+      f.fromPortId === FERRY_TERMINAL.id
+        ? 'Cais do Sodre'
+        : (FERRY_DESTINATIONS.find((d) => d.id === f.fromPortId)?.shortName || 'South Bank');
+    const toLabel =
+      f.toPortId === FERRY_TERMINAL.id
+        ? 'Cais do Sodre (Lisboa)'
+        : (destInfo?.name || 'South Bank');
+
+    drawRoundedRect(ctx, 0, 0, INTERIOR_WIDTH, INTERIOR_HEIGHT, 12);
+    ctx.fillStyle = '#0e2236';
+    ctx.fill();
+    ctx.strokeStyle = '#0ea5e9';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    ctx.save();
+    drawRoundedRect(ctx, 4, 4, INTERIOR_WIDTH - 8, INTERIOR_HEIGHT - 8, 9);
+    ctx.clip();
+
+    // 1. Open Tagus Estuary Sky
+    const skyGrad = ctx.createLinearGradient(0, 6, 0, 260);
+    if (isEvening) {
+      skyGrad.addColorStop(0, '#0c1833');
+      skyGrad.addColorStop(1, '#223a63');
+    } else if (isGolden) {
+      skyGrad.addColorStop(0, '#4c6d9c');
+      skyGrad.addColorStop(0.55, '#e89654');
+      skyGrad.addColorStop(1, '#fde68a');
+    } else {
+      skyGrad.addColorStop(0, '#2563eb');
+      skyGrad.addColorStop(0.65, '#7dd3fc');
+      skyGrad.addColorStop(1, '#e0f2fe');
+    }
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(4, 4, INTERIOR_WIDTH - 8, 256);
+
+    // 2. Approaching Destination Shoreline & Authentic Tagus Landmarks
+    const progress = clamp(f.phaseProgress || 0, 0, 1);
+    const horizonY = 236;
+
+    if (f.toPortId === 'cacilhas' || f.fromPortId === 'cacilhas') {
+      // Iconic red Ponte 25 de Abril suspension bridge + Cristo Rei cliffside monument + Farol de Cacilhas lighthouse
+      ctx.strokeStyle = isEvening ? '#7f1d1d' : '#c81e32';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(40, 198);
+      ctx.lineTo(390, 198);
+      ctx.stroke();
+      for (const tx of [125, 295]) {
+        ctx.fillStyle = isEvening ? '#7f1d1d' : '#c81e32';
+        ctx.fillRect(tx - 4, 134, 8, 102);
+      }
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(40, 198);
+      ctx.quadraticCurveTo(85, 178, 125, 138);
+      ctx.quadraticCurveTo(210, 192, 295, 138);
+      ctx.quadraticCurveTo(345, 178, 390, 198);
+      ctx.stroke();
+
+      // Cristo Rei pedestal & statue on Almada cliff
+      ctx.fillStyle = '#8b7e6d';
+      ctx.beginPath();
+      ctx.moveTo(410, horizonY);
+      ctx.lineTo(480, 184);
+      ctx.lineTo(680, 194);
+      ctx.lineTo(756, horizonY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#e5ded0';
+      ctx.fillRect(520, 146, 12, 42);
+      ctx.fillRect(514, 142, 24, 4);
+      // Red Farol de Cacilhas lighthouse
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(622, 196, 12, 34);
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(628, 194, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (f.toPortId === 'seixal') {
+      // Calm Baia do Seixal shoreline, tide mill & traditional Tagus fragata sailboats
+      ctx.fillStyle = '#3d6b59';
+      ctx.beginPath();
+      ctx.moveTo(4, horizonY);
+      ctx.quadraticCurveTo(220, 188, 420, 206);
+      ctx.quadraticCurveTo(580, 196, 756, horizonY);
+      ctx.closePath();
+      ctx.fill();
+      // Whitewashed tide mill & colorful Seixal waterfront houses
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(490, 198, 56, 36);
+      ctx.fillStyle = '#b84a32';
+      ctx.fillRect(486, 192, 64, 8);
+      // Traditional painted fragata sailboats
+      for (const [fx, col] of [[240, '#e11d48'], [590, '#f59e0b']]) {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(fx, 242);
+        ctx.lineTo(fx + 26, 242);
+        ctx.lineTo(fx + 10, 204);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (f.toPortId === 'montijo') {
+      // Broad shimmering Montijo estuary marshlands & pink flamingos in flight
+      ctx.fillStyle = '#6c8c68';
+      ctx.fillRect(4, 212, INTERIOR_WIDTH - 8, 28);
+      ctx.fillStyle = '#f8fafc';
+      for (let hx = 140; hx <= 580; hx += 95) {
+        ctx.fillRect(hx, 204, 34, 16);
+        ctx.fillStyle = '#c85a36';
+        ctx.fillRect(hx - 2, 199, 38, 6);
+        ctx.fillStyle = '#f8fafc';
+      }
+      // Flamingos skimming the estuary sky
+      ctx.strokeStyle = '#f472b6';
+      ctx.lineWidth = 2;
+      for (const [bx, by] of [[210, 152], [250, 144], [290, 158]]) {
+        const wing = Math.sin(this.animTime * 6 + bx) * 4;
+        ctx.beginPath();
+        ctx.moveTo(bx - 10, by + wing);
+        ctx.quadraticCurveTo(bx, by - 5, bx + 10, by + wing);
+        ctx.stroke();
+      }
+    } else {
+      // Returning to Cais do Sodre: Lisbon 7-hills terracotta skyline & Terreiro do Paco arches
+      ctx.fillStyle = isEvening ? '#1f2e4a' : '#c96f4a';
+      ctx.beginPath();
+      ctx.moveTo(4, horizonY);
+      ctx.lineTo(140, 186);
+      ctx.lineTo(310, 174);
+      ctx.lineTo(520, 184);
+      ctx.lineTo(756, horizonY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(280, 206, 180, 30);
+      ctx.fillStyle = '#0f5c52';
+      ctx.fillRect(140, 214, 110, 22);
+    }
+
+    // Gliding white Tagus seagulls
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    for (let g = 0; g < 3; g += 1) {
+      const gx = ((140 + g * 210 + this.animTime * 28) % (INTERIOR_WIDTH + 60)) - 30;
+      const gy = 112 + g * 18 + Math.sin(this.animTime * 4 + g) * 5;
+      ctx.beginPath();
+      ctx.moveTo(gx - 9, gy + 3);
+      ctx.quadraticCurveTo(gx - 4, gy - 4, gx, gy);
+      ctx.quadraticCurveTo(gx + 4, gy - 4, gx + 9, gy + 3);
+      ctx.stroke();
+    }
+
+    // 3. Rolling Deep-Teal Tagus River Waves
+    const waterGrad = ctx.createLinearGradient(0, horizonY, 0, INTERIOR_HEIGHT);
+    waterGrad.addColorStop(0, isEvening ? '#0f2744' : '#0284c7');
+    waterGrad.addColorStop(1, isEvening ? '#081526' : '#0c4a6e');
+    ctx.fillStyle = waterGrad;
+    ctx.fillRect(4, horizonY, INTERIOR_WIDTH - 8, INTERIOR_HEIGHT - horizonY - 4);
+
+    const waveShift = (f.waveOffset || 0) % 72;
+    ctx.strokeStyle = 'rgba(224, 242, 254, 0.42)';
+    ctx.lineWidth = 2;
+    for (let row = 0, wy = 258; wy < 444; row += 1, wy += 26) {
+      const stagger = (row % 2) * 36;
+      for (let wx = -108; wx < INTERIOR_WIDTH + 108; wx += 72) {
+        const x = wx + stagger - waveShift;
+        ctx.beginPath();
+        ctx.moveTo(x, wy);
+        ctx.quadraticCurveTo(x + 18, wy - 6, x + 36, wy);
+        ctx.stroke();
+      }
+    }
+
+    // 4. Transtejo Catamaran cruising dynamically across the Tagus with white bow & stern wake
+    const sailBob = Math.sin(this.animTime * 4.2) * 3.5;
+    const dir = f.toPortId === FERRY_TERMINAL.id ? -1 : 1;
+    this.drawTranstejoCatamaran(ctx, 380, 344 + sailBob, { direction: dir, showWake: true });
+
+    // 5. Overhead Live Transtejo Route Banner & Crossing Progress Strip
+    drawRoundedRect(ctx, 110, 18, 540, 70, 8);
+    ctx.fillStyle = 'rgba(12, 34, 54, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 13.5px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`TRANSTEJO TAGUS FERRY  -  ${fromLabel} -> ${toLabel}`, 380, 40);
+
+    // Route progress bar
+    const sx1 = 175;
+    const sx2 = 585;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(sx1, 64);
+    ctx.lineTo(sx2, 64);
+    ctx.stroke();
+    for (const [px, lbl] of [[sx1, fromLabel], [sx2, toLabel]]) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.arc(px, 64, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#bae6fd';
+      ctx.font = '700 9px "Segoe UI", sans-serif';
+      ctx.fillText(lbl, px, 80);
+    }
+    const boatPipX = sx1 + (sx2 - sx1) * progress;
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath();
+    ctx.arc(boatPipX, 64, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  drawTranstejoCatamaran(ctx, cx, cy, { direction = 1, showWake = false } = {}) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (direction < 0) ctx.scale(-1, 1);
+
+    // Frothy white wake trailing behind stern
+    if (showWake) {
+      ctx.fillStyle = 'rgba(240, 249, 255, 0.55)';
+      ctx.beginPath();
+      ctx.moveTo(-135, 8);
+      ctx.lineTo(-270, -6);
+      ctx.lineTo(-270, 28);
+      ctx.lineTo(-135, 22);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Twin catamaran lower orange hull
+    ctx.fillStyle = '#ea580c';
+    ctx.beginPath();
+    ctx.moveTo(-136, 4);
+    ctx.lineTo(126, 4);
+    ctx.lineTo(148, 22);
+    ctx.lineTo(-142, 22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#7c2d12';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Sleek white passenger cabin + sky-blue panoramic windows
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.moveTo(-124, 4);
+    ctx.lineTo(-110, -28);
+    ctx.lineTo(92, -28);
+    ctx.lineTo(128, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // Upper bridge wheelhouse
+    ctx.fillStyle = '#0f5c52';
+    drawRoundedRect(ctx, 14, -44, 66, 18, 5);
+    ctx.fill();
+    ctx.fillStyle = '#fde68a';
+    ctx.fillRect(58, -40, 18, 9);
+
+    // Panoramic passenger cabin windows
+    ctx.fillStyle = '#0284c7';
+    for (let wx = -98; wx <= 74; wx += 26) {
+      drawRoundedRect(ctx, wx, -21, 20, 14, 3);
+      ctx.fill();
+    }
+
+    // Signature orange & emerald Transtejo hull stripe
+    ctx.fillStyle = '#0f5c52';
+    ctx.fillRect(-130, 8, 260, 5);
+
     ctx.restore();
   }
 }
