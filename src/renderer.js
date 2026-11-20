@@ -5065,13 +5065,15 @@ export class LisboaCanvasRenderer {
       ctx.restore();
     }
 
+    const busBellLit = state.alightAtNextStop || Boolean(vehicle?.stopBellRung);
+    const busCompanionsHeader = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === 'bus-737-758');
     // Vertical yellow Carris stanchion pole with glowing red STOP bell button
     ctx.fillStyle = '#eab308';
     ctx.fillRect(310, 72, 10, 340);
     drawRoundedRect(ctx, 304, 238, 22, 34, 4);
     ctx.fillStyle = '#1e293b';
     ctx.fill();
-    ctx.fillStyle = state.alightAtNextStop ? '#ef4444' : '#b91c1c';
+    ctx.fillStyle = busBellLit ? '#ef4444' : '#b91c1c';
     drawRoundedRect(ctx, 308, 244, 14, 18, 3);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
@@ -5086,27 +5088,26 @@ export class LisboaCanvasRenderer {
     ctx.strokeStyle = '#eab308';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = state.alightAtNextStop ? '#f87171' : '#fbbf24';
+    ctx.fillStyle = busBellLit ? '#f87171' : '#fbbf24';
     ctx.font = '700 13px "Consolas", monospace';
     ctx.textAlign = 'center';
     const cleanNextStop = String(vehicle?.nextStopName || 'Next Stop').split(' (')[0].toUpperCase();
     const ledText = vehicle?.currentStopId
       ? `CARRIS 737  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
-      : state.alightAtNextStop
+      : busBellLit
         ? `STOP BELL  |  PROXIMA PARAGEM: ${cleanNextStop}`
         : `CARRIS 737  |  PROXIMA PARAGEM: ${cleanNextStop}`;
-    ctx.fillText(ledText, this.viewWidth / 2, 31);
+    ctx.fillText(ledText, this.viewWidth / 2, 31, 480);
     ctx.fillStyle = state.transitAnnouncement ? '#fde68a' : '#94a3b8';
     ctx.font = '600 10px "Segoe UI", sans-serif';
-    ctx.fillText(
-      state.transitAnnouncement
-        ? `ANNOUNCEMENT: "${state.transitAnnouncement.text}"`
+    const busSub = state.transitAnnouncement
+      ? `${state.transitAnnouncement.ringerName ? `${state.transitAnnouncement.ringerName.toUpperCase()} RANG BELL: ` : 'ANNOUNCEMENT: '}"${state.transitAnnouncement.text}"`
+      : busCompanionsHeader.length > 0
+        ? `RIDING TOGETHER WITH: ${busCompanionsHeader.map((c) => c.name).join(', ')}`
         : onWaterfront
           ? 'SCENIC TAGUS RIVERFRONT VIEW  -  AVENIDA RIBEIRA'
-          : 'HISTORIC LISBOA HILLSIDE CITYSCAPE VIEW',
-      this.viewWidth / 2,
-      47
-    );
+          : 'HISTORIC LISBOA HILLSIDE CITYSCAPE VIEW';
+    ctx.fillText(busSub, this.viewWidth / 2, 47, 480);
 
     // Lower bus window sill & patterned Carris passenger seats
     ctx.fillStyle = '#1e3a32';
@@ -5377,12 +5378,14 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(px + 9, 68, 4, 326);
     }
 
+    const tramBellLit = state.alightAtNextStop || Boolean(vehicle?.stopBellRung);
+    const tramCompanionsHeader = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === 'tram-28e');
     // Classic leather ceiling pull-cord & brass tram bell rings
-    ctx.strokeStyle = state.alightAtNextStop ? '#fef08a' : '#d97706';
+    ctx.strokeStyle = tramBellLit ? '#fef08a' : '#d97706';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(26, 86);
-    ctx.quadraticCurveTo(this.viewWidth / 2, state.alightAtNextStop ? 98 : 90, this.viewWidth - 26, 86);
+    ctx.quadraticCurveTo(this.viewWidth / 2, tramBellLit ? 98 : 90, this.viewWidth - 26, 86);
     ctx.stroke();
 
     const sway = isStopped ? 0 : Math.sin(this.animTime * 4.5) * 0.16;
@@ -5410,7 +5413,7 @@ export class LisboaCanvasRenderer {
     drawRoundedRect(ctx, 450, 236, 22, 34, 4);
     ctx.fillStyle = '#422006';
     ctx.fill();
-    ctx.fillStyle = state.alightAtNextStop ? '#ef4444' : '#b91c1c';
+    ctx.fillStyle = tramBellLit ? '#ef4444' : '#b91c1c';
     drawRoundedRect(ctx, 454, 242, 14, 18, 3);
     ctx.fill();
     ctx.fillStyle = '#fef3c7';
@@ -5425,25 +5428,24 @@ export class LisboaCanvasRenderer {
     ctx.strokeStyle = '#eab308';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = state.alightAtNextStop ? '#f87171' : '#fde047';
+    ctx.fillStyle = tramBellLit ? '#f87171' : '#fde047';
     ctx.font = '700 13px "Consolas", monospace';
     ctx.textAlign = 'center';
     const cleanNextStop = String(vehicle?.nextStopName || 'Next Stop').split(' (')[0].toUpperCase();
     const ledText = vehicle?.currentStopId
       ? `ELETRICO 28E  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
-      : state.alightAtNextStop
+      : tramBellLit
         ? `BELL RUNG  |  PROXIMA PARAGEM: ${cleanNextStop}`
         : `ELETRICO 28E  |  PROXIMA PARAGEM: ${cleanNextStop}`;
-    ctx.fillText(ledText, this.viewWidth / 2, 30);
+    ctx.fillText(ledText, this.viewWidth / 2, 30, 506);
     ctx.fillStyle = state.transitAnnouncement ? '#fde68a' : '#d6c4a8';
     ctx.font = '600 10px Georgia, serif';
-    ctx.fillText(
-      state.transitAnnouncement
-        ? `ANNOUNCEMENT: "${state.transitAnnouncement.text}"`
-        : 'REMODELADO WOODEN STREETCAR  -  BAIRRO ALTO / CHIADO / ALFAMA',
-      this.viewWidth / 2,
-      47
-    );
+    const tramSub = state.transitAnnouncement
+      ? `${state.transitAnnouncement.ringerName ? `${state.transitAnnouncement.ringerName.toUpperCase()} RANG BELL: ` : 'ANNOUNCEMENT: '}"${state.transitAnnouncement.text}"`
+      : tramCompanionsHeader.length > 0
+        ? `RIDING TOGETHER WITH: ${tramCompanionsHeader.map((c) => c.name).join(', ')}`
+        : 'REMODELADO WOODEN STREETCAR  -  BAIRRO ALTO / CHIADO / ALFAMA';
+    ctx.fillText(tramSub, this.viewWidth / 2, 47, 506);
 
     // Lower wooden wainscoting & varnished slatted wooden tram bench seats
     ctx.fillStyle = '#4a2410';

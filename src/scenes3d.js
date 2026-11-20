@@ -1340,10 +1340,22 @@ export class LisboaScenes3DRenderer {
         ctx.fillStyle = '#fde68a';
         ctx.textAlign = 'center';
         ctx.fillText(rp.name, px, py - 62);
+        if (rp.emoteText) {
+          const ew = ctx.measureText(rp.emoteText).width + 12;
+          drawRoundedRect(ctx, px - ew * 0.5, py - 94, ew, 16, 4);
+          ctx.fillStyle = 'rgba(255, 251, 235, 0.94)';
+          ctx.fill();
+          ctx.strokeStyle = '#d97706';
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+          ctx.fillStyle = '#1e293b';
+          ctx.fillText(rp.emoteText, px, py - 82);
+        }
       });
 
       // Progress Header
-      drawRoundedRect(ctx, midX - 230, 16, 460, 50, 8);
+      const headerH = ferryPeers.length > 0 ? 60 : 50;
+      drawRoundedRect(ctx, midX - 245, 14, 490, headerH, 8);
       ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
       ctx.fill();
       ctx.strokeStyle = '#38bdf8';
@@ -1352,7 +1364,17 @@ export class LisboaScenes3DRenderer {
       ctx.fillStyle = '#ffffff';
       ctx.font = '700 13px Georgia, serif';
       ctx.textAlign = 'center';
-      ctx.fillText(`TRANSTEJO 3D BOW DECK  -  TO ${toLabel.toUpperCase()} (${Math.round(progress * 100)}%)`, midX, 46);
+      ctx.fillText(
+        `TRANSTEJO 3D BOW DECK  -  TO ${toLabel.toUpperCase()} (${Math.round(progress * 100)}%)`,
+        midX,
+        ferryPeers.length > 0 ? 39 : 44,
+        466
+      );
+      if (ferryPeers.length > 0) {
+        ctx.fillStyle = '#fde68a';
+        ctx.font = '700 10.5px "Segoe UI", sans-serif';
+        ctx.fillText(`SAILING TOGETHER WITH: ${ferryPeers.map((p) => p.name).join(', ')}`, midX, 60, 466);
+      }
       ctx.textAlign = 'left';
       return;
     }

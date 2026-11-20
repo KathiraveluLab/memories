@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { createMultiplayerServer } from '../server.js';
+import { MemoriesGameEngine } from '../src/engine.js';
 
 function openSseStream(port, playerId) {
   return new Promise((resolve, reject) => {
@@ -233,6 +234,57 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
           evt.transit.vehicles?.some((v) => v.id === 'tram-28e' && v.currentStopId === 'stop-tram-camoes')
       );
       assert.ok(tramAtCamoesOnB.transit.vehicles.some((v) => v.id === 'tram-28e' && v.currentStopId === 'stop-tram-camoes'));
+
+      // 4c-ii. Synchronized onboard STOP bell, "Proxima Paragem" announcement & window scrollOffset for companions!
+      const bellRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: joinA.player.id,
+          action: 'ring-bell',
+          lineId: 'tram-28e',
+          stopName: 'Largo do Chiado',
+          ringerName: 'Alice'
+        })
+      });
+      const bellJson = await bellRes.json();
+      assert.equal(bellJson.ok, true);
+      assert.equal(bellJson.announcement.text, 'Proxima Paragem: Largo do Chiado');
+
+      const bellOnB = await streamB.waitFor(
+        (evt) =>
+          evt.transit?.vehicles?.some(
+            (v) =>
+              v.id === 'tram-28e' &&
+              v.stopBellRung === true &&
+              v.bellAnnouncement?.text === 'Proxima Paragem: Largo do Chiado' &&
+              v.bellAnnouncement?.ringerName === 'Alice'
+          )
+      );
+      const serverTram = bellOnB.transit.vehicles.find((v) => v.id === 'tram-28e');
+      assert.equal(Number.isFinite(serverTram.scrollOffset), true);
+
+      // Verify Bruno's engine aboard Tram 28E mirrors Alice's bell announcement & identical window cityscape scroll!
+      const brunoEngine = new MemoriesGameEngine();
+      brunoEngine.setPlayerProfile({ name: 'Bruno' });
+      brunoEngine.boardTransitAtStop('stop-tram-camoes', { waitIfApproaching: true });
+      brunoEngine.syncGlobalTransit(bellOnB.transit);
+      const bState = brunoEngine.getState();
+      assert.equal(bState.tramScrollOffset, serverTram.scrollOffset);
+      assert.ok(bState.transitAnnouncement);
+      assert.equal(bState.transitAnnouncement.text, 'Proxima Paragem: Largo do Chiado');
+      assert.equal(bState.transitAnnouncement.ringerName, 'Alice');
+      assert.equal(bState.vehicles.find((v) => v.id === 'tram-28e').stopBellRung, true);
+
+      // Synchronized Fado track switch across companions inside the tavern
+      const fadoRes = await fetch(`${baseUrl}/api/transit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: joinA.player.id, action: 'next-fado' })
+      });
+      assert.equal((await fadoRes.json()).ok, true);
+      const fadoOnB = await streamB.waitFor((evt) => evt.transit?.fadoTrackIndex === 1);
+      assert.equal(fadoOnB.transit.fadoTrackIndex, 1);
 
       // Shared Metro Linha Azul departure -> BOTH clients sync on the exact same tunnel ride
       const metroDeptRes = await fetch(`${baseUrl}/api/transit`, {

@@ -463,6 +463,8 @@ export class MemoriesGameEngine {
     this.globalTransitSynced = false;
     this.serverMetro = null;
     this.serverFerries = null;
+    this.lastServerBellIds = new Map();
+    this.lastLocalBellAt = 0;
   }
 
   emitTransitIntent(payload) {
@@ -500,6 +502,40 @@ export class MemoriesGameEngine {
         local.currentStopId = sv.currentStopId || null;
         local.currentStopName = sv.currentStopName || null;
         local.nextStopName = sv.nextStopName || local.nextStopName;
+        local.stopBellRung = Boolean(sv.stopBellRung);
+
+        // Synchronize window cityscape scroll offset so companions aboard the same bus/tram see identical passing scenery!
+        if (Number.isFinite(sv.scrollOffset)) {
+          local.scrollOffset = sv.scrollOffset;
+          if (this.state.ridingVehicleId === local.id) {
+            if (local.mode === 'tram') this.state.tramScrollOffset = sv.scrollOffset;
+            else if (local.mode === 'bus') this.state.busScrollOffset = sv.scrollOffset;
+          }
+        }
+
+        // Synchronize onboard STOP bell & "Proxima Paragem" announcements across ALL companions sharing this vehicle!
+        if (sv.bellAnnouncement && Number.isFinite(sv.bellAnnouncement.id)) {
+          const prevBellId = this.lastServerBellIds.get(local.id) || 0;
+          if (sv.bellAnnouncement.id > prevBellId) {
+            this.lastServerBellIds.set(local.id, sv.bellAnnouncement.id);
+            const justRangLocally =
+              sv.bellAnnouncement.ringerName === this.state.player.name &&
+              Date.now() - this.lastLocalBellAt < 2500;
+            if (this.state.ridingVehicleId === local.id && !justRangLocally) {
+              this.announcementSeq += 1;
+              this.state.transitAnnouncement = {
+                id: this.announcementSeq,
+                stopName: sv.bellAnnouncement.stopName,
+                text: sv.bellAnnouncement.text,
+                vehicleMode: sv.bellAnnouncement.vehicleMode || local.mode,
+                ringerName: sv.bellAnnouncement.ringerName || 'Companion',
+                ringBell: true,
+                timer: 5.0
+              };
+              this.state.statusMessage = `${sv.bellAnnouncement.ringerName} rang the bell aboard ${local.name} - ${sv.bellAnnouncement.text}.`;
+            }
+          }
+        }
 
         // If local player rang the bell and shared tram/bus just docked at a stop, alight cleanly!
         if (
@@ -554,6 +590,10 @@ export class MemoriesGameEngine {
           }
         }
       }
+    }
+
+    if (Number.isFinite(transit.fadoTrackIndex)) {
+      this.state.sharedFadoTrackIndex = transit.fadoTrackIndex;
     }
 
     // 4. Authoritative Ambient Lisboa Background Villagers (strictly synced across all connected computers!)
@@ -2884,6 +2924,8 @@ export class MemoriesGameEngine {
     }
 
     this.state.alightAtNextStop = true;
+    vehicle.stopBellRung = true;
+    this.lastLocalBellAt = Date.now();
     const cleanNextStop = String(vehicle.nextStopName || 'Next Stop').split(' (')[0];
     this.announcementSeq += 1;
     this.state.transitAnnouncement = {
@@ -2891,9 +2933,18 @@ export class MemoriesGameEngine {
       stopName: cleanNextStop,
       text: `Proxima Paragem: ${cleanNextStop}`,
       vehicleMode: line.mode,
+      ringerName: this.state.player.name,
       ringBell: true,
       timer: 5.0
     };
+    if (this.globalTransitSynced) {
+      this.emitTransitIntent({
+        action: 'ring-bell',
+        lineId: vehicle.id,
+        stopName: cleanNextStop,
+        ringerName: this.state.player.name
+      });
+    }
     this.state.statusMessage = `Bell rung aboard ${line.name} - Proxima Paragem: ${cleanNextStop}.`;
     return {
       ok: true,

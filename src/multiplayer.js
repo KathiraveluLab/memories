@@ -296,6 +296,14 @@ export class LanMultiplayerClient {
     return this.postTransitAction({ action: 'ferry-board', routeId, fromPortId, toPortId });
   }
 
+  requestRingBell(lineId, stopName, ringerName) {
+    return this.postTransitAction({ action: 'ring-bell', lineId, stopName, ringerName });
+  }
+
+  requestNextFado() {
+    return this.postTransitAction({ action: 'next-fado' });
+  }
+
   handleBeforeUnload() {
     if (!this.playerId) return;
     const payload = JSON.stringify({ playerId: this.playerId });

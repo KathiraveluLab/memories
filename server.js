@@ -161,6 +161,8 @@ export function createMultiplayerServer({
   }
 
   // Authoritative server-owned Tram 28E & Carris Bus 737/758 simulation
+  let bellAnnouncementSeq = 0;
+  let sharedFadoTrackIndex = 0;
   const transitVehicles = TRANSIT_LINES.map((line, i) => {
     const startIdx = i === 0 ? 1 : 2;
     const wp = line.waypoints[startIdx];
@@ -178,7 +180,10 @@ export function createMultiplayerServer({
       yielding: false,
       currentStopId: wp.stopId || null,
       currentStopName: wp.stopName || null,
-      nextStopName: findNextStopName(line, startIdx, 1)
+      nextStopName: findNextStopName(line, startIdx, 1),
+      scrollOffset: 0,
+      stopBellRung: false,
+      bellAnnouncement: null
     };
   });
 
@@ -349,8 +354,12 @@ export function createMultiplayerServer({
   }
 
   function stepServerTransit(dt) {
+    const nowMs = Date.now();
     // 1. Surface Tram 28E & Carris Bus 737/758
     for (const vehicle of transitVehicles) {
+      if (vehicle.bellAnnouncement && nowMs >= vehicle.bellAnnouncement.expiresAt) {
+        vehicle.bellAnnouncement = null;
+      }
       const line = TRANSIT_LINES.find((l) => l.id === vehicle.id);
       if (!line) continue;
       if (vehicle.dwellRemaining > 0) {
@@ -370,6 +379,7 @@ export function createMultiplayerServer({
       }
       vehicle.yielding = false;
       const moveDist = line.speedPxPerSec * dt;
+      vehicle.scrollOffset = (vehicle.scrollOffset + dt * (vehicle.mode === 'bus' ? 165 : 130)) % 100000;
       vehicle.currentStopId = null;
       vehicle.currentStopName = null;
       vehicle.heading = nextHeading;
@@ -383,6 +393,7 @@ export function createMultiplayerServer({
           vehicle.currentStopId = targetWp.stopId;
           vehicle.currentStopName = targetWp.stopName;
           vehicle.dwellRemaining = line.dwellSeconds;
+          vehicle.stopBellRung = false;
         }
       } else {
         vehicle.x += (dx / dist) * moveDist;
@@ -471,8 +482,21 @@ export function createMultiplayerServer({
         yielding: v.yielding,
         currentStopId: v.currentStopId,
         currentStopName: v.currentStopName,
-        nextStopName: v.nextStopName
+        nextStopName: v.nextStopName,
+        scrollOffset: Math.round((v.scrollOffset || 0) * 10) / 10,
+        stopBellRung: Boolean(v.stopBellRung),
+        bellAnnouncement: v.bellAnnouncement
+          ? {
+              id: v.bellAnnouncement.id,
+              lineId: v.bellAnnouncement.lineId,
+              vehicleMode: v.bellAnnouncement.vehicleMode,
+              stopName: v.bellAnnouncement.stopName,
+              text: v.bellAnnouncement.text,
+              ringerName: v.bellAnnouncement.ringerName
+            }
+          : null
       })),
+      fadoTrackIndex: sharedFadoTrackIndex,
       metro: {
         phase: sharedMetro.phase,
         stationId: sharedMetro.stationId,
@@ -941,6 +965,46 @@ export function createMultiplayerServer({
             broadcastTransit('ferry-board');
           }
           sendJson(res, 200, { ok: true, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'ring-bell') {
+          const line = TRANSIT_LINES.find((l) => l.id === body.lineId);
+          const vehicle = transitVehicles.find((v) => v.id === body.lineId);
+          if (!line || !vehicle) {
+            sendJson(res, 404, { ok: false, error: 'Unknown transit vehicle for stop bell.' });
+            return;
+          }
+          const cleanStop = sanitizeText(
+            String(body.stopName || vehicle.nextStopName || 'Next Stop').split(' (')[0],
+            'Next Stop',
+            44
+          );
+          const ringerName = sanitizeText(
+            body.ringerName || players.get(requesterId)?.name || 'Passenger',
+            'Passenger',
+            22
+          );
+          bellAnnouncementSeq += 1;
+          vehicle.stopBellRung = true;
+          vehicle.bellAnnouncement = {
+            id: bellAnnouncementSeq,
+            lineId: vehicle.id,
+            vehicleMode: line.mode,
+            stopName: cleanStop,
+            text: `Proxima Paragem: ${cleanStop}`,
+            ringerName,
+            expiresAt: Date.now() + 5500
+          };
+          broadcastTransit('ring-bell');
+          sendJson(res, 200, { ok: true, announcement: vehicle.bellAnnouncement, transit: getTransitSnapshot() });
+          return;
+        }
+
+        if (body.action === 'next-fado') {
+          sharedFadoTrackIndex = (sharedFadoTrackIndex + 1) % 3;
+          broadcastTransit('fado-track');
+          sendJson(res, 200, { ok: true, fadoTrackIndex: sharedFadoTrackIndex, transit: getTransitSnapshot() });
           return;
         }
 

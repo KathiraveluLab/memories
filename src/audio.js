@@ -286,6 +286,17 @@ export class LisboaSoundEngine {
     return FADO_TRACKS[this.fadoTrackIndex % FADO_TRACKS.length] || null;
   }
 
+  setFadoTrackIndex(index) {
+    if (!Number.isFinite(index) || FADO_TRACKS.length === 0) return this.getCurrentFadoTrack();
+    const normalized = ((Math.floor(index) % FADO_TRACKS.length) + FADO_TRACKS.length) % FADO_TRACKS.length;
+    if (normalized === this.fadoTrackIndex) return this.getCurrentFadoTrack();
+    this.fadoTrackIndex = normalized;
+    if (!this.disposed && !this.muted && this.profile.fadoMusic >= 0.05) {
+      this.loadAndPlayFadoTrack(true);
+    }
+    return this.getCurrentFadoTrack();
+  }
+
   isUsingRealFadoAudio() {
     return this.realFadoActive && !this.realFadoFailed;
   }

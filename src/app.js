@@ -1590,6 +1590,9 @@ dom.activeContextPanel.addEventListener('click', (event) => {
   }
   if (event.target.closest('[data-next-fado]')) {
     const nextTrack = soundEngine.nextFadoTrack();
+    if (mpStatusInfo.status === 'connected') {
+      mpClient.requestNextFado();
+    }
     if (nextTrack) {
       setStatusBanner(`Now playing Public Domain Fado: ${nextTrack.title} (${nextTrack.performer}).`);
     }
@@ -1870,8 +1873,13 @@ function frame(now) {
         mpClient.requestMetroDepart(intent.fromStationId, intent.toStationId);
       } else if (intent.action === 'ferry-board') {
         mpClient.requestFerryBoard(intent.routeId, intent.fromPortId, intent.toPortId);
+      } else if (intent.action === 'ring-bell') {
+        mpClient.requestRingBell(intent.lineId, intent.stopName, intent.ringerName);
       }
     }
+  }
+  if (Number.isFinite(state.sharedFadoTrackIndex) && mpStatusInfo.status === 'connected') {
+    soundEngine.setFadoTrackIndex(state.sharedFadoTrackIndex);
   }
   prevAudioMode = state.mode;
   prevAudioVenueId = state.currentVenueId;
