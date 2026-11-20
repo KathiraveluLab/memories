@@ -1165,6 +1165,11 @@ export class LisboaCanvasRenderer {
       return;
     }
 
+    if (venue.archStyle === 'cathedral') {
+      this.drawCathedralBuilding(ctx, venue, visited, isHighlighted, isEvening);
+      return;
+    }
+
     // Standard bespoke Pombaline / Alfama / Bairro Alto architecture
     ctx.fillStyle = 'rgba(18, 26, 36, 0.24)';
     ctx.fillRect(venue.x + 7, venue.y + 9, venue.w, venue.h);
@@ -1317,6 +1322,122 @@ export class LisboaCanvasRenderer {
 
     // Arched Portuguese Limestone Doorway + Striped Awning
     this.drawVenueDoorAndPlaque(ctx, venue, visited, isEvening);
+  }
+
+  drawCathedralBuilding(ctx, venue, visited, isHighlighted, isEvening) {
+    // Enterable Se de Lisboa (1147) Romanesque twin bell towers, rose window & glowing portal
+    ctx.fillStyle = 'rgba(20, 26, 36, 0.24)';
+    ctx.fillRect(venue.x + 7, venue.y + 9, venue.w, venue.h);
+
+    if (isHighlighted) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(venue.x - 4, venue.y - 16, venue.w + 8, venue.h + 20);
+    }
+
+    ctx.fillStyle = '#ddd5c5';
+    ctx.fillRect(venue.x, venue.y, venue.w, venue.h);
+
+    ctx.strokeStyle = 'rgba(98, 88, 72, 0.25)';
+    ctx.lineWidth = 1;
+    for (let sy = venue.y + 12; sy < venue.y + venue.h; sy += 14) {
+      ctx.beginPath();
+      ctx.moveTo(venue.x, sy);
+      ctx.lineTo(venue.x + venue.w, sy);
+      ctx.stroke();
+    }
+
+    this.drawTerracottaRoof(ctx, venue.x + 48, venue.y + 6, venue.w - 96, 42, '#9d4c36', false);
+
+    const towerXs = [venue.x + 6, venue.x + venue.w - 50];
+    for (const tx of towerXs) {
+      ctx.fillStyle = '#d3cab7';
+      ctx.fillRect(tx, venue.y - 12, 44, venue.h + 10);
+      ctx.strokeStyle = '#6b5e4c';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(tx, venue.y - 12, 44, venue.h + 10);
+
+      ctx.fillStyle = '#e5ded0';
+      for (let bx = tx + 2; bx < tx + 40; bx += 11) {
+        ctx.fillRect(bx, venue.y - 18, 7, 7);
+        ctx.strokeRect(bx, venue.y - 18, 7, 7);
+      }
+
+      ctx.fillStyle = '#3c362e';
+      ctx.beginPath();
+      ctx.arc(tx + 22, venue.y + 22, 10, Math.PI, 0);
+      ctx.lineTo(tx + 32, venue.y + 42);
+      ctx.lineTo(tx + 12, venue.y + 42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#a47d43';
+      ctx.beginPath();
+      ctx.arc(tx + 22, venue.y + 28, 5, Math.PI, 0);
+      ctx.fill();
+    }
+
+    // Spoked stained-glass rose window
+    const rcx = venue.x + venue.w / 2;
+    const rcy = venue.y + 78;
+    ctx.fillStyle = isEvening ? '#f7ce65' : '#2f5885';
+    ctx.beginPath();
+    ctx.arc(rcx, rcy, 19, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#6c5f4d';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ebe4d5';
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 8; i += 1) {
+      const a = (i * Math.PI) / 4;
+      ctx.beginPath();
+      ctx.moveTo(rcx, rcy);
+      ctx.lineTo(rcx + Math.cos(a) * 18, rcy + Math.sin(a) * 18);
+      ctx.stroke();
+    }
+
+    // Warm golden welcome light spilling onto the sidewalk from the open Gothic portal
+    const pulse = 0.34 + Math.sin(this.animTime * 3.0) * 0.1;
+    ctx.fillStyle = `rgba(255, 214, 118, ${isEvening ? 0.65 : pulse})`;
+    ctx.beginPath();
+    ctx.ellipse(venue.doorX, venue.doorY + 11, 30, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Triple-recessed Gothic entrance portal arch with illuminated open sanctuary interior
+    ctx.fillStyle = '#625647';
+    ctx.beginPath();
+    ctx.arc(rcx, venue.y + venue.h - 22, 21, Math.PI, 0);
+    ctx.lineTo(rcx + 21, venue.y + venue.h);
+    ctx.lineTo(rcx - 21, venue.y + venue.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f8d57e';
+    ctx.beginPath();
+    ctx.arc(rcx, venue.y + venue.h - 18, 13, Math.PI, 0);
+    ctx.lineTo(rcx + 13, venue.y + venue.h);
+    ctx.lineTo(rcx - 13, venue.y + venue.h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Enamel heritage plaque showing ENTER / VISITED status
+    const plaqueW = 148;
+    const plaqueH = 29;
+    drawRoundedRect(ctx, rcx - plaqueW / 2, venue.y + 8, plaqueW, plaqueH, 5);
+    ctx.fillStyle = 'rgba(24, 34, 48, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = visited ? '#6ee7b7' : '#f3c623';
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+
+    ctx.font = '700 10.5px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('SE DE LISBOA', rcx, venue.y + 20);
+    ctx.font = '700 8.5px "Segoe UI", sans-serif';
+    ctx.fillStyle = visited ? '#86efac' : '#fde68a';
+    ctx.fillText(visited ? `${venue.badge} VISITED` : `${venue.badge} ENTER`, rcx, venue.y + 32);
+    ctx.textAlign = 'left';
   }
 
   drawQuiosqueBuilding(ctx, venue, visited, isHighlighted, isEvening) {
@@ -2023,13 +2144,50 @@ export class LisboaCanvasRenderer {
 
     ctx.fillStyle = theme.wall;
     ctx.fillRect(6, 6, INTERIOR_WIDTH - 12, 134);
-    this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
+    if (theme.layout === 'cathedral') {
+      // Romanesque carved limestone vault arches + glowing stained-glass rose window
+      ctx.strokeStyle = 'rgba(92, 79, 65, 0.35)';
+      ctx.lineWidth = 2.5;
+      for (let ax = 90; ax < INTERIOR_WIDTH - 60; ax += 145) {
+        ctx.beginPath();
+        ctx.arc(ax, 132, 62, Math.PI, 0);
+        ctx.stroke();
+      }
+      // Stained-glass lancet side windows + central rose glow
+      for (const wx of [100, 616]) {
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.arc(wx + 22, 46, 22, Math.PI, 0);
+        ctx.lineTo(wx + 44, 114);
+        ctx.lineTo(wx, 114);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(wx + 22, 56, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#5c4f41';
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
+      }
+      // Rose window halo centered behind the docent desk
+      const roseGlow = ctx.createRadialGradient(380, 96, 6, 380, 96, 56);
+      roseGlow.addColorStop(0, 'rgba(251, 191, 36, 0.6)');
+      roseGlow.addColorStop(0.55, 'rgba(37, 99, 235, 0.38)');
+      roseGlow.addColorStop(1, 'rgba(37, 99, 235, 0)');
+      ctx.fillStyle = roseGlow;
+      ctx.beginPath();
+      ctx.arc(380, 96, 56, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
+    }
     ctx.fillStyle = theme.trim;
     ctx.fillRect(6, 132, INTERIOR_WIDTH - 12, 8);
 
     const skyColor =
       phase.id === 'evening' ? '#1c2c4d' : phase.id === 'golden' ? '#e89a54' : '#8ec5e8';
-    const winXs = [78, 578];
+    const winXs = theme.layout === 'cathedral' ? [] : [78, 578];
     for (const wx of winXs) {
       ctx.fillStyle = skyColor;
       ctx.beginPath();
@@ -2144,6 +2302,21 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#9ca3af';
       ctx.fillRect(442, 158, 22, 6);
       ctx.fillRect(472, 158, 22, 6);
+    } else if (theme.layout === 'cathedral') {
+      // Flickering brass sanctuary candles & open stone-pedestal visitor guestbook
+      for (const cx of [258, 274, 484, 500]) {
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(cx, 154, 5, 16);
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(cx + 2.5, 152, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#faf5e8';
+      ctx.fillRect(352, 152, 56, 20);
+      ctx.strokeStyle = '#785a36';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(352, 152, 56, 20);
     } else {
       ctx.fillStyle = '#cbd5e1';
       ctx.fillRect(258, 150, 36, 22);

@@ -39,16 +39,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-test('dataset & spatial integrity: 3 neighborhoods, 9 venues, 3 real Metro stations, valid sidewalk spawns, and 17 memories', () => {
+test('dataset & spatial integrity: 3 neighborhoods, 10 venues (including Se de Lisboa), 3 real Metro stations, valid sidewalk spawns, and 18 memories', () => {
   assert.deepEqual(
     NEIGHBORHOODS.map((n) => n.id),
     ['bairro-alto', 'chiado', 'alfama']
   );
-  assert.equal(VENUES.length, 9);
+  assert.equal(VENUES.length, 10);
+  assert.ok(VENUES.some((v) => v.id === 'se-de-lisboa'), 'Se de Lisboa must be an enterable venue');
   assert.equal(METRO_STATIONS.length, 3);
   assert.equal(REST_SPOTS.length, 3);
   assert.equal(TRANSIT_LINES.length, 2);
-  assert.equal(getAllMemoryCatalog().length, 17);
+  assert.equal(getAllMemoryCatalog().length, 18);
 
   // Authentic Lisbon geography: no Metro station inside hilltop Bairro Alto
   assert.equal(
@@ -228,6 +229,17 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.ok(state.memories.some((m) => m.id === 'mem-milestone-keepsake'));
   assert.ok(state.memories.some((m) => m.id === 'mem-oficina-azulejos'));
   assert.equal(engine.exitVenue().ok, true);
+
+  // Enter Se de Lisboa (1147 Cathedral), acquire Cloister pass, and exit cleanly
+  const seRes = engine.enterVenue('se-de-lisboa');
+  assert.equal(seRes.ok, true);
+  assert.equal(seRes.venue.name, 'Se de Lisboa');
+  assert.equal(state.mode, 'interior');
+  assert.ok(state.memories.some((m) => m.id === 'mem-se-de-lisboa'));
+  assert.ok(state.learnedPhrases.some((p) => p.source === 'Se de Lisboa'));
+  assert.equal(engine.purchaseVenueItem('item-se-cloister-pass').ok, true);
+  assert.equal(engine.exitVenue().ok, true);
+  assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
 });
 
 test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, and 17-memory completion', () => {
@@ -317,7 +329,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(paidNight.paidEur, OVERNIGHT_COST_EUR);
   assert.equal(state.euros, 80.0 - OVERNIGHT_COST_EUR);
 
-  // Collecting all 17 memories marks albumCompleted = true
+  // Collecting all 18 memories marks albumCompleted = true
   for (const venue of VENUES) {
     engine.enterVenue(venue.id);
     if (venue.id === 'cafe-do-poeta') engine.purchaseVenueItem('item-bica-nata');
@@ -332,7 +344,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   engine.boardTransitAtStop('stop-bus-garrett', { waitIfApproaching: true });
   engine.disembarkTransit({ immediateToNextStop: true });
 
-  assert.equal(state.memories.length, 17);
+  assert.equal(state.memories.length, 18);
   assert.equal(state.albumCompleted, true);
 });
 

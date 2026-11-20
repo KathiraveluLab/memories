@@ -122,19 +122,6 @@ export const DECORATIVE_STRUCTURES = [
     style: 'azulejo'
   },
   {
-    id: 'landmark-se',
-    neighborhood: 'chiado',
-    label: 'Se de Lisboa',
-    x: 1445,
-    y: 375,
-    w: 205,
-    h: 150,
-    wallColor: '#d7cfc1',
-    roofColor: '#8e7d68',
-    trimColor: '#5c4f41',
-    style: 'cathedral'
-  },
-  {
     id: 'house-chiado-south',
     neighborhood: 'chiado',
     label: 'Arcadas do Chiado',
@@ -650,6 +637,71 @@ export const VENUES = [
   },
 
   // ALFAMA
+  {
+    id: 'se-de-lisboa',
+    name: 'Se de Lisboa',
+    neighborhood: 'alfama',
+    type: 'landmark',
+    badge: '[CATHEDRAL 1147]',
+    archStyle: 'cathedral',
+    x: 1445,
+    y: 375,
+    w: 205,
+    h: 150,
+    doorSide: 'south',
+    doorX: 1547,
+    doorY: 525,
+    spawnOutside: { x: 1547, y: 546 },
+    wallColor: '#ddd5c5',
+    roofColor: '#9d4c36',
+    awningColor: '#5c4f41',
+    accentColor: '#7a6852',
+    proprietor: 'Henrique',
+    proprietorRole: 'Cathedral Docent',
+    description: 'Lisbon oldest cathedral (founded 1147), featuring Romanesque crenellated bell towers, a glowing stained-glass rose window, and medieval Gothic cloisters.',
+    greeting: 'Bem-vindo a Se de Lisboa! Step quietly beneath these 12th-century limestone arches and admire the rose window light across the nave.',
+    phrase: {
+      pt: 'Posso visitar o claustro e o tesouro da Se?',
+      pronunciation: 'Poh-soo vee-zee-tahr oo klowsh-troo ee oo teh-zoh-roo dah Seh?',
+      en: 'May I visit the cloister and treasury of the Cathedral?'
+    },
+    memory: {
+      id: 'mem-se-de-lisboa',
+      title: 'Stained Glass Inside Se de Lisboa',
+      category: 'venue',
+      neighborhood: 'Alfama',
+      caption: 'Cool 12th-century limestone vaults, quiet candle flicker, and Tram 28E bells echoing faintly beyond the Romanesque portal.'
+    },
+    interiorTheme: {
+      floorPrimary: '#d8d1c2',
+      floorSecondary: '#c7bfb0',
+      wall: '#e6dfd2',
+      trim: '#5c4f41',
+      counter: '#6c5a46',
+      layout: 'cathedral'
+    },
+    displayNote: 'Built in 1147 on the site of a former mosque, Se de Lisboa withstood the 1755 earthquake and preserves Roman and medieval cloister excavations.',
+    items: [
+      {
+        id: 'item-se-cloister-pass',
+        name: 'Cloister & Treasury Visit Pass',
+        kind: 'souvenir',
+        costEur: 5.0,
+        fullnessDelta: 0,
+        energyDelta: 12,
+        description: 'Admission pass to the peaceful Gothic cloisters and cathedral treasury.'
+      },
+      {
+        id: 'item-se-guidebook',
+        name: 'Illustrated Se de Lisboa Guide',
+        kind: 'souvenir',
+        costEur: 7.0,
+        fullnessDelta: 0,
+        energyDelta: 6,
+        description: 'Architectural monograph detailing the 1147 Romanesque nave and rose window.'
+      }
+    ]
+  },
   {
     id: 'oficina-azulejos',
     name: 'Oficina de Azulejos',
