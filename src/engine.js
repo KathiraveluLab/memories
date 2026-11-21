@@ -13,6 +13,7 @@ import {
   VENUES,
   REST_SPOTS,
   TRANSIT_LINES,
+  FUNICULAR_LINES,
   MILESTONE_MEMORIES,
   AMBIENT_NPCS,
   SEASONAL_CROWD_NPCS,
@@ -23,6 +24,7 @@ import {
   DEFAULT_MONTH,
   LISBOA_MONTHS,
   getMonthInfo,
+  getTerrainElevation,
   PLAYER_OUTFITS,
   getAllTransitStops,
   getAllMemoryCatalog,
@@ -55,6 +57,27 @@ const REST_SPOT_MAP = new Map(REST_SPOTS.map((s) => [s.id, s]));
 const RIVERSIDE_BENCH_MAP = new Map(RIVERSIDE_BENCHES.map((b) => [b.id, b]));
 const CASTANHA_VENDOR_MAP = new Map(CASTANHA_VENDORS.map((c) => [c.id, c]));
 const TRANSIT_LINE_MAP = new Map(TRANSIT_LINES.map((l) => [l.id, l]));
+const FUNICULAR_MAP = new Map(FUNICULAR_LINES.map((f) => [f.id, f]));
+
+export function computeFunicularCarPose(fun, carIndex = 0) {
+  const t = clamp(carIndex === 0 ? fun.progress : 1 - fun.progress, 0, 1);
+  const y = fun.bottomY + (fun.topY - fun.bottomY) * t;
+  const loopSpread = Math.exp(-Math.pow((t - 0.5) / 0.14, 2));
+  const side = carIndex === 0 ? -1 : 1;
+  const x = fun.trackX + side * (fun.passingHalfOffset || 14) * loopSpread;
+  const z = getTerrainElevation(x, y);
+  const climbing = carIndex === 0 ? fun.dir > 0 : fun.dir < 0;
+  return { x, y, z, t, climbing };
+}
+
+function createInitialFuniculars() {
+  return FUNICULAR_LINES.map((line, idx) => ({
+    ...line,
+    progress: idx === 0 ? 0.22 : 0.72,
+    dir: idx === 0 ? 1 : -1,
+    dwellRemaining: 0
+  }));
+}
 const ALL_STOPS = getAllTransitStops();
 const STOP_MAP = new Map(ALL_STOPS.map((s) => [s.stopId, s]));
 const ALL_MEMORIES = getAllMemoryCatalog();
@@ -469,10 +492,15 @@ export function createInitialState() {
     postcards: [],
     ridingVehicleId: null,
     alightAtNextStop: false,
+    ridingFunicularId: null,
+    ridingFunicularCarIndex: 0,
+    ridingFunicularTargetEnd: null,
+    elevationMeters: Math.round(getTerrainElevation(950, 544) * 0.65),
     seatedBenchId: null,
     seatedBench: null,
     holdingConeTimer: 0,
     vehicles: createInitialVehicles(),
+    funiculars: createInitialFuniculars(),
     npcs: createInitialNpcs(),
     joggers: createInitialJoggers(),
     memories: [],
@@ -497,6 +525,7 @@ export function createInitialState() {
       busRides: 0,
       metroRides: 0,
       ferryRides: 0,
+      funicularRides: 0,
       venuesEntered: 0,
       mealsEaten: 0,
       castanhaConesBought: 0,
@@ -1205,6 +1234,17 @@ export class MemoriesGameEngine {
       }
     }
 
+    // 4c. Authoritative Historic Lisbon Cable Funiculars (Elevador da Bica & Elevador da Gloria)
+    if (Array.isArray(transit.funiculars)) {
+      for (const sf of transit.funiculars) {
+        const localFun = (this.state.funiculars || []).find((f) => f.id === sf.id);
+        if (!localFun || this.state.ridingFunicularId === localFun.id) continue;
+        localFun.progress = clamp(Number(sf.progress) || 0, 0, 1);
+        localFun.dir = sf.dir === -1 ? -1 : 1;
+        localFun.dwellRemaining = Math.max(0, Number(sf.dwellRemaining) || 0);
+      }
+    }
+
     // 5. Authoritative Miradouro Street-Musician Performances (synchronized across all players at the viewpoint!)
     if (Array.isArray(transit.miradouros)) {
       for (const sm of transit.miradouros) {
@@ -1662,7 +1702,7 @@ export class MemoriesGameEngine {
   }
 
   setWalkTarget(x, y, onArriveAction = null) {
-    if (this.state.ridingVehicleId) return;
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId) return;
     if (this.state.mode === 'metro' && this.state.metro.phase !== 'platform') return;
     if (this.state.seatedBenchId) {
       this.standUpFromRiversideBench({ silent: true });
@@ -1673,7 +1713,7 @@ export class MemoriesGameEngine {
   }
 
   setWalkPath(waypoints = []) {
-    if (this.state.ridingVehicleId || !Array.isArray(waypoints) || waypoints.length === 0) return;
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId || !Array.isArray(waypoints) || waypoints.length === 0) return;
     if (this.state.mode === 'metro' && this.state.metro.phase !== 'platform') return;
     if (this.state.seatedBenchId) {
       this.standUpFromRiversideBench({ silent: true });
@@ -2243,6 +2283,7 @@ export class MemoriesGameEngine {
 
   updateNeighborhoodTracking() {
     if (this.state.mode !== 'overworld') return;
+    this.state.elevationMeters = Math.round(getTerrainElevation(this.state.player.x, this.state.player.y) * 0.65);
     const hood = getNeighborhoodForX(this.state.player.x);
     if (hood.id !== this.state.currentNeighborhoodId) {
       this.state.currentNeighborhoodId = hood.id;
@@ -2344,6 +2385,7 @@ export class MemoriesGameEngine {
     let movedY = 0;
     let lastBlocker = null;
 
+    const prevElev = this.state.mode === 'overworld' ? getTerrainElevation(player.x, player.y) : 0;
     const checkX = this.canPlayerStepTo(player.x + stepX, player.y);
     if (checkX.ok) {
       player.x += stepX;
@@ -2369,8 +2411,11 @@ export class MemoriesGameEngine {
         player.overworldX = player.x;
         player.overworldY = player.y;
         this.state.stats.distanceWalkedPx += movedDist;
+        const nextElev = getTerrainElevation(player.x, player.y);
+        const climbSlope = Math.max(0, (nextElev - prevElev) / Math.max(1, movedDist));
+        const slopeEffort = 1 + climbSlope * 1.15;
         const wasCritLow = this.state.needsMealToRecoverSpeed;
-        this.state.energy = clamp(this.state.energy - (movedDist / 100) * 1.15, 0, 100);
+        this.state.energy = clamp(this.state.energy - (movedDist / 100) * 1.15 * slopeEffort, 0, 100);
         this.state.fullness = clamp(this.state.fullness - (movedDist / 100) * 0.85, 0, 100);
         this.computeWalkSpeedMultiplier();
         if (this.checkGameOver()) {
@@ -2511,6 +2556,8 @@ export class MemoriesGameEngine {
       this.sitAtRiversideBench(action.id);
     } else if (action.type === 'buyCastanha') {
       this.buyCastanhaCone(action.id);
+    } else if (action.type === 'boardFunicular') {
+      this.boardFunicular(action.id, action.fromEnd || 'lower');
     } else if (action.type === 'talkProprietor') {
       this.talkToProprietor();
     } else if (action.type === 'inspectDisplay') {
@@ -2702,6 +2749,7 @@ export class MemoriesGameEngine {
     }
 
     this.updateVehicles(dt);
+    this.updateFuniculars(dt);
     this.updateNpcs(dt);
     this.updateJoggers(dt);
     this.updateRemotePlayers(dt);
@@ -2785,7 +2833,25 @@ export class MemoriesGameEngine {
       }
     }
 
-    if (this.state.ridingVehicleId) {
+    if (this.state.ridingFunicularId) {
+      const fun = (this.state.funiculars || []).find((f) => f.id === this.state.ridingFunicularId);
+      if (fun) {
+        const pose = computeFunicularCarPose(fun, this.state.ridingFunicularCarIndex || 0);
+        this.state.player.x = pose.x;
+        this.state.player.y = pose.y;
+        this.state.player.overworldX = pose.x;
+        this.state.player.overworldY = pose.y;
+        this.state.player.isMoving = false;
+        this.state.energy = clamp(this.state.energy + dt * 1.2, 0, 100);
+        this.computeWalkSpeedMultiplier();
+        this.updateNeighborhoodTracking();
+        const reachedTop = this.state.ridingFunicularTargetEnd === 'upper' && pose.t >= 0.995;
+        const reachedBottom = this.state.ridingFunicularTargetEnd === 'lower' && pose.t <= 0.005;
+        if (reachedTop || reachedBottom) {
+          this.disembarkFunicular();
+        }
+      }
+    } else if (this.state.ridingVehicleId) {
       const vehicle = this.getRidingVehicle();
       if (vehicle) {
         if (!vehicle.yielding && vehicle.dwellRemaining <= 0) {
@@ -2818,6 +2884,20 @@ export class MemoriesGameEngine {
 
   getNearbyInteraction() {
     const state = this.state;
+
+    if (state.ridingFunicularId) {
+      const fun = (state.funiculars || []).find((f) => f.id === state.ridingFunicularId);
+      if (!fun) return null;
+      const goingUp = state.ridingFunicularTargetEnd === 'upper';
+      const destLabel = goingUp ? fun.upperStation.name : fun.lowerStation.name;
+      return {
+        type: 'riding-funicular',
+        id: fun.id,
+        funicular: fun,
+        label: `Aboard ${fun.shortName} -> ${destLabel}`,
+        sublabel: `${goingUp ? 'Climbing steep Bairro Alto hill' : 'Descending toward Tagus River'} - Press [E] to step out at station`
+      };
+    }
 
     if (state.ridingVehicleId) {
       const vehicle = this.getRidingVehicle();
@@ -3120,6 +3200,26 @@ export class MemoriesGameEngine {
       }
     }
 
+    // Historic Lisbon Cable Funiculars (Elevador da Bica & Elevador da Gloria) lower & upper stations
+    for (const fun of state.funiculars || []) {
+      for (const [endKey, st] of [['lower', fun.lowerStation], ['upper', fun.upperStation]]) {
+        const d = Math.min(distance(px, py, st.platformX, st.platformY), distance(px, py, st.x, st.y));
+        if (d <= INTERACT_DISTANCE + 10 && d < bestDist) {
+          bestDist = d;
+          const destEnd = endKey === 'lower' ? fun.upperStation : fun.lowerStation;
+          best = {
+            type: 'funicular-station',
+            id: fun.id,
+            fromEnd: endKey,
+            funicular: fun,
+            station: st,
+            label: `Board ${fun.shortName} -> ${endKey === 'lower' ? 'Upper Bairro Alto' : 'Lower Waterfront'} (${fun.fareEur.toFixed(2)} EUR)`,
+            sublabel: `${st.name} to ${destEnd.name} (+12 Energy, tilted hillside cable car) [E]`
+          };
+        }
+      }
+    }
+
     // Interactive Tagus riverside seawall benches (sit & enjoy the Almada & Tagus view while restoring Energy)
     for (const rb of RIVERSIDE_BENCHES) {
       const d = distance(px, py, rb.x, rb.y);
@@ -3142,6 +3242,12 @@ export class MemoriesGameEngine {
     const nearby = this.getNearbyInteraction();
     if (!nearby) {
       return { ok: false, error: 'Move closer to a doorway, metro entrance, transit stop, or bench to interact.' };
+    }
+    if (nearby.type === 'riding-funicular') {
+      return this.disembarkFunicular();
+    }
+    if (nearby.type === 'funicular-station') {
+      return this.boardFunicular(nearby.id, nearby.fromEnd);
     }
     if (nearby.type === 'riding') {
       const vehicle = this.getRidingVehicle();
@@ -3217,7 +3323,7 @@ export class MemoriesGameEngine {
   }
 
   openFerryTerminal() {
-    if (this.state.ridingVehicleId) {
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId) {
       return { ok: false, error: 'Step off surface transit before entering Cais do Sodre Ferry Terminal.' };
     }
     if (this.state.mode === 'interior' || this.state.mode === 'metro') {
@@ -3557,7 +3663,7 @@ export class MemoriesGameEngine {
   }
 
   openMetroStation(stationId) {
-    if (this.state.ridingVehicleId) {
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId) {
       return { ok: false, error: 'Step off surface transit before descending into the Metro.' };
     }
     if (this.state.mode === 'interior') {
@@ -3765,7 +3871,7 @@ export class MemoriesGameEngine {
   }
 
   enterVenue(venueId) {
-    if (this.state.ridingVehicleId) {
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId) {
       return { ok: false, error: 'Step off transit before entering a shop or restaurant.' };
     }
     const venue = getVenueById(venueId);
@@ -3930,7 +4036,7 @@ export class MemoriesGameEngine {
     if (this.state.mode !== 'overworld') {
       return { ok: false, error: 'Step outside onto the street before boarding transit.' };
     }
-    if (this.state.ridingVehicleId) {
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId) {
       return { ok: false, error: 'You are already aboard public transit.' };
     }
 
@@ -4268,6 +4374,110 @@ export class MemoriesGameEngine {
     return { ok: true, seated: false, prevBench, state: this.state };
   }
 
+  updateFuniculars(dt) {
+    for (const fun of this.state.funiculars || []) {
+      if (fun.dwellRemaining > 0) {
+        fun.dwellRemaining = Math.max(0, fun.dwellRemaining - dt);
+        continue;
+      }
+      const rate = 1 / Math.max(2.5, fun.rideDurationSec || 5.5);
+      fun.progress += rate * dt * fun.dir;
+      if (fun.progress >= 1) {
+        fun.progress = 1;
+        fun.dir = -1;
+        fun.dwellRemaining = 2.4;
+      } else if (fun.progress <= 0) {
+        fun.progress = 0;
+        fun.dir = 1;
+        fun.dwellRemaining = 2.4;
+      }
+    }
+  }
+
+  boardFunicular(funicularId, fromEnd = 'lower') {
+    if (this.state.mode !== 'overworld' || this.state.ridingVehicleId || this.state.ridingFunicularId) {
+      return { ok: false, error: 'Step onto the street before boarding a Lisbon funicular.' };
+    }
+    const fun = (this.state.funiculars || []).find((f) => f.id === funicularId);
+    if (!fun) {
+      return { ok: false, error: `Unknown Lisbon funicular: ${funicularId}` };
+    }
+    if (this.state.euros < fun.fareEur) {
+      this.state.statusMessage = `Need ${fun.fareEur.toFixed(2)} EUR to ride ${fun.shortName} (you have ${this.state.euros.toFixed(2)} EUR).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    if (this.state.seatedBenchId) {
+      this.standUpFromRiversideBench({ silent: true });
+    }
+    this.state.euros = roundMoney(this.state.euros - fun.fareEur);
+    this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + fun.fareEur);
+    this.state.stats.funicularRides = (this.state.stats.funicularRides || 0) + 1;
+    this.state.energy = clamp(this.state.energy + 12, 0, 100);
+    this.advanceMinutes(fun.travelMinutes || 5);
+
+    const goingUp = fromEnd === 'lower';
+    // Car 0 climbs from progress 0 -> 1; when riding down, start Car 0 at progress 1 -> 0 so player rides Car 0 smoothly!
+    fun.progress = goingUp ? 0.01 : 0.99;
+    fun.dir = goingUp ? 1 : -1;
+    fun.dwellRemaining = 0;
+
+    this.state.ridingFunicularId = fun.id;
+    this.state.ridingFunicularCarIndex = 0;
+    this.state.ridingFunicularTargetEnd = goingUp ? 'upper' : 'lower';
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+    // Frame the iconic downhill view along Rua da Bica / Calcada da Gloria toward the Tagus River!
+    this.state.cameraYaw = Math.PI * 0.5;
+    this.state.cameraPitch = goingUp ? -0.05 : -0.09;
+
+    const pose = computeFunicularCarPose(fun, 0);
+    this.state.player.x = pose.x;
+    this.state.player.y = pose.y;
+    this.state.player.overworldX = pose.x;
+    this.state.player.overworldY = pose.y;
+    this.updateNeighborhoodTracking();
+
+    recordPhrase(this.state, fun.phrase, fun.name);
+    const destName = goingUp ? fun.upperStation.name : fun.lowerStation.name;
+    this.state.statusMessage =
+      `Boarded ${fun.name} (-${fun.fareEur.toFixed(2)} EUR, +12 Energy) - ${goingUp ? 'Climbing steeply up to' : 'Gliding down to'} ${destName}!`;
+    recordLog(this.state, 'transit', `Rode ${fun.name} ${goingUp ? 'uphill to Bairro Alto' : 'downhill toward Tagus'} (-${fun.fareEur.toFixed(2)} EUR).`);
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
+
+    return {
+      ok: true,
+      funicular: fun,
+      goingUp,
+      soundEffect: 'tram-bell',
+      state: this.state
+    };
+  }
+
+  disembarkFunicular() {
+    if (!this.state.ridingFunicularId) {
+      return { ok: false, error: 'You are not currently riding a Lisbon funicular.' };
+    }
+    const fun = (this.state.funiculars || []).find((f) => f.id === this.state.ridingFunicularId);
+    const targetEnd = this.state.ridingFunicularTargetEnd || 'upper';
+    this.state.ridingFunicularId = null;
+    this.state.ridingFunicularCarIndex = 0;
+    this.state.ridingFunicularTargetEnd = null;
+    if (fun) {
+      const dest = targetEnd === 'upper' ? fun.upperStation : fun.lowerStation;
+      this.state.player.x = dest.platformX;
+      this.state.player.y = dest.platformY;
+      this.state.player.overworldX = dest.platformX;
+      this.state.player.overworldY = dest.platformY;
+      this.state.cameraPitch = 0.02;
+      this.updateNeighborhoodTracking();
+      this.state.statusMessage = `Stepped off ${fun.shortName} at ${dest.name} (Elevation ${this.state.elevationMeters}m).`;
+    }
+    return { ok: true, funicular: fun, state: this.state };
+  }
+
   triggerMiradouroPerformance(spotId = null) {
     let targetId = spotId;
     if (!targetId) {
@@ -4441,6 +4651,9 @@ export class MemoriesGameEngine {
   }
 
   restOvernight() {
+    if (this.state.ridingFunicularId) {
+      this.disembarkFunicular();
+    }
     if (this.state.ridingVehicleId) {
       this.disembarkTransit({ immediateToNextStop: true });
     }

@@ -36,6 +36,41 @@ export const NEIGHBORHOODS = [
 
 export const WATERFRONT_Y = 1030;
 
+/**
+ * Authentic Lisbon Seven-Hills topographic elevation (world Z units; 1 unit ~ 0.65m elevation):
+ * - Tagus Waterfront Promenade (y >= 972): sea level (0)
+ * - Chiado / Baixa basin (x: 920..1620): gentle terrace rising northward (0..22)
+ * - Bairro Alto ("Upper Quarter", x <= 840): steep high hilltop plateau climbing up to ~86 units (~56m)
+ * - Alfama eastern hillside (x >= 1660): rises eastward toward Portas do Sol & Castelo ridge (~52 units)
+ */
+export function getTerrainElevation(wx, wy) {
+  if (wy >= WATERFRONT_Y - 36) return 0;
+  const clampedY = Math.max(40, Math.min(WATERFRONT_Y - 36, wy));
+  const northT = (WATERFRONT_Y - 36 - clampedY) / (WATERFRONT_Y - 36 - 80); // 0 at waterfront -> 1 at top ridge
+  const wfRamp = Math.max(0, Math.min(1, (WATERFRONT_Y - 56 - clampedY) / 145));
+  const wfSmooth = wfRamp * wfRamp * (3 - 2 * wfRamp);
+
+  // Bairro Alto steep hilltop plateau (west of Praca Luis de Camoes x < 910)
+  const baT = Math.max(0, Math.min(1, (935 - wx) / 290));
+  const baSmooth = baT * baT * (3 - 2 * baT);
+
+  // Alfama eastern hillside climbing toward Portas do Sol & Santa Luzia (x > 1620)
+  const alfT = Math.max(0, Math.min(1, (wx - 1600) / 480));
+  const alfSmooth = alfT * alfT * (3 - 2 * alfT);
+
+  const chiadoBaseRise = northT * 20;
+  const bairroAltoLift = baSmooth * wfSmooth * (24 + northT * 46);
+  const alfamaLift = alfSmooth * wfSmooth * (12 + northT * 28);
+  return chiadoBaseRise + bairroAltoLift + alfamaLift;
+}
+
+export function getTerrainSlope(wx, wy) {
+  const eps = 6;
+  const dzdx = (getTerrainElevation(wx + eps, wy) - getTerrainElevation(wx - eps, wy)) / (2 * eps);
+  const dzdy = (getTerrainElevation(wx, wy + eps) - getTerrainElevation(wx, wy - eps)) / (2 * eps);
+  return { dzdx, dzdy };
+}
+
 export const STREETS = [
   // Horizontal avenues
   { id: 'ave-north', x: 110, y: 230, w: 2180, h: 110, style: 'bus-road', name: 'Rua de Sao Pedro / Rua Garrett / Santa Luzia' },
@@ -599,7 +634,7 @@ export const VENUES = [
     doorX: 700,
     doorY: 195,
     spawnOutside: { x: 700, y: 220 },
-    wallColor: '#f1dec4',
+    wallColor: '#e8b86d',
     roofColor: '#b5543c',
     awningColor: '#7a3324',
     accentColor: '#b5543c',
@@ -664,7 +699,7 @@ export const VENUES = [
     doorX: 342,
     doorY: 525,
     spawnOutside: { x: 342, y: 546 },
-    wallColor: '#eed7c5',
+    wallColor: '#d97c54',
     roofColor: '#a63e2e',
     awningColor: '#7a251a',
     accentColor: '#a63e2e',
@@ -749,7 +784,7 @@ export const VENUES = [
     doorX: 700,
     doorY: 525,
     spawnOutside: { x: 700, y: 546 },
-    wallColor: '#ebd4da',
+    wallColor: '#e5a3b0',
     roofColor: '#a84732',
     awningColor: '#6f3224',
     accentColor: '#a84732',
@@ -834,7 +869,7 @@ export const VENUES = [
     doorX: 342,
     doorY: 695,
     spawnOutside: { x: 342, y: 676 },
-    wallColor: '#f1dec4',
+    wallColor: '#dfb463',
     roofColor: '#b95c3c',
     awningColor: '#864228',
     accentColor: '#b95c3c',
@@ -899,7 +934,7 @@ export const VENUES = [
     doorX: 695,
     doorY: 695,
     spawnOutside: { x: 695, y: 676 },
-    wallColor: '#e4d8eb',
+    wallColor: '#c9b2d6',
     roofColor: '#6d476c',
     awningColor: '#523254',
     accentColor: '#6d476c',
@@ -1031,7 +1066,7 @@ export const VENUES = [
     doorX: 1545,
     doorY: 195,
     spawnOutside: { x: 1545, y: 220 },
-    wallColor: '#f2f6fb',
+    wallColor: '#f4d57a',
     roofColor: '#9e4736',
     awningColor: '#244b7a',
     accentColor: '#1b4d89',
@@ -1170,7 +1205,7 @@ export const VENUES = [
     doorX: 1175,
     doorY: 695,
     spawnOutside: { x: 1175, y: 676 },
-    wallColor: '#f2f6fb',
+    wallColor: '#dce8df',
     roofColor: '#ad4f3a',
     awningColor: '#1b4d89',
     accentColor: '#1b4d89',
@@ -1528,7 +1563,7 @@ export const VENUES = [
     doorX: 1955,
     doorY: 695,
     spawnOutside: { x: 1955, y: 676 },
-    wallColor: '#f2f6fb',
+    wallColor: '#edc5b4',
     roofColor: '#1f7063',
     awningColor: '#15544a',
     accentColor: '#1f7063',
@@ -1723,6 +1758,90 @@ export const TRANSIT_LINES = [
       { x: 950, y: 932, stopId: 'stop-bus-camoes-sul', stopName: 'Camoes Sul (Waterfront)', platformY: 880 },
       { x: 162, y: 932 }
     ]
+  }
+];
+
+// Historic Lisbon Carris cable funiculars engineered by Raoul Mesnier du Ponsard (tilted stepped-chassis hillside cars!)
+export const FUNICULAR_LINES = [
+  {
+    id: 'funicular-bica',
+    name: 'Elevador da Bica (1892)',
+    shortName: 'Elevador da Bica',
+    badge: '[FUNICULAR]',
+    operator: 'Carris',
+    fareEur: 2.1,
+    rideDurationSec: 5.5,
+    travelMinutes: 5,
+    trackX: 512,
+    bottomY: 928,
+    topY: 222,
+    passingLoopY: 575,
+    passingHalfOffset: 14,
+    bodyColor: '#eab308',
+    upperColor: '#fffbeb',
+    accentColor: '#92400e',
+    lowerStation: {
+      id: 'bica-lower',
+      name: 'Bica Lower Station (Avenida Ribeira)',
+      x: 512,
+      y: 910,
+      platformX: 472,
+      platformY: 882
+    },
+    upperStation: {
+      id: 'bica-upper',
+      name: 'Bica Upper Station (Bairro Alto Ridge)',
+      x: 512,
+      y: 235,
+      platformX: 472,
+      platformY: 222
+    },
+    phrase: {
+      pt: 'Um bilhete para o Elevador da Bica, por favor!',
+      pronunciation: 'Oom bee-lyeh-teh pah-rah oo Eh-leh-vah-dohr dah Bee-kah, poor fah-vohr!',
+      en: 'One ticket for the Bica Funicular, please!'
+    },
+    description: 'Iconic 1892 yellow stepped-chassis funicular climbing steep Rua da Bica from the Tagus waterfront up to high Bairro Alto.'
+  },
+  {
+    id: 'funicular-gloria',
+    name: 'Elevador da Gloria (1885)',
+    shortName: 'Elevador da Gloria',
+    badge: '[FUNICULAR]',
+    operator: 'Carris',
+    fareEur: 2.1,
+    rideDurationSec: 5.5,
+    travelMinutes: 5,
+    trackX: 162,
+    bottomY: 890,
+    topY: 256,
+    passingLoopY: 573,
+    passingHalfOffset: 14,
+    bodyColor: '#eab308',
+    upperColor: '#fef9c3',
+    accentColor: '#b91c1c',
+    lowerStation: {
+      id: 'gloria-lower',
+      name: 'Gloria Lower Station (Calcada da Gloria)',
+      x: 162,
+      y: 878,
+      platformX: 214,
+      platformY: 882
+    },
+    upperStation: {
+      id: 'gloria-upper',
+      name: 'Gloria Upper Station (Sao Pedro de Alcantara)',
+      x: 162,
+      y: 266,
+      platformX: 214,
+      platformY: 228
+    },
+    phrase: {
+      pt: 'Vamos subir no Elevador da Gloria ate ao Bairro Alto!',
+      pronunciation: 'Vah-moosh soo-beer noo Eh-leh-vah-dohr dah Gloh-ree-ah ah-teh ow Bye-roo Ahl-too!',
+      en: 'Let us ride the Gloria Funicular up to Bairro Alto!'
+    },
+    description: 'Historic 1885 Carris cable funicular scaling steep Calcada da Gloria up to the Sao Pedro de Alcantara ridge in Bairro Alto.'
   }
 ];
 

@@ -21,6 +21,9 @@ import {
   RIVERSIDE_BENCHES,
   CASTANHA_VENDORS,
   CASTANHA_CONE_ITEM,
+  FUNICULAR_LINES,
+  getTerrainElevation,
+  getTerrainSlope,
   LISBOA_MONTHS,
   DEFAULT_MONTH,
   getMonthInfo,
@@ -1217,6 +1220,59 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
   engine.setViewMode('street3d');
   engine.setMonth(DEFAULT_MONTH);
+
+  // Verify Bairro Alto & Alfama terrain elevation, architectural diversity across all 15 buildings, and historic Lisbon Cable Funiculars (Bica & Gloria)
+  const elevWaterfront = getTerrainElevation(512, 996);
+  const elevChiado = getTerrainElevation(950, 550);
+  const elevBairroRidge = getTerrainElevation(512, 220);
+  const elevAlfamaRidge = getTerrainElevation(1950, 220);
+  assert.equal(elevWaterfront, 0, 'Tagus waterfront promenade must sit flat at sea level (z=0)');
+  assert.ok(elevBairroRidge > 65, `Bairro Alto ridge should sit dramatically elevated above street level (got ${elevBairroRidge.toFixed(1)})`);
+  assert.ok(elevBairroRidge > elevChiado + 40, 'Bairro Alto ridge must sit substantially higher than Chiado');
+  assert.ok(elevAlfamaRidge > 35, `Alfama ridge should sit noticeably elevated above the waterfront (got ${elevAlfamaRidge.toFixed(1)})`);
+  const slopeBica = getTerrainSlope(512, 560);
+  assert.ok(slopeBica.dzdy < -0.05, `Rua da Bica should slope steeply uphill northward (dzdy=${slopeBica.dzdy.toFixed(3)})`);
+
+  // Distinct Lisbon building architecture diversity across all 15 venues
+  const distinctArchStyles = new Set(VENUES.map((v) => v.archStyle));
+  assert.ok(distinctArchStyles.size >= 14, `Expected distinct Lisbon architectural archetypes across venues, got ${distinctArchStyles.size}`);
+
+  // Verify Elevador da Bica (1892) & Elevador da Gloria (1885) stations and end-to-end hillside funicular ride
+  assert.equal(FUNICULAR_LINES.length, 2);
+  for (const fun of FUNICULAR_LINES) {
+    assert.equal(isOverworldPositionValid(fun.lowerStation.platformX, fun.lowerStation.platformY), true);
+    assert.equal(isOverworldPositionValid(fun.upperStation.platformX, fun.upperStation.platformY), true);
+  }
+  const bica = FUNICULAR_LINES.find((f) => f.id === 'funicular-bica');
+  engine.setPlayerPosition(bica.lowerStation.platformX, bica.lowerStation.platformY);
+  const nearBica = engine.getNearbyInteraction();
+  assert.equal(nearBica?.type, 'funicular-station');
+  assert.equal(nearBica?.id, 'funicular-bica');
+  assert.equal(nearBica?.fromEnd, 'lower');
+
+  const eurosBeforeFun = engine.getState().euros;
+  engine.getState().energy = 60;
+  const boardFunRes = engine.triggerNearbyInteraction();
+  assert.equal(boardFunRes.ok, true);
+  assert.equal(engine.getState().ridingFunicularId, 'funicular-bica');
+  assert.equal(engine.getState().euros, Number((eurosBeforeFun - bica.fareEur).toFixed(2)));
+  assert.equal(engine.getState().stats.funicularRides, 1);
+  assert.ok(engine.getState().energy >= 72);
+  const startElevM = engine.getState().elevationMeters;
+  // Render both Street View 3D and Overhead 2.5D mid-climb along Rua da Bica
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.ok(engine.getState().elevationMeters > startElevM + 8, 'Elevation should climb steadily while riding Elevador da Bica uphill');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('overhead');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('street3d');
+  // Complete the ride and verify clean arrival on Bairro Alto ridge
+  for (let i = 0; i < 60; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(engine.getState().ridingFunicularId, null, 'Funicular should arrive and disembark smoothly at upper Bairro Alto ridge');
+  assert.ok(engine.getState().elevationMeters >= 40, `Player should finish on high Bairro Alto ridge (got ${engine.getState().elevationMeters}m)`);
+  // Render high Bairro Alto downhill vista in Street View 3D
+  engine.setCameraAngles(Math.PI * 0.5, -0.09);
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
 
   assert.ok(drawCalls > 600, `Expected substantial canvas draw calls, got ${drawCalls}`);
 });

@@ -17,11 +17,13 @@ import {
   RIVERSIDE_BENCHES,
   CASTANHA_VENDORS,
   TRANSIT_LINES,
+  FUNICULAR_LINES,
+  getTerrainElevation,
   getAllTransitStops,
   getOutfitById,
   getMonthInfo
 } from './data.js';
-import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES, FERRY_PIER_ZONES } from './engine.js';
+import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES, FERRY_PIER_ZONES, computeFunicularCarPose } from './engine.js';
 import { LisboaStreetView3DRenderer, buildCalcadaTextureData } from './streetview3d.js';
 import { LisboaScenes3DRenderer } from './scenes3d.js';
 
@@ -375,11 +377,28 @@ export class LisboaCanvasRenderer {
     ctx.save();
     ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
 
-    // 1. Limestone neighborhood base ground + sidewalk calcada cobblestones
+    // 1. Limestone neighborhood base ground + hillside topographic elevation shading + sidewalk calcada cobblestones
     for (const hood of NEIGHBORHOODS) {
       ctx.fillStyle = hood.groundTint;
       ctx.fillRect(hood.minX, 0, hood.maxX - hood.minX, WATERFRONT_Y);
     }
+    // Subtle topographic hillside contour bands highlighting Bairro Alto high plateau & Alfama eastern ridge
+    ctx.save();
+    const baGrad = ctx.createLinearGradient(0, 960, 0, 80);
+    baGrad.addColorStop(0, 'rgba(180, 125, 62, 0)');
+    baGrad.addColorStop(0.55, 'rgba(180, 125, 62, 0.08)');
+    baGrad.addColorStop(1, 'rgba(180, 125, 62, 0.16)');
+    ctx.fillStyle = baGrad;
+    ctx.fillRect(0, 0, 860, WATERFRONT_Y);
+    ctx.strokeStyle = 'rgba(120, 96, 70, 0.16)';
+    ctx.lineWidth = 1.2;
+    for (const cy of [260, 440, 640, 820]) {
+      ctx.beginPath();
+      ctx.moveTo(20, cy);
+      ctx.lineTo(845, cy);
+      ctx.stroke();
+    }
+    ctx.restore();
     this.drawCalcadaGroundTexture(ctx);
 
     // 2. Streets, plazas, Alfama escadinhas, crosswalks, and calcada Mar Largo waves
@@ -390,8 +409,9 @@ export class LisboaCanvasRenderer {
     this.drawTagusWaterfront(ctx, state, nearbyInteraction);
     this.drawFerryTerminal(ctx, nearbyInteraction?.type === 'ferry', isEvening);
 
-    // 4. Transit corridors (Bus road markings + Steel Tram 28E Rails)
+    // 4. Transit corridors (Bus road markings + Steel Tram 28E Rails + Hillside Funicular Tracks)
     this.drawTransitInfrastructure(ctx);
+    this.drawFunicularInfrastructure(ctx, nearbyInteraction);
 
     // 5. Enamel Lisbon street plaques
     this.drawLisbonStreetPlaques(ctx);
@@ -467,17 +487,18 @@ export class LisboaCanvasRenderer {
       });
     }
 
-    // 14. Live Transit Vehicles (Remodelado Tram 28E & Carris Bus)
+    // 14. Live Transit Vehicles (Remodelado Tram 28E, Carris Bus & Historic Bica/Gloria Funiculars)
     const remoteList = Array.isArray(state.remotePlayers) ? state.remotePlayers : [];
     for (const vehicle of state.vehicles) {
       const playerAboard = state.ridingVehicleId === vehicle.id;
       const remoteAboard = remoteList.filter((rp) => rp.ridingVehicleId === vehicle.id);
       this.drawTransitVehicle(ctx, vehicle, playerAboard, isEvening, remoteAboard);
     }
+    this.drawFunicularCars(ctx, state, isEvening);
 
     // 15. Local & Connected Multiplayer Travelers on foot (Y-sorted for clean depth layering)
     const overworldTravelers = [];
-    if (!state.ridingVehicleId) {
+    if (!state.ridingVehicleId && !state.ridingFunicularId) {
       overworldTravelers.push({
         x: state.player.x,
         y: state.player.y,
@@ -841,6 +862,111 @@ export class LisboaCanvasRenderer {
     ctx.moveTo(195, tramY - 8);
     ctx.lineTo(2205, tramY - 8);
     ctx.stroke();
+  }
+
+  drawFunicularInfrastructure(ctx, nearbyInteraction) {
+    for (const fun of FUNICULAR_LINES) {
+      const tx = fun.trackX;
+      // Twin steel funicular rails with mid-hill passing loop & central underground traction cable slot
+      const steps = 28;
+      ctx.save();
+      // Central dark traction cable groove slot
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(tx, fun.bottomY);
+      ctx.lineTo(tx, fun.topY);
+      ctx.stroke();
+
+      // East & West counterbalancing passing-loop rails
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.8;
+      for (const side of [-1, 1]) {
+        for (const railOff of [-4.5, 4.5]) {
+          ctx.beginPath();
+          for (let i = 0; i <= steps; i += 1) {
+            const t = i / steps;
+            const y = fun.bottomY + (fun.topY - fun.bottomY) * t;
+            const loopFactor = Math.exp(-Math.pow((t - 0.5) / 0.16, 2));
+            const x = tx + side * fun.passingHalfOffset * loopFactor + railOff;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Lower & Upper Funicular Station Boarding Platforms (emerald & gold totems)
+      for (const [endKey, st] of [['lower', fun.lowerStation], ['upper', fun.upperStation]]) {
+        const isHi =
+          nearbyInteraction?.type === 'funicular-station' &&
+          nearbyInteraction.id === fun.id &&
+          nearbyInteraction.fromEnd === endKey;
+        const px = st.platformX;
+        const py = st.platformY;
+        drawRoundedRect(ctx, px - 18, py - 11, 36, 22, 4);
+        ctx.fillStyle = isHi ? '#b45309' : '#14532d';
+        ctx.fill();
+        ctx.strokeStyle = isHi ? '#fde047' : '#eab308';
+        ctx.lineWidth = isHi ? 2.4 : 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#fef08a';
+        ctx.font = '700 8px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(fun.id === 'funicular-bica' ? 'BICA' : 'GLORIA', px, py - 1);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '700 6.5px "Segoe UI", sans-serif';
+        ctx.fillText(endKey === 'lower' ? 'UP' : 'DOWN', px, py + 7.5);
+        ctx.textAlign = 'left';
+      }
+      ctx.restore();
+    }
+  }
+
+  drawFunicularCars(ctx, state, isEvening) {
+    for (const fun of state.funiculars || []) {
+      for (let ci = 0; ci < 2; ci += 1) {
+        const pose = computeFunicularCarPose(fun, ci);
+        const playerAboard =
+          state.ridingFunicularId === fun.id && (state.ridingFunicularCarIndex || 0) === ci;
+        ctx.save();
+        ctx.translate(pose.x, pose.y);
+        // Hillside drop shadow
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.34)';
+        drawRoundedRect(ctx, -11, -20, 24, 42, 5);
+        ctx.fill();
+        // Dark stepped iron undercarriage base
+        ctx.fillStyle = '#1e293b';
+        drawRoundedRect(ctx, -10, -19, 20, 38, 4);
+        ctx.fill();
+        // Bright yellow Carris wooden funicular cabin
+        ctx.fillStyle = isEvening ? '#ca8a04' : (fun.bodyColor || '#eab308');
+        drawRoundedRect(ctx, -9, -17, 18, 34, 4);
+        ctx.fill();
+        ctx.strokeStyle = playerAboard ? '#38bdf8' : '#78350f';
+        ctx.lineWidth = playerAboard ? 2.4 : 1.3;
+        ctx.stroke();
+        // Cream clerestory roof
+        ctx.fillStyle = fun.upperColor || '#fffbeb';
+        drawRoundedRect(ctx, -6.5, -13, 13, 26, 3);
+        ctx.fill();
+        // Label & rider dot
+        ctx.fillStyle = '#14532d';
+        ctx.font = '800 6.5px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(fun.id === 'funicular-bica' ? 'BICA' : 'GLOR', 0, 2.5);
+        if (playerAboard) {
+          ctx.fillStyle = '#0284c7';
+          ctx.beginPath();
+          ctx.arc(0, -7, 3.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
   }
 
   drawLisbonStreetPlaques(ctx) {

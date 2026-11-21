@@ -9,6 +9,7 @@ import {
   RIVERSIDE_BENCHES,
   CASTANHA_VENDORS,
   CASTANHA_CONE_ITEM,
+  FUNICULAR_LINES,
   PLAYER_OUTFITS,
   LISBOA_MONTHS,
   getMonthInfo,
@@ -395,7 +396,40 @@ function handleCanvasClick(event) {
         setStatusBanner(`Walking along the Tagus promenade to sit on ${hit3d.bench.name}...`);
         return;
       }
+      if (hit3d.kind === 'funicular-station' && hit3d.funicular && hit3d.station) {
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          hit3d.station.platformX,
+          hit3d.station.platformY,
+          { type: 'boardFunicular', id: hit3d.funicular.id, fromEnd: hit3d.fromEnd || 'lower' }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking to ${hit3d.station.name} to board ${hit3d.funicular.shortName}...`);
+        return;
+      }
+      if (hit3d.kind === 'funicular' && hit3d.funicular) {
+        const f = hit3d.funicular;
+        const dLower = Math.hypot(state.player.x - f.lowerStation.platformX, state.player.y - f.lowerStation.platformY);
+        const dUpper = Math.hypot(state.player.x - f.upperStation.platformX, state.player.y - f.upperStation.platformY);
+        const fromEnd = dLower <= dUpper ? 'lower' : 'upper';
+        const st = fromEnd === 'lower' ? f.lowerStation : f.upperStation;
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          st.platformX,
+          st.platformY,
+          { type: 'boardFunicular', id: f.id, fromEnd }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking to ${st.name} to ride ${f.shortName}...`);
+        return;
+      }
     }
+  }
+
+  if (state.ridingFunicularId) {
+    return;
   }
 
   const worldPt = renderer.screenToWorld(canvasX, canvasY, state);
@@ -604,6 +638,28 @@ function handleCanvasClick(event) {
     }
   }
 
+  // Check historic Lisbon Cable Funicular stations (Elevador da Bica & Elevador da Gloria)
+  for (const fun of FUNICULAR_LINES) {
+    for (const [endKey, st] of [['lower', fun.lowerStation], ['upper', fun.upperStation]]) {
+      const d = Math.min(
+        Math.hypot(worldPt.x - st.platformX, worldPt.y - st.platformY),
+        Math.hypot(worldPt.x - st.x, worldPt.y - st.y)
+      );
+      if (d <= 40) {
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          st.platformX,
+          st.platformY,
+          { type: 'boardFunicular', id: fun.id, fromEnd: endKey }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking to ${st.name} to ride ${fun.shortName}...`);
+        return;
+      }
+    }
+  }
+
   // Snap clicks inside vehicle lanes gently onto the nearest sidewalk edge
   let targetY = worldPt.y;
   if (isPointInVehicleLane(worldPt.x, targetY)) {
@@ -631,16 +687,52 @@ function renderActiveContextPanel(state) {
     activeSouthBankSpotId: state.activeSouthBankSpotId || null,
     fadoTrackId: soundEngine.getCurrentFadoTrack()?.id || null,
     ridingId: riding?.id || null,
+    ridingFunicularId: state.ridingFunicularId || null,
+    ridingFunicularEnd: state.ridingFunicularTargetEnd || null,
+    elevM: state.ridingFunicularId ? state.elevationMeters : null,
     stopId: riding?.currentStopId || null,
     nextStop: riding?.nextStopName || null,
     alight: state.alightAtNextStop,
     seatedBenchId: state.seatedBenchId || null,
     nearbyCastanhaId: nearby?.type === 'castanha-cart' ? nearby.id : null,
+    nearbyFunicularKey: nearby?.type === 'funicular-station' ? `${nearby.id}:${nearby.fromEnd}` : null,
     euros: state.euros
   });
 
   if (sig === lastContextSignature) return;
   lastContextSignature = sig;
+
+  if (state.ridingFunicularId) {
+    const fun = (state.funiculars || []).find((f) => f.id === state.ridingFunicularId);
+    if (fun) {
+      const goingUp = state.ridingFunicularTargetEnd === 'upper';
+      const destSt = goingUp ? fun.upperStation : fun.lowerStation;
+      dom.activeContextPanel.classList.remove('hidden');
+      dom.activeContextPanel.innerHTML = `
+        <div class="context-header">
+          <div>
+            <h3>Aboard ${escapeHtml(fun.name)}</h3>
+            <div class="item-meta">${goingUp ? 'Climbing steeply to' : 'Descending toward'} <strong>${escapeHtml(destSt.name)}</strong> | Elev ${state.elevationMeters}m</div>
+          </div>
+          <span class="badge badge-tram">FUNICULAR</span>
+        </div>
+        <p class="helper-text">
+          ${escapeHtml(fun.description)} Drag the 3D Street View to look downhill toward the Tagus River as the counterbalancing cable car glides past the mid-hill loop!
+        </p>
+        <div class="phrase-callout">
+          <span class="pt">${escapeHtml(fun.phrase.pt)}</span>
+          <span class="pron">${escapeHtml(fun.phrase.pronunciation)}</span>
+          <span>${escapeHtml(fun.phrase.en)}</span>
+        </div>
+        <div class="action-strip">
+          <button type="button" class="btn btn-primary btn-sm" data-disembark-funicular="true">
+            Step Out at ${escapeHtml(destSt.name)} [E]
+          </button>
+        </div>
+      `;
+      return;
+    }
+  }
 
   if (riding) {
     dom.activeContextPanel.classList.remove('hidden');
@@ -974,6 +1066,39 @@ function renderActiveContextPanel(state) {
         </div>
         <button type="button" class="btn btn-primary btn-sm" data-buy-castanha="${escapeHtml(cv.id)}" ${affordable ? '' : 'disabled'}>
           Buy Cone [E]
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  if (nearby?.type === 'funicular-station' && nearby.funicular && nearby.station) {
+    const fun = nearby.funicular;
+    const goingUp = nearby.fromEnd === 'lower';
+    const destSt = goingUp ? fun.upperStation : fun.lowerStation;
+    const affordable = state.euros >= fun.fareEur;
+    dom.activeContextPanel.classList.remove('hidden');
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>${escapeHtml(fun.name)}</h3>
+          <div class="item-meta">${escapeHtml(nearby.station.name)} -> ${escapeHtml(destSt.name)}</div>
+        </div>
+        <span class="badge badge-tram">FUNICULAR</span>
+      </div>
+      <p class="helper-text">${escapeHtml(fun.description)}</p>
+      <div class="phrase-callout">
+        <span class="pt">${escapeHtml(fun.phrase.pt)}</span>
+        <span class="pron">${escapeHtml(fun.phrase.pronunciation)}</span>
+        <span>${escapeHtml(fun.phrase.en)}</span>
+      </div>
+      <div class="item-card">
+        <div>
+          <h4>${goingUp ? 'Climb Up to Bairro Alto Ridge' : 'Glide Down to Waterfront'}</h4>
+          <div class="item-meta"><strong>${fun.fareEur.toFixed(2)} EUR</strong> | Historic tilted-chassis cable ride (+12 Energy)</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" data-board-funicular="${escapeHtml(fun.id)}|${escapeHtml(nearby.fromEnd)}" ${affordable ? '' : 'disabled'}>
+          Board [E]
         </button>
       </div>
     `;
@@ -1790,7 +1915,10 @@ window.addEventListener('keydown', (event) => {
     }
   }
   if (event.code === 'Escape') {
-    if (engine.getState().seatedBenchId) {
+    if (engine.getState().ridingFunicularId) {
+      engine.disembarkFunicular();
+      refreshUi(true);
+    } else if (engine.getState().seatedBenchId) {
       engine.standUpFromRiversideBench();
       refreshUi(true);
     } else if (engine.getState().mode === 'interior') {
@@ -1998,6 +2126,20 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 });
 
 dom.activeContextPanel.addEventListener('click', (event) => {
+  if (event.target.closest('[data-disembark-funicular]')) {
+    engine.disembarkFunicular();
+    refreshUi(true);
+    return;
+  }
+  const boardFunBtn = event.target.closest('[data-board-funicular]');
+  if (boardFunBtn) {
+    const [funId, fromEnd] = boardFunBtn.dataset.boardFunicular.split('|');
+    const res = engine.boardFunicular(funId, fromEnd || 'lower');
+    if (res.ok) soundEngine.playEffect('tram-bell');
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
   if (event.target.closest('[data-stand-up-bench]')) {
     engine.standUpFromRiversideBench();
     refreshUi(true);

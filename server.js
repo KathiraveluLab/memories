@@ -8,6 +8,7 @@ import {
   PLAYER_OUTFITS,
   MULTIPLAYER_SPAWN_POINTS,
   TRANSIT_LINES,
+  FUNICULAR_LINES,
   METRO_STATIONS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
@@ -315,6 +316,12 @@ export function createMultiplayerServer({
     0,
     Math.max(0, getMonthInfo(worldClock.month).warmJoggersCount || 0)
   ).map((j, idx) => ({ ...createServerNpc(j), dir: idx % 2 === 0 ? 1 : -1 }));
+  const sharedFuniculars = FUNICULAR_LINES.map((f, idx) => ({
+    ...f,
+    progress: idx === 0 ? 0.22 : 0.72,
+    dir: idx === 0 ? 1 : -1,
+    dwellRemaining: 0
+  }));
 
   function syncServerCrowdForMonth(monthNum) {
     const info = getMonthInfo(monthNum);
@@ -592,8 +599,25 @@ export function createMultiplayerServer({
       sharedPostcardSnapshot = null;
     }
 
-    // 5. Shared Ambient Lisboa Sidewalk Villagers & Warm-Month Riverside Joggers
+    // 5. Shared Ambient Lisboa Sidewalk Villagers, Warm-Month Riverside Joggers & Historic Cable Funiculars
     stepServerNpcs(dt);
+    for (const fun of sharedFuniculars) {
+      if (fun.dwellRemaining > 0) {
+        fun.dwellRemaining = Math.max(0, fun.dwellRemaining - dt);
+        continue;
+      }
+      const rate = 1 / Math.max(2.5, fun.rideDurationSec || 5.5);
+      fun.progress += rate * dt * fun.dir;
+      if (fun.progress >= 1) {
+        fun.progress = 1;
+        fun.dir = -1;
+        fun.dwellRemaining = 2.4;
+      } else if (fun.progress <= 0) {
+        fun.progress = 0;
+        fun.dir = 1;
+        fun.dwellRemaining = 2.4;
+      }
+    }
     for (const jog of sharedJoggers) {
       const step = jog.speed * dt;
       if (jog.x >= jog.max && jog.dir > 0) jog.dir = -1;
@@ -688,6 +712,12 @@ export function createMultiplayerServer({
         dir: j.dir,
         walkPhase: Math.round(j.walkPhase * 100) / 100,
         isMoving: j.isMoving
+      })),
+      funiculars: sharedFuniculars.map((f) => ({
+        id: f.id,
+        progress: Math.round(f.progress * 1000) / 1000,
+        dir: f.dir,
+        dwellRemaining: Math.round(f.dwellRemaining * 100) / 100
       })),
       miradouros: sharedMiradouros.map((m) => ({
         spotId: m.spotId,
