@@ -17,6 +17,9 @@ import {
   TRANSIT_LINES,
   AMBIENT_NPCS,
   SEASONAL_CROWD_NPCS,
+  RIVERSIDE_JOGGERS,
+  RIVERSIDE_BENCHES,
+  CASTANHA_VENDORS,
   LISBOA_MONTHS,
   DEFAULT_MONTH,
   getMonthInfo,
@@ -186,6 +189,16 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
       isOverworldPositionValid(spot.x, spot.y + 22),
       `Rest bench approach collides with obstacle for ${spot.id}`
     );
+  }
+
+  assert.ok(RIVERSIDE_BENCHES.length >= 6, 'Expected Tagus riverside benches along the seawall');
+  assert.ok(CASTANHA_VENDORS.length >= 4, 'Expected seasonal Castanha nut vendor locations');
+  assert.equal(RIVERSIDE_JOGGERS.length, 3, 'Expected 3 warm-month Tagus riverside joggers');
+  for (const jogger of RIVERSIDE_JOGGERS) {
+    assert.equal(isPointOnSidewalk(jogger.x, jogger.y), true, `Jogger ${jogger.id} start must sit on promenade sidewalk`);
+    assert.equal(isPointOnSidewalk(jogger.minX, jogger.y), true, `Jogger ${jogger.id} minX must sit on promenade sidewalk`);
+    assert.equal(isPointOnSidewalk(jogger.maxX, jogger.y), true, `Jogger ${jogger.id} maxX must sit on promenade sidewalk`);
+    assert.equal(isPointInVehicleLane(jogger.x, jogger.y), false, `Jogger ${jogger.id} must stay clear of vehicle lanes`);
   }
 
   // All multiplayer spawn points sit safely on the sidewalk off vehicle lanes and do not overlap
@@ -1107,12 +1120,36 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   }
   engine.setViewMode('street3d');
 
-  // Verify July summer crowds expand safely beyond winter/November quiet streets
+  // Verify July summer crowds expand safely beyond winter/November quiet streets,
+  // warm-month joggers appear only May-Oct, and Castanha vendors appear only Oct-Feb
   engine.setMonth(11);
   const novCount = engine.getState().npcs.length;
+  assert.equal(engine.getState().joggers.length, 0, 'No joggers should run along the riverside in rainy November');
+  assert.equal(getMonthInfo(11).hasCastanhaVendors, true, 'Castanha nut vendors should appear in November');
+  engine.setPlayerPosition(840, 992);
+  engine.setCameraAngles(0.14, 0.02);
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+
+  engine.setMonth(1);
+  assert.equal(engine.getState().joggers.length, 0, 'No joggers should run in winter January');
+  assert.equal(getMonthInfo(1).hasCastanhaVendors, true, 'Castanha nut vendors should appear in January');
+
+  engine.setMonth(5);
+  assert.equal(engine.getState().joggers.length, 2, 'Two joggers should appear in warm May');
+  assert.equal(getMonthInfo(5).hasCastanhaVendors, false, 'Castanha nut vendors should not appear in warm May');
+
   engine.setMonth(7);
   const julCount = engine.getState().npcs.length;
   assert.ok(julCount > novCount, `Expected more summer crowds in July (${julCount}) than rainy November (${novCount})`);
+  assert.equal(engine.getState().joggers.length, 3, 'Three joggers should run along the Tagus riverside in warm July');
+  assert.equal(getMonthInfo(7).hasCastanhaVendors, false, 'Castanha nut vendors should not appear in hot July');
+  const jog0Before = engine.getState().joggers[0].x;
+  for (let i = 0; i < 10; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.notEqual(engine.getState().joggers[0].x, jog0Before, 'Warm-month joggers should move along the promenade');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('overhead');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('street3d');
   engine.setMonth(DEFAULT_MONTH);
 
   assert.ok(drawCalls > 600, `Expected substantial canvas draw calls, got ${drawCalls}`);

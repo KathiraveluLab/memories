@@ -14,6 +14,7 @@ import {
   REST_SPOTS,
   AMBIENT_NPCS,
   SEASONAL_CROWD_NPCS,
+  RIVERSIDE_JOGGERS,
   DEFAULT_MONTH,
   getMonthInfo
 } from './src/data.js';
@@ -310,12 +311,21 @@ export function createMultiplayerServer({
     ...AMBIENT_NPCS,
     ...SEASONAL_CROWD_NPCS.slice(0, Math.max(0, getMonthInfo(worldClock.month).crowdExtra || 0))
   ].map(createServerNpc);
+  let sharedJoggers = RIVERSIDE_JOGGERS.slice(
+    0,
+    Math.max(0, getMonthInfo(worldClock.month).warmJoggersCount || 0)
+  ).map((j, idx) => ({ ...createServerNpc(j), dir: idx % 2 === 0 ? 1 : -1 }));
 
   function syncServerCrowdForMonth(monthNum) {
     const info = getMonthInfo(monthNum);
     const extras = SEASONAL_CROWD_NPCS.slice(0, Math.max(0, info.crowdExtra || 0));
     const existingById = new Map(sharedNpcs.map((n) => [n.id, n]));
     sharedNpcs = [...AMBIENT_NPCS, ...extras].map((def) => existingById.get(def.id) || createServerNpc(def));
+
+    const existingJoggers = new Map(sharedJoggers.map((j) => [j.id, j]));
+    sharedJoggers = RIVERSIDE_JOGGERS.slice(0, Math.max(0, info.warmJoggersCount || 0)).map(
+      (def, idx) => existingJoggers.get(def.id) || { ...createServerNpc(def), dir: idx % 2 === 0 ? 1 : -1 }
+    );
   }
 
   function getServerSidewalkSpanY(x, refY) {
@@ -582,8 +592,16 @@ export function createMultiplayerServer({
       sharedPostcardSnapshot = null;
     }
 
-    // 5. Shared Ambient Lisboa Sidewalk Villagers
+    // 5. Shared Ambient Lisboa Sidewalk Villagers & Warm-Month Riverside Joggers
     stepServerNpcs(dt);
+    for (const jog of sharedJoggers) {
+      const step = jog.speed * dt;
+      if (jog.x >= jog.max && jog.dir > 0) jog.dir = -1;
+      else if (jog.x <= jog.min && jog.dir < 0) jog.dir = 1;
+      jog.x = Math.max(jog.min, Math.min(jog.max, jog.x + step * jog.dir));
+      jog.walkPhase = (jog.walkPhase + dt * 11.5) % (Math.PI * 2);
+      jog.isMoving = true;
+    }
   }
 
   function getTransitSnapshot() {
@@ -662,6 +680,14 @@ export function createMultiplayerServer({
         dir: n.dir,
         walkPhase: Math.round(n.walkPhase * 100) / 100,
         isMoving: n.isMoving
+      })),
+      joggers: sharedJoggers.map((j) => ({
+        id: j.id,
+        x: Math.round(j.x * 10) / 10,
+        y: Math.round(j.y * 10) / 10,
+        dir: j.dir,
+        walkPhase: Math.round(j.walkPhase * 100) / 100,
+        isMoving: j.isMoving
       })),
       miradouros: sharedMiradouros.map((m) => ({
         spotId: m.spotId,

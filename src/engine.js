@@ -16,6 +16,7 @@ import {
   MILESTONE_MEMORIES,
   AMBIENT_NPCS,
   SEASONAL_CROWD_NPCS,
+  RIVERSIDE_JOGGERS,
   DEFAULT_MONTH,
   LISBOA_MONTHS,
   getMonthInfo,
@@ -318,6 +319,15 @@ function createInitialNpcs(month = DEFAULT_MONTH) {
   return [...AMBIENT_NPCS, ...extras].map(createNpcRecord);
 }
 
+function createInitialJoggers(month = DEFAULT_MONTH) {
+  const info = getMonthInfo(month);
+  const count = Math.max(0, info.warmJoggersCount || 0);
+  return RIVERSIDE_JOGGERS.slice(0, count).map((j, idx) => ({
+    ...createNpcRecord(j),
+    dir: idx % 2 === 0 ? 1 : -1
+  }));
+}
+
 function recordLog(state, type, summary) {
   state.journal.unshift({
     id: state.journal.length + 1,
@@ -456,6 +466,7 @@ export function createInitialState() {
     alightAtNextStop: false,
     vehicles: createInitialVehicles(),
     npcs: createInitialNpcs(),
+    joggers: createInitialJoggers(),
     memories: [],
     totalMemoriesPossible: ALL_MEMORIES.length,
     albumCompleted: false,
@@ -1160,6 +1171,31 @@ export class MemoriesGameEngine {
       }
     }
 
+    // 4b. Authoritative Warm-Month Tagus Riverside Joggers
+    if (Array.isArray(transit.joggers)) {
+      const joggerDefs = new Map(RIVERSIDE_JOGGERS.map((j) => [j.id, j]));
+      const serverJoggerIds = new Set(transit.joggers.map((j) => j.id));
+      this.state.joggers = (this.state.joggers || []).filter((j) => serverJoggerIds.has(j.id));
+      for (const sj of transit.joggers) {
+        let localJog = this.state.joggers.find((j) => j.id === sj.id);
+        if (!localJog) {
+          const def = joggerDefs.get(sj.id);
+          if (!def) continue;
+          localJog = createNpcRecord(def);
+          this.state.joggers.push(localJog);
+        }
+        localJog.targetX = sj.x;
+        localJog.targetY = sj.y;
+        const jumpDist = Math.hypot((sj.x ?? localJog.x) - localJog.x, (sj.y ?? localJog.y) - localJog.y);
+        if (!wasSynced || jumpDist > 120) {
+          localJog.x = sj.x;
+          localJog.y = sj.y;
+        }
+        localJog.dir = sj.dir === -1 ? -1 : 1;
+        localJog.isMoving = Boolean(sj.isMoving);
+      }
+    }
+
     // 5. Authoritative Miradouro Street-Musician Performances (synchronized across all players at the viewpoint!)
     if (Array.isArray(transit.miradouros)) {
       for (const sm of transit.miradouros) {
@@ -1348,6 +1384,15 @@ export class MemoriesGameEngine {
       }
     }
     this.state.npcs = nextNpcs;
+
+    // Warm-month riverside joggers appear ONLY in warmer Lisboa months (May - Oct)
+    const targetJoggerCount = Math.max(0, info.warmJoggersCount || 0);
+    const existingJoggers = new Map((this.state.joggers || []).map((j) => [j.id, j]));
+    this.state.joggers = RIVERSIDE_JOGGERS.slice(0, targetJoggerCount).map((def, idx) => {
+      const prev = existingJoggers.get(def.id);
+      if (prev) return prev;
+      return { ...createNpcRecord(def), dir: idx % 2 === 0 ? 1 : -1 };
+    });
 
     if (!silent) {
       this.state.statusMessage =
@@ -2130,6 +2175,55 @@ export class MemoriesGameEngine {
     }
   }
 
+  updateJoggers(dt) {
+    const joggers = this.state.joggers || [];
+    if (joggers.length === 0) return;
+
+    if (this.globalTransitSynced) {
+      const alpha = Math.min(1, dt * 12);
+      for (const jog of joggers) {
+        if (Number.isFinite(jog.targetX) && Number.isFinite(jog.targetY)) {
+          const dx = jog.targetX - jog.x;
+          const dy = jog.targetY - jog.y;
+          const d = Math.hypot(dx, dy);
+          if (d > 120) {
+            jog.x = jog.targetX;
+            jog.y = jog.targetY;
+          } else if (d > 0.2) {
+            jog.x += dx * alpha;
+            jog.y += dy * alpha;
+          } else {
+            jog.x = jog.targetX;
+            jog.y = jog.targetY;
+          }
+          jog.walkPhase = (jog.walkPhase + dt * 11.5) % (Math.PI * 2);
+        }
+      }
+      return;
+    }
+
+    for (const jog of joggers) {
+      const step = jog.speed * dt;
+      if (jog.x >= jog.max && jog.dir > 0) jog.dir = -1;
+      else if (jog.x <= jog.min && jog.dir < 0) jog.dir = 1;
+      const nextX = clamp(jog.x + step * jog.dir, jog.min, jog.max);
+      // Politely curve slightly around player if directly ahead on promenade
+      const dPlayer =
+        this.state.mode === 'overworld' && !this.state.ridingVehicleId
+          ? Math.hypot(nextX - this.state.player.x, jog.y - this.state.player.y)
+          : 999;
+      if (dPlayer < 24) {
+        const dodgeY = this.state.player.y > 992 ? 980 : 1002;
+        jog.y += clamp(dodgeY - jog.y, -step * 0.9, step * 0.9);
+      } else {
+        jog.y += clamp(jog.homeY - jog.y, -step * 0.6, step * 0.6);
+      }
+      jog.x = nextX;
+      jog.isMoving = true;
+      jog.walkPhase = (jog.walkPhase + dt * 11.5) % (Math.PI * 2);
+    }
+  }
+
   updateNeighborhoodTracking() {
     if (this.state.mode !== 'overworld') return;
     const hood = getNeighborhoodForX(this.state.player.x);
@@ -2582,6 +2676,7 @@ export class MemoriesGameEngine {
 
     this.updateVehicles(dt);
     this.updateNpcs(dt);
+    this.updateJoggers(dt);
     this.updateRemotePlayers(dt);
 
     // Gentle real-time Lisbon clock progression (1 game minute per ~2.4s)

@@ -578,7 +578,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       });
       assert.equal(aliceAtCacilhasOnB.players.find((p) => p.id === joinA.player.id).ferryPortId, 'cacilhas');
 
-      // 4d-ii. Global Month & Seasonal Weather Sync (switching to July expands shared Lisbon crowds from 6 -> 12 across all peers!)
+      // 4d-ii. Global Month & Seasonal Weather Sync (switching to July expands shared Lisbon crowds & spawns warm-month joggers; December clears joggers!)
       const setJulRes = await fetch(`${baseUrl}/api/clock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -589,6 +589,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       assert.equal(setJulJson.month, 7);
       assert.equal(setJulJson.clock.month, 7);
       assert.ok(setJulJson.transit.npcs.length >= 12);
+      assert.equal(setJulJson.transit.joggers.length, 3);
 
       const julOnB = await streamB.waitFor(
         (evt) => evt.clock?.month === 7 && Array.isArray(evt.transit?.npcs) && evt.transit.npcs.length >= 12
@@ -597,6 +598,24 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       brunoEngine.syncGlobalTransit(julOnB.transit);
       assert.equal(brunoEngine.getState().month, 7);
       assert.equal(brunoEngine.getState().npcs.length, 12);
+      assert.equal(brunoEngine.getState().joggers.length, 3);
+
+      const setDecRes = await fetch(`${baseUrl}/api/clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-month', month: 12 })
+      });
+      const setDecJson = await setDecRes.json();
+      assert.equal(setDecJson.ok, true);
+      assert.equal(setDecJson.transit.joggers.length, 0);
+
+      const decOnB = await streamB.waitFor(
+        (evt) => evt.clock?.month === 12 && Array.isArray(evt.transit?.joggers) && evt.transit.joggers.length === 0
+      );
+      brunoEngine.syncGlobalClock(decOnB.clock);
+      brunoEngine.syncGlobalTransit(decOnB.transit);
+      assert.equal(brunoEngine.getState().month, 12);
+      assert.equal(brunoEngine.getState().joggers.length, 0);
 
       // 5. Bruno leaves cleanly -> Alice immediately receives 1-player roster
       await fetch(`${baseUrl}/api/leave`, {

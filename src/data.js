@@ -1866,6 +1866,32 @@ export const SEASONAL_CROWD_NPCS = [
 
 export const DEFAULT_MONTH = 5; // May (Peak Jacaranda bloom & warm luminous Lisbon spring)
 
+// Warm-month athletic joggers running strictly along the sunlit Tagus waterfront promenade (May - Oct only!)
+export const RIVERSIDE_JOGGERS = [
+  { id: 'jogger-1', name: 'Ribeira Jogger', x: 340, y: 992, patrolAxis: 'x', min: 235, max: 585, speed: 78, shirt: '#0ea5e9', shorts: '#0f172a', hair: '#3b2b20', isJogger: true },
+  { id: 'jogger-2', name: 'Tejo Runner', x: 1020, y: 992, patrolAxis: 'x', min: 855, max: 1380, speed: 82, shirt: '#ef4444', shorts: '#1e293b', hair: '#2a221e', isJogger: true },
+  { id: 'jogger-3', name: 'Alfama Sprinter', x: 1620, y: 992, patrolAxis: 'x', min: 1465, max: 2115, speed: 80, shirt: '#10b981', shorts: '#1e293b', hair: '#5a3d28', isJogger: true }
+];
+
+// Wooden & Lioz limestone benches lining the Ribeira das Naus / Tagus waterfront seawall
+export const RIVERSIDE_BENCHES = [
+  { id: 'rv-bench-1', x: 295, y: 1016 },
+  { id: 'rv-bench-2', x: 475, y: 1016 },
+  { id: 'rv-bench-3', x: 950, y: 1016 },
+  { id: 'rv-bench-4', x: 1240, y: 1016 },
+  { id: 'rv-bench-5', x: 1520, y: 1016 },
+  { id: 'rv-bench-6', x: 1795, y: 1016 },
+  { id: 'rv-bench-7', x: 2010, y: 1016 }
+];
+
+// Seasonal autumn/winter roasted chestnut street carts (Assadores de Castanhas: Oct - Feb)
+export const CASTANHA_VENDORS = [
+  { id: 'castanha-chiado', x: 988, y: 538, vendorName: 'Sr. Joaquim', cry: 'Quentes e boas!' },
+  { id: 'castanha-alfama', x: 1852, y: 538, vendorName: 'Dona Rosa', cry: 'Castanhas assadas!' },
+  { id: 'castanha-ribeira', x: 895, y: 1012, vendorName: 'Sr. Antonio', cry: 'Quentes e boas!' },
+  { id: 'castanha-cais', x: 1585, y: 1012, vendorName: 'Dona Maria', cry: 'Castanhas quentinhas!' }
+];
+
 // Grounded in IPMA 1991-2020 Lisboa/Instituto Geofisico climate normals & authentic Lisboa cultural calendar
 export const LISBOA_MONTHS = [
   {
@@ -1887,10 +1913,12 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0,
     foliageMode: 'winter',
     crowdExtra: 0,
+    warmJoggersCount: 0,
+    hasCastanhaVendors: true,
     decorStyle: 'janeiras-stars',
     eventTitle: 'Dia de Reis & Janeiras',
     eventTag: 'DIA DE REIS',
-    eventNote: 'Cool 15C winter air with passing Atlantic showers, Epiphany gold stars over Chiado, and warm Bolo Rei in bakeries.'
+    eventNote: 'Cool 15C winter air with passing Atlantic showers, Epiphany gold stars over Chiado, and warm castanhas assadas.'
   },
   {
     month: 2,
@@ -1911,6 +1939,8 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0,
     foliageMode: 'winter',
     crowdExtra: 2,
+    warmJoggersCount: 0,
+    hasCastanhaVendors: true,
     decorStyle: 'carnaval',
     eventTitle: 'Carnaval de Lisboa',
     eventTag: 'CARNAVAL',
@@ -1935,6 +1965,8 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0.15,
     foliageMode: 'spring',
     crowdExtra: 1,
+    warmJoggersCount: 0,
+    hasCastanhaVendors: false,
     decorStyle: 'marathon-banners',
     eventTitle: 'Meia Maratona de Lisboa',
     eventTag: 'MEIA MARATONA',
@@ -1959,6 +1991,8 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0.35,
     foliageMode: 'spring',
     crowdExtra: 3,
+    warmJoggersCount: 0,
+    hasCastanhaVendors: false,
     decorStyle: 'cravos-25-abril',
     eventTitle: '25 de Abril - Dia da Liberdade',
     eventTag: '25 DE ABRIL',
@@ -1983,6 +2017,8 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 1.0,
     foliageMode: 'bloom',
     crowdExtra: 0,
+    warmJoggersCount: 2,
+    hasCastanhaVendors: false,
     decorStyle: 'jacaranda-bloom',
     eventTitle: 'Floracao dos Jacarandas & Feira do Livro',
     eventTag: 'JACARANDAS',
@@ -2007,6 +2043,8 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0.85,
     foliageMode: 'bloom',
     crowdExtra: 5,
+    warmJoggersCount: 3,
+    hasCastanhaVendors: false,
     decorStyle: 'santos-populares',
     eventTitle: 'Festas de Lisboa & Santo Antonio',
     eventTag: 'SANTOS POPULARES',
@@ -2031,10 +2069,12 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0.15,
     foliageMode: 'lush',
     crowdExtra: 6,
+    warmJoggersCount: 3,
+    hasCastanhaVendors: false,
     decorStyle: 'summer-sun',
     eventTitle: 'Verao de Lisboa & Atlantic Sun',
     eventTag: 'VERAO BRIGHT',
-    eventNote: 'Dry 28C summer brilliance with 350 hours of clear cobalt sky, radiant Tagus sunlight, striped terrace parasols, and bustling summer crowds.'
+    eventNote: 'Dry 28C summer brilliance with 350 hours of clear cobalt sky, radiant Tagus sunlight, riverside joggers, terrace parasols, and bustling summer crowds.'
   },
   {
     month: 8,
@@ -2055,10 +2095,12 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0,
     foliageMode: 'lush',
     crowdExtra: 5,
+    warmJoggersCount: 3,
+    hasCastanhaVendors: false,
     decorStyle: 'summer-festival',
     eventTitle: 'Calor de Agosto & Jazz em Agosto',
     eventTag: 'JAZZ EM AGOSTO',
-    eventNote: 'Lisbon warmest 29C dry summer glow with golden Mediterranean haze, lively waterfront terraces, and evening open-air jazz lanterns.'
+    eventNote: 'Lisbon warmest 29C dry summer glow with golden Mediterranean haze, riverside runners, lively waterfront terraces, and evening open-air jazz lanterns.'
   },
   {
     month: 9,
@@ -2079,6 +2121,8 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0,
     foliageMode: 'lush',
     crowdExtra: 3,
+    warmJoggersCount: 3,
+    hasCastanhaVendors: false,
     decorStyle: 'alfama-fado',
     eventTitle: 'Caixa Alfama Fado & Vindimas',
     eventTag: 'CAIXA ALFAMA',
@@ -2103,10 +2147,12 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0,
     foliageMode: 'autumn',
     crowdExtra: 1,
+    warmJoggersCount: 2,
+    hasCastanhaVendors: true,
     decorStyle: 'autumn-leaves',
-    eventTitle: 'Outono & Dia da Republica (5 Out)',
+    eventTitle: 'Outono & Primeiras Castanhas',
     eventTag: 'OUTONO DOURADO',
-    eventNote: 'Mild 23C amber autumn light with swirling golden leaves, occasional Atlantic rain showers, and 5 de Outubro civic banners.'
+    eventNote: 'Mild 23C amber autumn light with swirling golden leaves, occasional Atlantic rain showers, and the season first roasted chestnut carts.'
   },
   {
     month: 11,
@@ -2127,6 +2173,8 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0,
     foliageMode: 'autumn',
     crowdExtra: 0,
+    warmJoggersCount: 0,
+    hasCastanhaVendors: true,
     decorStyle: 'november-rain',
     eventTitle: 'Sao Martinho & Atlantic Rain',
     eventTag: 'SAO MARTINHO',
@@ -2151,10 +2199,12 @@ export const LISBOA_MONTHS = [
     jacarandaBloom: 0,
     foliageMode: 'winter',
     crowdExtra: 3,
+    warmJoggersCount: 0,
+    hasCastanhaVendors: true,
     decorStyle: 'christmas-lights',
     eventTitle: 'Luzes de Natal & Passagem de Ano',
     eventTag: 'NATAL EM LISBOA',
-    eventNote: 'Iconic 15C December holiday atmosphere: golden Christmas light arches across streets, glowing stars, a Camoes Christmas tree, and winter rain.'
+    eventNote: 'Iconic 15C December holiday atmosphere: golden Christmas light arches across streets, glowing stars, a Camoes Christmas tree, chestnut vendors, and winter rain.'
   }
 ];
 

@@ -14,6 +14,8 @@ import {
   METRO_STATIONS,
   VENUES,
   REST_SPOTS,
+  RIVERSIDE_BENCHES,
+  CASTANHA_VENDORS,
   TRANSIT_LINES,
   getAllTransitStops,
   getOutfitById,
@@ -487,7 +489,7 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // 13. Ambient Lisbon Locals & Seasonal Crowds (walking safely on sidewalks and plazas in varied Lisbon attire)
+    // 13. Ambient Lisbon Locals, Seasonal Crowds & Warm-Month Tagus Riverside Joggers
     for (const npc of state.npcs) {
       this.drawCharacterSprite(ctx, npc.x, npc.y, {
         facing: npc.patrolAxis === 'x' ? (npc.dir > 0 ? 'right' : 'left') : (npc.dir > 0 ? 'down' : 'up'),
@@ -498,6 +500,19 @@ export class LisboaCanvasRenderer {
         scarfColor: '#e6dcc8',
         hairColor: npc.hair,
         hasUmbrella: carryingUmbrella,
+        isPlayer: false
+      });
+    }
+    for (const jog of state.joggers || []) {
+      this.drawCharacterSprite(ctx, jog.x, jog.y, {
+        facing: jog.dir > 0 ? 'right' : 'left',
+        walkPhase: jog.walkPhase,
+        isMoving: true,
+        outfitId: 'maritime-striped',
+        tunicColor: jog.shirt,
+        scarfColor: '#ffffff',
+        hairColor: jog.hair,
+        label: '',
         isPlayer: false
       });
     }
@@ -792,6 +807,32 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = 'rgba(235, 246, 255, 0.65)';
     ctx.font = '600 13px Georgia, serif';
     ctx.fillText('RIO TEJO  -  TAGUS WATERFRONT', 1020, WATERFRONT_Y + 142);
+
+    // Gliding Atlantic Seagulls over the Tagus River
+    ctx.strokeStyle = 'rgba(248, 250, 252, 0.85)';
+    ctx.lineWidth = 1.8;
+    for (let g = 0; g < 6; g += 1) {
+      const gx = ((220 + g * 380 + this.animTime * (22 + g * 3)) % (WORLD_WIDTH - 80)) + 40;
+      const gy = WATERFRONT_Y + 34 + (g % 3) * 32 + Math.sin(this.animTime * 2.5 + g) * 6;
+      const wflap = Math.sin(this.animTime * 5.2 + g * 1.7) * 3.5;
+      ctx.beginPath();
+      ctx.moveTo(gx - 8, gy + wflap);
+      ctx.quadraticCurveTo(gx - 3, gy - 3, gx, gy);
+      ctx.quadraticCurveTo(gx + 3, gy - 3, gx + 8, gy + wflap);
+      ctx.stroke();
+    }
+
+    // Wooden & Lioz Limestone Riverside Promenade Benches overlooking the Tagus
+    for (const rb of RIVERSIDE_BENCHES) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
+      ctx.fillRect(rb.x - 16, rb.y - 3, 32, 11);
+      ctx.fillStyle = '#8b522c';
+      drawRoundedRect(ctx, rb.x - 16, rb.y - 5, 32, 9, 2);
+      ctx.fill();
+      ctx.strokeStyle = '#472d1b';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+    }
   }
 
   drawTransitInfrastructure(ctx) {
@@ -891,9 +932,14 @@ export class LisboaCanvasRenderer {
       { x: 890, y: 492, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
       { x: 1010, y: 492, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
       { x: 2178, y: 492, c: '#487f57', shadow: '#2d593a', highlight: '#7ec08d', jacaranda: false },
-      { x: 740, y: 985, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
-      { x: 1410, y: 985, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
-      { x: 2070, y: 985, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false }
+      { x: 350, y: 984, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
+      { x: 545, y: 984, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
+      { x: 860, y: 984, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
+      { x: 1135, y: 984, c: '#487f57', shadow: '#2d593a', highlight: '#7ec08d', jacaranda: false },
+      { x: 1410, y: 984, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
+      { x: 1685, y: 984, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false },
+      { x: 1895, y: 984, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
+      { x: 2070, y: 984, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false }
     ];
     for (const t of trees) {
       let cMain = t.c;
@@ -2687,8 +2733,11 @@ export class LisboaCanvasRenderer {
         ctx.arc(px, py, 14, Math.PI, Math.PI * 1.5);
         ctx.fill();
       }
-    } else if (style === 'november-rain') {
-      for (const [cx, cy] of [[988, 538], [1852, 538]]) {
+    }
+    if (monthInfo.hasCastanhaVendors) {
+      for (const cv of CASTANHA_VENDORS) {
+        const cx = cv.x;
+        const cy = cv.y;
         ctx.fillStyle = '#1e293b';
         ctx.fillRect(cx - 10, cy - 8, 20, 14);
         ctx.fillStyle = '#f97316';
@@ -2698,6 +2747,15 @@ export class LisboaCanvasRenderer {
         ctx.beginPath();
         ctx.arc(cx, cy - 10 - rise, 5, 0, Math.PI * 2);
         ctx.fill();
+        this.drawCharacterSprite(ctx, cx + 18, cy, {
+          facing: 'down',
+          walkPhase: 0,
+          isMoving: false,
+          outfitId: 'tile-artisan',
+          label: `${cv.vendorName} (Castanhas)`,
+          emoteText: cv.cry,
+          isPlayer: false
+        });
       }
     }
     ctx.restore();
