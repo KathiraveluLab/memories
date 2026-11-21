@@ -20,6 +20,7 @@ import {
   RIVERSIDE_JOGGERS,
   RIVERSIDE_BENCHES,
   CASTANHA_VENDORS,
+  CASTANHA_CONE_ITEM,
   LISBOA_MONTHS,
   DEFAULT_MONTH,
   getMonthInfo,
@@ -50,6 +51,7 @@ import {
   getDayPhase
 } from '../src/engine.js';
 import { LisboaCanvasRenderer } from '../src/renderer.js';
+import { buildCalcadaTextureData } from '../src/streetview3d.js';
 import { computeSoundscapeProfile, LisboaSoundEngine } from '../src/audio.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1143,6 +1145,70 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   assert.ok(julCount > novCount, `Expected more summer crowds in July (${julCount}) than rainy November (${novCount})`);
   assert.equal(engine.getState().joggers.length, 3, 'Three joggers should run along the Tagus riverside in warm July');
   assert.equal(getMonthInfo(7).hasCastanhaVendors, false, 'Castanha nut vendors should not appear in hot July');
+  const blockedSummerCone = engine.buyCastanhaCone('castanha-ribeira');
+  assert.equal(blockedSummerCone.ok, false, 'Castanha cones should only be purchasable Oct-Feb');
+
+  // Verify authentic procedural Calcada Portuguesa hand-laid mosaic stone buffers (limestone + basalt contrast)
+  const calcada = buildCalcadaTextureData();
+  assert.equal(calcada.size, 128);
+  for (const key of ['sidewalkMosaic', 'sidewalkWhite', 'sidewalkBlack', 'marLargo', 'lequeRoad']) {
+    assert.equal(calcada[key].length, 128 * 128 * 4, `Expected 128x128 RGBA texture for ${key}`);
+  }
+  let lightStones = 0;
+  let darkStones = 0;
+  for (let i = 0; i < calcada.marLargo.length; i += 4) {
+    const lum = (calcada.marLargo[i] + calcada.marLargo[i + 1] + calcada.marLargo[i + 2]) / 3;
+    if (lum > 195) lightStones += 1;
+    else if (lum < 95) darkStones += 1;
+  }
+  assert.ok(lightStones > 3500 && darkStones > 3500, 'Mar Largo Calcada Portuguesa must combine white limestone and black basalt tesserae');
+
+  // Verify purchasable hot paper cones at chestnut carts (Nov) & interactive Tagus riverside seating
+  engine.setMonth(11);
+  engine.setPlayerPosition(895, 996);
+  const nearCart = engine.getNearbyInteraction();
+  assert.equal(nearCart?.type, 'castanha-cart');
+  assert.equal(nearCart?.id, 'castanha-ribeira');
+  const eurosBeforeCone = engine.getState().euros;
+  engine.getState().energy = 40;
+  engine.getState().fullness = 40;
+  engine.getState().needsMealToRecoverSpeed = true;
+  const coneRes = engine.triggerNearbyInteraction();
+  assert.equal(coneRes.ok, true);
+  assert.equal(coneRes.soundEffect, 'register');
+  assert.equal(engine.getState().euros, Number((eurosBeforeCone - CASTANHA_CONE_ITEM.costEur).toFixed(2)));
+  assert.equal(engine.getState().stats.castanhaConesBought, 1);
+  assert.equal(engine.getState().needsMealToRecoverSpeed, false);
+  assert.ok(engine.getState().fullness >= 64);
+  assert.ok(engine.getState().energy >= 58);
+  assert.ok(engine.getState().holdingConeTimer > 10);
+
+  // Sit on interactive Tagus riverside bench, restore energy while seated, then stand up cleanly on movement or [E]
+  engine.setPlayerPosition(950, 998);
+  const nearRvBench = engine.getNearbyInteraction();
+  assert.equal(nearRvBench?.type, 'riverside-bench');
+  assert.equal(nearRvBench?.id, 'rv-bench-3');
+  engine.getState().energy = 50;
+  const sitRes = engine.triggerNearbyInteraction();
+  assert.equal(sitRes.ok, true);
+  assert.equal(engine.getState().seatedBenchId, 'rv-bench-3');
+  assert.ok(engine.getState().energy >= 62);
+  const seatedEnergyBeforeTick = engine.getState().energy;
+  for (let i = 0; i < 10; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.ok(engine.getState().energy > seatedEnergyBeforeTick + 3, 'Energy must recover continuously while seated by the Tagus');
+  assert.equal(engine.getNearbyInteraction()?.type, 'stand-up-bench');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  const standRes = engine.triggerNearbyInteraction();
+  assert.equal(standRes.ok, true);
+  assert.equal(engine.getState().seatedBenchId, null);
+
+  // Also verify moving stands up automatically from a riverside bench
+  engine.sitAtRiversideBench('rv-bench-3');
+  assert.equal(engine.getState().seatedBenchId, 'rv-bench-3');
+  engine.tick(0.1, { x: 1, y: 0 });
+  assert.equal(engine.getState().seatedBenchId, null, 'Directional movement should stand player up smoothly from riverside bench');
+
+  engine.setMonth(7);
   const jog0Before = engine.getState().joggers[0].x;
   for (let i = 0; i < 10; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   assert.notEqual(engine.getState().joggers[0].x, jog0Before, 'Warm-month joggers should move along the promenade');

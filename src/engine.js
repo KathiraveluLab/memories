@@ -17,6 +17,9 @@ import {
   AMBIENT_NPCS,
   SEASONAL_CROWD_NPCS,
   RIVERSIDE_JOGGERS,
+  RIVERSIDE_BENCHES,
+  CASTANHA_VENDORS,
+  CASTANHA_CONE_ITEM,
   DEFAULT_MONTH,
   LISBOA_MONTHS,
   getMonthInfo,
@@ -49,6 +52,8 @@ const VENUE_MAP = new Map(VENUES.map((v) => [v.id, v]));
 const METRO_MAP = new Map(METRO_STATIONS.map((m) => [m.id, m]));
 const FERRY_DEST_MAP = new Map(FERRY_DESTINATIONS.map((d) => [d.id, d]));
 const REST_SPOT_MAP = new Map(REST_SPOTS.map((s) => [s.id, s]));
+const RIVERSIDE_BENCH_MAP = new Map(RIVERSIDE_BENCHES.map((b) => [b.id, b]));
+const CASTANHA_VENDOR_MAP = new Map(CASTANHA_VENDORS.map((c) => [c.id, c]));
 const TRANSIT_LINE_MAP = new Map(TRANSIT_LINES.map((l) => [l.id, l]));
 const ALL_STOPS = getAllTransitStops();
 const STOP_MAP = new Map(ALL_STOPS.map((s) => [s.stopId, s]));
@@ -464,6 +469,9 @@ export function createInitialState() {
     postcards: [],
     ridingVehicleId: null,
     alightAtNextStop: false,
+    seatedBenchId: null,
+    seatedBench: null,
+    holdingConeTimer: 0,
     vehicles: createInitialVehicles(),
     npcs: createInitialNpcs(),
     joggers: createInitialJoggers(),
@@ -491,6 +499,7 @@ export function createInitialState() {
       ferryRides: 0,
       venuesEntered: 0,
       mealsEaten: 0,
+      castanhaConesBought: 0,
       souvenirsBought: 0,
       restsTaken: 0,
       eurosSpent: 0
@@ -1531,6 +1540,7 @@ export class MemoriesGameEngine {
         ferryPortId: raw.ferryPortId || null,
         ferryPhase: raw.ferryPhase || null,
         ridingVehicleId: raw.ridingVehicleId || null,
+        seatedBenchId: raw.seatedBenchId || null,
         neighborhoodName: raw.neighborhoodName || 'Chiado',
         emoteText: typeof raw.emoteText === 'string' ? raw.emoteText : '',
         memoriesCaptured: Number.isFinite(raw.memoriesCaptured) ? raw.memoriesCaptured : (prev?.memoriesCaptured || 0),
@@ -1599,6 +1609,7 @@ export class MemoriesGameEngine {
       ferryPortId: s.mode === 'ferry' ? s.ferry.portId : null,
       ferryPhase: s.mode === 'ferry' ? s.ferry.phase : null,
       ridingVehicleId: s.ridingVehicleId,
+      seatedBenchId: s.seatedBenchId || null,
       neighborhoodName: s.currentNeighborhoodName,
       outfitId: s.player.outfitId,
       name: s.player.name,
@@ -1653,6 +1664,9 @@ export class MemoriesGameEngine {
   setWalkTarget(x, y, onArriveAction = null) {
     if (this.state.ridingVehicleId) return;
     if (this.state.mode === 'metro' && this.state.metro.phase !== 'platform') return;
+    if (this.state.seatedBenchId) {
+      this.standUpFromRiversideBench({ silent: true });
+    }
     if (this.state.mode === 'overworld') this.state.activeMetroStationId = null;
     this.state.player.walkQueue = [];
     this.state.player.walkTarget = { x, y, onArriveAction };
@@ -1661,6 +1675,9 @@ export class MemoriesGameEngine {
   setWalkPath(waypoints = []) {
     if (this.state.ridingVehicleId || !Array.isArray(waypoints) || waypoints.length === 0) return;
     if (this.state.mode === 'metro' && this.state.metro.phase !== 'platform') return;
+    if (this.state.seatedBenchId) {
+      this.standUpFromRiversideBench({ silent: true });
+    }
     if (this.state.mode === 'overworld') this.state.activeMetroStationId = null;
     const [first, ...rest] = waypoints;
     this.state.player.walkTarget = first;
@@ -2248,6 +2265,9 @@ export class MemoriesGameEngine {
     const player = this.state.player;
 
     if (Math.abs(vx) > 0.01 || Math.abs(vy) > 0.01) {
+      if (this.state.seatedBenchId) {
+        this.standUpFromRiversideBench({ silent: true });
+      }
       player.walkTarget = null;
       player.walkQueue = [];
       if (this.state.mode === 'overworld') {
@@ -2487,6 +2507,10 @@ export class MemoriesGameEngine {
       this.boardTransitAtStop(action.id, { waitIfApproaching: true });
     } else if (action.type === 'restBench') {
       this.restAtBench(action.id);
+    } else if (action.type === 'sitRiversideBench') {
+      this.sitAtRiversideBench(action.id);
+    } else if (action.type === 'buyCastanha') {
+      this.buyCastanhaCone(action.id);
     } else if (action.type === 'talkProprietor') {
       this.talkToProprietor();
     } else if (action.type === 'inspectDisplay') {
@@ -2673,6 +2697,9 @@ export class MemoriesGameEngine {
     if (this.doorEntryCooldown > 0) {
       this.doorEntryCooldown = Math.max(0, this.doorEntryCooldown - dt);
     }
+    if (this.state.holdingConeTimer > 0) {
+      this.state.holdingConeTimer = Math.max(0, this.state.holdingConeTimer - dt);
+    }
 
     this.updateVehicles(dt);
     this.updateNpcs(dt);
@@ -2779,6 +2806,10 @@ export class MemoriesGameEngine {
       }
     } else {
       this.movePlayerByInput(input.x || 0, input.y || 0, dt);
+      if (this.state.mode === 'overworld' && this.state.seatedBenchId && !this.state.player.isMoving) {
+        this.state.energy = clamp(this.state.energy + dt * 4.5, 0, 100);
+        this.computeWalkSpeedMultiplier();
+      }
     }
 
     this.checkGameOver();
@@ -2965,6 +2996,16 @@ export class MemoriesGameEngine {
     }
 
     // Overworld proximity check
+    if (state.seatedBenchId && state.seatedBench) {
+      return {
+        type: 'stand-up-bench',
+        id: state.seatedBenchId,
+        bench: state.seatedBench,
+        label: `Stand Up from ${state.seatedBench.name}`,
+        sublabel: 'Restoring Energy (+4.5/s) - Drag to pan Tagus & Almada, or press [E] / move to stand'
+      };
+    }
+
     const px = state.player.x;
     const py = state.player.y;
     let best = null;
@@ -3061,6 +3102,39 @@ export class MemoriesGameEngine {
       }
     }
 
+    // Seasonal Castanhas Assadas roasted chestnut street carts (Oct - Feb)
+    if (getMonthInfo(state.month).hasCastanhaVendors) {
+      for (const cv of CASTANHA_VENDORS) {
+        const d = Math.min(distance(px, py, cv.x, cv.y), distance(px, py, cv.x + 17, cv.y - 4));
+        if (d <= INTERACT_DISTANCE + 8 && d < bestDist) {
+          bestDist = d;
+          best = {
+            type: 'castanha-cart',
+            id: cv.id,
+            vendor: cv,
+            item: CASTANHA_CONE_ITEM,
+            label: `Buy Hot Paper Cone of Castanhas (${CASTANHA_CONE_ITEM.costEur.toFixed(2)} EUR)`,
+            sublabel: `${cv.vendorName} (${cv.locationName}): "${cv.cry}" - +${CASTANHA_CONE_ITEM.fullnessDelta} Fullness, +${CASTANHA_CONE_ITEM.energyDelta} Energy [E]`
+          };
+        }
+      }
+    }
+
+    // Interactive Tagus riverside seawall benches (sit & enjoy the Almada & Tagus view while restoring Energy)
+    for (const rb of RIVERSIDE_BENCHES) {
+      const d = distance(px, py, rb.x, rb.y);
+      if (d <= INTERACT_DISTANCE && d < bestDist) {
+        bestDist = d;
+        best = {
+          type: 'riverside-bench',
+          id: rb.id,
+          bench: rb,
+          label: `Sit on ${rb.name}`,
+          sublabel: `${rb.viewNote} - Free riverside rest (+Energy) [E]`
+        };
+      }
+    }
+
     return best;
   }
 
@@ -3120,6 +3194,15 @@ export class MemoriesGameEngine {
     }
     if (nearby.type === 'bench') {
       return this.restAtBench(nearby.id);
+    }
+    if (nearby.type === 'stand-up-bench') {
+      return this.standUpFromRiversideBench();
+    }
+    if (nearby.type === 'riverside-bench') {
+      return this.sitAtRiversideBench(nearby.id);
+    }
+    if (nearby.type === 'castanha-cart') {
+      return this.buyCastanhaCone(nearby.id);
     }
     if (nearby.type === 'counter') {
       return this.talkToProprietor();
@@ -4040,6 +4123,149 @@ export class MemoriesGameEngine {
       newMemory,
       state: this.state
     };
+  }
+
+  buyCastanhaCone(vendorId = null) {
+    if (this.state.mode !== 'overworld' || this.state.ridingVehicleId) {
+      return { ok: false, error: 'Walk up to a street castanha roaster cart to buy roasted chestnuts.' };
+    }
+    const monthInfo = getMonthInfo(this.state.month);
+    if (!monthInfo.hasCastanhaVendors) {
+      this.state.statusMessage =
+        `Castanha carts roast along Lisboa streets from October through February (currently ${monthInfo.name}).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    let vendor = vendorId ? CASTANHA_VENDOR_MAP.get(vendorId) : null;
+    if (!vendor) {
+      let bestDist = Infinity;
+      for (const cv of CASTANHA_VENDORS) {
+        const d = distance(this.state.player.x, this.state.player.y, cv.x, cv.y);
+        if (d < bestDist) {
+          bestDist = d;
+          vendor = cv;
+        }
+      }
+    }
+    if (!vendor) {
+      return { ok: false, error: 'Castanha vendor not found.' };
+    }
+
+    const item = CASTANHA_CONE_ITEM;
+    if (this.state.euros < item.costEur) {
+      this.state.statusMessage = `Not enough EUR (${this.state.euros.toFixed(2)} EUR) for ${item.name} (${item.costEur.toFixed(2)} EUR).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    this.state.euros = roundMoney(this.state.euros - item.costEur);
+    this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + item.costEur);
+    this.state.stats.mealsEaten += 1;
+    this.state.stats.castanhaConesBought = (this.state.stats.castanhaConesBought || 0) + 1;
+    this.state.fullness = clamp(this.state.fullness + item.fullnessDelta, 0, 100);
+    this.state.energy = clamp(this.state.energy + item.energyDelta, 0, 100);
+    this.state.needsMealToRecoverSpeed = false;
+    this.state.holdingConeTimer = 14.0;
+    this.advanceMinutes(8);
+
+    if (!this.state.tastedFoods.some((f) => f.id === item.id)) {
+      this.state.tastedFoods.push({
+        id: item.id,
+        name: item.name,
+        venueName: `${vendor.vendorName} (${vendor.locationName})`,
+        day: this.state.day
+      });
+    }
+    const newPhrase = recordPhrase(this.state, vendor.phrase, `${vendor.vendorName} - ${vendor.locationName}`);
+    const unlockedMilestone = unlockMemory(this.state, MILESTONE_MEMORIES.taste);
+    this.triggerEmote('Castanhas quentinhas!', 3.6);
+    this.state.statusMessage =
+      `Bought a hot paper cone of Castanhas Assadas from ${vendor.vendorName} at ${vendor.locationName} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
+    recordLog(
+      this.state,
+      'dining',
+      `Bought a hot paper cone of Castanhas Assadas from ${vendor.vendorName} (${vendor.locationName}) (-${item.costEur.toFixed(2)} EUR).`
+    );
+
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
+
+    return {
+      ok: true,
+      vendor,
+      item,
+      newPhrase,
+      unlockedMilestone,
+      soundEffect: 'register',
+      state: this.state
+    };
+  }
+
+  sitAtRiversideBench(benchId = null) {
+    if (this.state.mode !== 'overworld' || this.state.ridingVehicleId) {
+      return { ok: false, error: 'Stroll down to the Tagus promenade to sit on a riverside bench.' };
+    }
+    let bench = benchId ? RIVERSIDE_BENCH_MAP.get(benchId) : null;
+    if (!bench) {
+      let bestDist = Infinity;
+      for (const rb of RIVERSIDE_BENCHES) {
+        const d = distance(this.state.player.x, this.state.player.y, rb.x, rb.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bench = rb;
+        }
+      }
+    }
+    if (!bench) {
+      return { ok: false, error: `Unknown riverside bench: ${benchId}` };
+    }
+
+    this.state.activeMetroStationId = null;
+    this.state.seatedBenchId = bench.id;
+    this.state.seatedBench = bench;
+    this.state.player.x = bench.x;
+    this.state.player.y = bench.y - 3;
+    this.state.player.overworldX = bench.x;
+    this.state.player.overworldY = bench.y - 3;
+    this.state.player.facing = 'down';
+    this.state.player.isMoving = false;
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    // Orient first-person view across the Tagus toward Ponte 25 de Abril and Almada
+    this.state.cameraYaw = Math.PI * 0.56;
+    this.state.cameraPitch = 0.02;
+    this.state.energy = clamp(this.state.energy + 12, 0, 100);
+    this.state.stats.restsTaken += 1;
+    this.advanceMinutes(10);
+    this.updateNeighborhoodTracking();
+    this.computeWalkSpeedMultiplier();
+    this.triggerEmote('Vista do Tejo!', 3.2);
+    this.state.statusMessage =
+      `Seated on ${bench.name} (+12 Energy & restoring while seated): ${bench.viewNote}. Drag to pan across the Tagus, or press [E] / move to stand up.`;
+    recordLog(this.state, 'rest', `Sat on ${bench.name} overlooking the Tagus River and Almada.`);
+
+    return {
+      ok: true,
+      seated: true,
+      bench,
+      state: this.state
+    };
+  }
+
+  standUpFromRiversideBench({ silent = false } = {}) {
+    if (!this.state.seatedBenchId) {
+      return { ok: false, error: 'You are not currently seated on a riverside bench.' };
+    }
+    const prevBench = this.state.seatedBench;
+    this.state.seatedBenchId = null;
+    this.state.seatedBench = null;
+    this.state.player.y = Math.min(this.state.player.y, 996);
+    this.state.player.overworldY = this.state.player.y;
+    if (!silent) {
+      this.state.statusMessage = prevBench
+        ? `Stood up from ${prevBench.name} to continue strolling along the Tagus.`
+        : 'Stood up from the riverside bench.';
+    }
+    return { ok: true, seated: false, prevBench, state: this.state };
   }
 
   triggerMiradouroPerformance(spotId = null) {

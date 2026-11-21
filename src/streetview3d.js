@@ -262,6 +262,229 @@ function findNearestStreetName(px, py) {
   return 'Lisboa Historic Quarter';
 }
 
+const CALCADA_TEX_SIZE = 128;
+const CALCADA_TEX_MASK = CALCADA_TEX_SIZE - 1;
+const IS_LITTLE_ENDIAN = new Uint8Array(new Uint32Array([0x11223344]).buffer)[0] === 0x44;
+
+let CACHED_CALCADA_DATA = null;
+
+function hash2DInt(ix, iy, seed = 1) {
+  let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+  h = ((h ^ (h >>> 13)) * 1274126177) | 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * Generates authentic Lisbon Calçada Portuguesa hand-laid mosaic stone textures (128x128 seamless tiles):
+ * - sidewalkMosaic: hand-knapped ~5cm irregular white limestone & black basalt tesserae in diamond-rosette motif
+ * - sidewalkWhite: pure hand-knapped white/cream Lioz limestone tesserae (calcada branca)
+ * - sidewalkBlack: pure hand-knapped charcoal/black basalt tesserae (calcada preta) for curb ribbons & frames
+ * - marLargo: iconic Rossio & Ribeira das Naus sweeping black-and-white ocean wave mosaic of individual stones
+ * - lequeRoad: traditional overlapping curved fan-arch (leque) basalt & dark granite street cobblestones
+ */
+export function buildCalcadaTextureData() {
+  if (CACHED_CALCADA_DATA) return CACHED_CALCADA_DATA;
+
+  const S = CALCADA_TEX_SIZE;
+  const GRID = 24; // 24x24 = 576 individual tiny hand-knapped stones per 128x128 tile
+  const CELL = S / GRID;
+
+  // Deterministic jittered stone centers & subtle mineral variation for all 576 hand-cut tesserae
+  const cellCx = new Float32Array(GRID * GRID);
+  const cellCy = new Float32Array(GRID * GRID);
+  const cellTone = new Float32Array(GRID * GRID);
+  for (let gy = 0; gy < GRID; gy += 1) {
+    for (let gx = 0; gx < GRID; gx += 1) {
+      const idx = gy * GRID + gx;
+      const jx = (hash2DInt(gx, gy, 11) - 0.5) * 0.44;
+      const jy = (hash2DInt(gx, gy, 23) - 0.5) * 0.44;
+      cellCx[idx] = (gx + 0.5 + jx) * CELL;
+      cellCy[idx] = (gy + 0.5 + jy) * CELL;
+      cellTone[idx] = (hash2DInt(gx, gy, 37) - 0.5) * 24;
+    }
+  }
+
+  const sidewalkMosaic = new Uint8ClampedArray(S * S * 4);
+  const sidewalkWhite = new Uint8ClampedArray(S * S * 4);
+  const sidewalkBlack = new Uint8ClampedArray(S * S * 4);
+  const marLargo = new Uint8ClampedArray(S * S * 4);
+  const lequeRoad = new Uint8ClampedArray(S * S * 4);
+
+  const writeStonePixel = (buf, offset, isBlack, isJoint, tone, bevel) => {
+    let r;
+    let g;
+    let b;
+    if (isJoint) {
+      if (isBlack) {
+        r = 68;
+        g = 65;
+        b = 60;
+      } else {
+        r = 166;
+        g = 157;
+        b = 143;
+      }
+    } else if (isBlack) {
+      // Hand-chiseled Lisbon black basalt / dark gabbro
+      r = clamp(Math.round(45 + tone * 0.65 + bevel * 0.6), 24, 84);
+      g = clamp(Math.round(50 + tone * 0.65 + bevel * 0.6), 28, 90);
+      b = clamp(Math.round(58 + tone * 0.65 + bevel * 0.65), 34, 98);
+    } else {
+      // Hand-chiseled warm ivory/cream Lisbon Lioz limestone (calcada branca)
+      r = clamp(Math.round(237 + tone * 0.8 + bevel), 200, 253);
+      g = clamp(Math.round(231 + tone * 0.8 + bevel), 192, 248);
+      b = clamp(Math.round(218 + tone * 0.78 + bevel * 0.9), 178, 238);
+    }
+    buf[offset] = r;
+    buf[offset + 1] = g;
+    buf[offset + 2] = b;
+    buf[offset + 3] = 255;
+  };
+
+  // 1) Generate jittered Voronoi-cuboid hand-knapped stone tesserae for sidewalkMosaic, sidewalkWhite, sidewalkBlack, marLargo
+  for (let py = 0; py < S; py += 1) {
+    const baseGy = Math.floor(py / CELL);
+    for (let px = 0; px < S; px += 1) {
+      const baseGx = Math.floor(px / CELL);
+      let d1 = 1e9;
+      let d2 = 1e9;
+      let bestIdx = 0;
+      let bestDx = 0;
+      let bestDy = 0;
+
+      for (let oy = -1; oy <= 1; oy += 1) {
+        const gy = (baseGy + oy + GRID) % GRID;
+        const wrapY = baseGy + oy < 0 ? -S : baseGy + oy >= GRID ? S : 0;
+        for (let ox = -1; ox <= 1; ox += 1) {
+          const gx = (baseGx + ox + GRID) % GRID;
+          const wrapX = baseGx + ox < 0 ? -S : baseGx + ox >= GRID ? S : 0;
+          const idx = gy * GRID + gx;
+          const dx = px - (cellCx[idx] + wrapX);
+          const dy = py - (cellCy[idx] + wrapY);
+          const adx = Math.abs(dx);
+          const ady = Math.abs(dy);
+          // Hybrid Euclidean + Chebyshev distance produces authentic slightly-squarish hand-chiseled limestone/basalt cubes
+          const d = 0.58 * Math.hypot(dx, dy) + 0.42 * (adx > ady ? adx : ady);
+          if (d < d1) {
+            d2 = d1;
+            d1 = d;
+            bestIdx = idx;
+            bestDx = dx;
+            bestDy = dy;
+          } else if (d < d2) {
+            d2 = d;
+          }
+        }
+      }
+
+      const isJoint = d2 - d1 < 0.58;
+      const tone = cellTone[bestIdx];
+      const bevel = clamp((-bestDx - bestDy) * 2.1, -10, 11);
+      const scx = cellCx[bestIdx];
+      const scy = cellCy[bestIdx];
+      const off = (py * S + px) * 4;
+
+      // Pure white limestone & pure black basalt tiles (for borders & custom bands)
+      writeStonePixel(sidewalkWhite, off, false, isJoint, tone, bevel);
+      writeStonePixel(sidewalkBlack, off, true, isJoint, tone, bevel);
+
+      // Sidewalk Mosaic: hand-laid diagonal diamond lattice + 4-point compass stars (estrelas)
+      const diagA = ((scx + scy) % 64 + 64) % 64;
+      const diagB = ((scx - scy) % 64 + 64) % 64;
+      const onLattice = diagA < 5.6 || diagA > 58.4 || diagB < 5.6 || diagB > 58.4;
+      const rx = Math.abs((scx % 64) - 32);
+      const ry = Math.abs((scy % 64) - 32);
+      const onRosette = rx + ry < 13.5 && rx + ry > 4.6;
+      writeStonePixel(sidewalkMosaic, off, onLattice || onRosette, isJoint, tone, bevel);
+
+      // Iconic Rossio / Ribeira das Naus Mar Largo sweeping black-and-white ocean waves composed of individual tiny stones
+      const wavePhase = ((scy + Math.sin((scx / 64) * Math.PI * 2) * 14.5) % 32 + 32) % 32;
+      writeStonePixel(marLargo, off, wavePhase < 15.5, isJoint, tone, bevel);
+    }
+  }
+
+  // 2) Generate authentic overlapping Lisbon curved fan-arch (Leque) basalt & dark granite roadway cobblestones
+  const fanCenters = [
+    [0, 0], [64, 0], [32, 32], [96, 32],
+    [0, 64], [64, 64], [32, 96], [96, 96]
+  ];
+  const FAN_R = 40;
+  const RING_STEP = 5.4;
+  const ARC_STONE_STEP = 5.2;
+
+  for (let py = 0; py < S; py += 1) {
+    for (let px = 0; px < S; px += 1) {
+      let winCy = -1e9;
+      let winDx = 0;
+      let winDy = 0;
+      let winR = 1e9;
+      let winId = 0;
+
+      for (let i = 0; i < fanCenters.length; i += 1) {
+        const [bx, by] = fanCenters[i];
+        for (let wy = -S; wy <= S; wy += S) {
+          const cy = by + wy;
+          const dy = py - cy;
+          if (dy < -2 || dy > FAN_R) continue;
+          for (let wx = -S; wx <= S; wx += S) {
+            const cx = bx + wx;
+            const dx = px - cx;
+            if (Math.abs(dx) > FAN_R) continue;
+            const r = Math.hypot(dx, dy);
+            if (r <= FAN_R && cy > winCy) {
+              winCy = cy;
+              winDx = dx;
+              winDy = dy;
+              winR = r;
+              winId = i + 1;
+            }
+          }
+        }
+      }
+
+      const off = (py * S + px) * 4;
+      const ring = Math.floor(winR / RING_STEP);
+      const rLocal = (winR - ring * RING_STEP) / RING_STEP;
+      const ringRadius = Math.max(4.5, (ring + 0.5) * RING_STEP);
+      const angle = Math.atan2(winDx, Math.max(0.2, winDy));
+      const arcPos = angle * ringRadius + 400 + (ring % 2) * (ARC_STONE_STEP * 0.5);
+      const seg = Math.floor(arcPos / ARC_STONE_STEP);
+      const aLocal = (arcPos - seg * ARC_STONE_STEP) / ARC_STONE_STEP;
+
+      const isJoint = rLocal < 0.14 || rLocal > 0.88 || aLocal < 0.14 || aLocal > 0.88;
+      if (isJoint) {
+        lequeRoad[off] = 74;
+        lequeRoad[off + 1] = 70;
+        lequeRoad[off + 2] = 64;
+        lequeRoad[off + 3] = 255;
+      } else {
+        const h = hash2DInt(seg + winId * 31, ring, 71);
+        const bevel = (0.5 - rLocal) * 16 + (0.5 - aLocal) * 10;
+        // Outermost crest arc of each leque fan carries classic pale-grey granite accent stones for unmistakable Lisbon fan geometry
+        const isCrestAccent = ring >= 6 && h > 0.35;
+        const baseR = isCrestAccent ? 148 : 94 + (h - 0.5) * 34;
+        const baseG = isCrestAccent ? 144 : 96 + (h - 0.5) * 32;
+        const baseB = isCrestAccent ? 136 : 101 + (h - 0.5) * 30;
+        lequeRoad[off] = clamp(Math.round(baseR + bevel), 46, 185);
+        lequeRoad[off + 1] = clamp(Math.round(baseG + bevel), 48, 182);
+        lequeRoad[off + 2] = clamp(Math.round(baseB + bevel), 52, 176);
+        lequeRoad[off + 3] = 255;
+      }
+    }
+  }
+
+  CACHED_CALCADA_DATA = {
+    size: S,
+    mask: CALCADA_TEX_MASK,
+    sidewalkMosaic,
+    sidewalkWhite,
+    sidewalkBlack,
+    marLargo,
+    lequeRoad
+  };
+  return CACHED_CALCADA_DATA;
+}
+
 export class LisboaStreetView3DRenderer {
   constructor(viewWidth, viewHeight) {
     this.viewWidth = viewWidth;
@@ -269,22 +492,29 @@ export class LisboaStreetView3DRenderer {
     this.focal = (viewWidth * 0.5) / Math.tan((FOV_DEG * Math.PI) / 360);
     this.hoverWorld = null;
     this.lastHitTargets = [];
+    this.calcadaTex = buildCalcadaTextureData();
+    this.groundCanvas = null;
+    this.groundCtx = null;
+    this.groundImg = null;
+    this.groundU32 = null;
+    this.groundH = 0;
   }
 
   buildCamera(state) {
     const player = state.player;
     const yaw = Number.isFinite(state.cameraYaw) ? state.cameraYaw : 0.08;
     const pitch = clamp(Number.isFinite(state.cameraPitch) ? state.cameraPitch : 0.03, -0.24, 0.34);
-    const bob = player.isMoving ? Math.sin(player.walkPhase * 2) * 1.15 : 0;
+    const isSeated = Boolean(state.seatedBenchId);
+    const bob = !isSeated && player.isMoving ? Math.sin(player.walkPhase * 2) * 1.15 : 0;
     const camX = player.x;
     const camY = player.y;
-    const camZ = EYE_HEIGHT + bob;
+    const camZ = (isSeated ? 24.5 : EYE_HEIGHT) + bob;
     const fx = Math.cos(yaw);
     const fy = Math.sin(yaw);
     const rx = -fy;
     const ry = fx;
     const horizonY = this.viewHeight * 0.48 + pitch * this.focal * 0.65;
-    return { camX, camY, camZ, yaw, pitch, fx, fy, rx, ry, horizonY };
+    return { camX, camY, camZ, yaw, pitch, fx, fy, rx, ry, horizonY, isSeated };
   }
 
   toCam(cam, wx, wy, wz) {
@@ -427,11 +657,11 @@ export class LisboaStreetView3DRenderer {
       } else if (item.kind === 'bench') {
         this.drawBench3D(ctx, cam, item.spot, item.captured, isEvening);
       } else if (item.kind === 'riverside-bench') {
-        this.drawRiversideBench3D(ctx, cam, item.bench, isEvening);
+        this.drawRiversideBench3D(ctx, cam, item.bench, item.highlighted, item.isSeated, isEvening);
       } else if (item.kind === 'stop') {
         this.drawTransitStop3D(ctx, cam, item.stop, item.highlighted, isEvening);
       } else if (item.kind === 'seasonal-prop') {
-        this.drawSeasonalProp3D(ctx, cam, item.prop, isEvening, animTime);
+        this.drawSeasonalProp3D(ctx, cam, item.prop, isEvening, animTime, item.highlighted);
       } else if (item.kind === 'decor-arch') {
         this.drawSeasonalDecorArch3D(ctx, cam, item.arch, monthInfo, isEvening, animTime);
       } else if (item.kind === 'jogger') {
@@ -446,6 +676,11 @@ export class LisboaStreetView3DRenderer {
 
     // 7. Weather atmosphere overlay (Atlantic rain streaks, summer sunbeams, drifting blossoms/confetti/autumn leaves)
     this.drawWeatherAtmosphere3D(ctx, cam, monthInfo, phase, animTime);
+
+    // 7b. First-person steaming paper cone of Castanhas Assadas while enjoying roasted chestnuts!
+    if ((state.holdingConeTimer || 0) > 0) {
+      this.drawHeldCastanhaCone3D(ctx, state.holdingConeTimer, animTime, isEvening);
+    }
 
     // 8. Crisp Google Street View style HUD: street address, month/weather/event badge & live radar mini-map
     this.drawStreetViewHud(ctx, cam, state, monthInfo);
@@ -1146,21 +1381,37 @@ export class LisboaStreetView3DRenderer {
       );
     }
 
-    // Tagus Lioz Limestone Seawall Coping, Promenade Parapet & Cast-Iron Mooring Bollards along WATERFRONT_Y
-    this.drawPoly3D(
-      ctx,
-      cam,
-      [
-        [0, WATERFRONT_Y - 22, 0.3],
-        [WORLD_WIDTH, WATERFRONT_Y - 22, 0.3],
-        [WORLD_WIDTH, WATERFRONT_Y, 0.3],
-        [0, WATERFRONT_Y, 0.3]
-      ],
-      isEvening ? '#6e7078' : '#dcd3c2',
-      isEvening ? '#334155' : '#8c8273',
-      1.2
-    );
-    // Vertical stone seawall face dropping down to Tagus water
+    // Perspective-Correct Hand-Laid Lisbon Calçada Portuguesa & Curved Leque Cobblestone Floor-Caster!
+    // Renders true-scale 5cm limestone/basalt mosaic tesserae across every street, sidewalk, plaza, and Tagus promenade.
+    const renderedTexGround = this.renderPerspectiveCalcadaGround(ctx, cam, hy, isEvening, isGolden, wet, brightSummer);
+
+    // Fallback flat polygons only when running inside headless mock Canvas unit tests without DOM ImageData
+    if (!renderedTexGround) {
+      for (const st of STREETS) {
+        const nearX = clamp(cam.camX, st.x, st.x + st.w);
+        const nearY = clamp(cam.camY, st.y, st.y + st.h);
+        if (Math.hypot(nearX - cam.camX, nearY - cam.camY) > MAX_VIEW_DIST) continue;
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [[st.x, st.y, 0.1], [st.x + st.w, st.y, 0.1], [st.x + st.w, st.y + st.h, 0.1], [st.x, st.y + st.h, 0.1]],
+          isEvening ? '#60636e' : '#e6dfd1'
+        );
+      }
+      for (const cw of CROSSWALKS) {
+        if (Math.hypot(cw.x + cw.w * 0.5 - cam.camX, cw.y + cw.h * 0.5 - cam.camY) > 760) continue;
+        for (let sx = cw.x + 3; sx < cw.x + cw.w - 4; sx += 11) {
+          this.drawPoly3D(
+            ctx,
+            cam,
+            [[sx, cw.y + 4, 0.25], [sx + 6, cw.y + 4, 0.25], [sx + 6, cw.y + cw.h - 4, 0.25], [sx, cw.y + cw.h - 4, 0.25]],
+            isEvening ? 'rgba(218, 224, 232, 0.58)' : 'rgba(248, 244, 236, 0.85)'
+          );
+        }
+      }
+    }
+
+    // Vertical stone seawall face dropping down to Tagus water & cast-iron mooring bollards along WATERFRONT_Y
     this.drawPoly3D(
       ctx,
       cam,
@@ -1174,7 +1425,6 @@ export class LisboaStreetView3DRenderer {
       '#64748b',
       1
     );
-    // Carved stone promenade pillars & cast-iron nautical mooring bollards along Cais do Sodre / Cais de Alfama
     const minBX = Math.max(80, Math.floor((cam.camX - 580) / 90) * 90);
     const maxBX = Math.min(WORLD_WIDTH - 80, Math.ceil((cam.camX + 580) / 90) * 90);
     if (Math.abs(WATERFRONT_Y - cam.camY) < 680) {
@@ -1182,269 +1432,6 @@ export class LisboaStreetView3DRenderer {
         if (bx >= FERRY_TERMINAL.x - 16 && bx <= FERRY_TERMINAL.x + FERRY_TERMINAL.w + 16) continue;
         this.drawLine3D(ctx, cam, [bx, WATERFRONT_Y - 2, 0], [bx, WATERFRONT_Y - 2, 11], '#1e293b', 3.2);
         this.drawLine3D(ctx, cam, [bx - 3, WATERFRONT_Y - 2, 10], [bx + 3, WATERFRONT_Y - 2, 10], '#94a3b8', 2.2);
-      }
-    }
-
-    // Project all streets, sidewalks, plazas & raised curbs cleanly in 3D perspective
-    for (const st of STREETS) {
-      // Quick distance cull
-      const nearX = clamp(cam.camX, st.x, st.x + st.w);
-      const nearY = clamp(cam.camY, st.y, st.y + st.h);
-      if (Math.hypot(nearX - cam.camX, nearY - cam.camY) > MAX_VIEW_DIST) continue;
-
-      if (st.style === 'plaza') {
-        this.drawPoly3D(
-          ctx,
-          cam,
-          [
-            [st.x, st.y, 0.1],
-            [st.x + st.w, st.y, 0.1],
-            [st.x + st.w, st.y + st.h, 0.1],
-            [st.x, st.y + st.h, 0.1]
-          ],
-          isEvening ? '#686b75' : '#ede7db',
-          isEvening ? '#3b4252' : '#57606f',
-          1.2
-        );
-        // Authentic Black-and-White Mar Largo (Mare Viva) undulating Portuguese wave mosaic across Praca Luis de Camoes!
-        const waveCol = isEvening ? 'rgba(26, 36, 52, 0.72)' : 'rgba(38, 46, 58, 0.62)';
-        for (let wy = st.y + 28; wy < st.y + st.h - 20; wy += 34) {
-          if (Math.abs(wy - cam.camY) > 480) continue;
-          for (let wx = st.x + 12; wx < st.x + st.w - 22; wx += 14) {
-            const o1 = Math.sin((wx - st.x) * 0.12) * 5;
-            const o2 = Math.sin((wx + 14 - st.x) * 0.12) * 5;
-            this.drawPoly3D(
-              ctx,
-              cam,
-              [
-                [wx, wy + o1, 0.22],
-                [wx + 14, wy + o2, 0.22],
-                [wx + 14, wy + 7 + o2, 0.22],
-                [wx, wy + 7 + o1, 0.22]
-              ],
-              waveCol
-            );
-          }
-        }
-        continue;
-      }
-
-      // Stone calcada sidewalk bed with dark basalt decorative border ribbon (faixa de basalto)
-      this.drawPoly3D(
-        ctx,
-        cam,
-        [
-          [st.x, st.y, 0.1],
-          [st.x + st.w, st.y, 0.1],
-          [st.x + st.w, st.y + st.h, 0.1],
-          [st.x, st.y + st.h, 0.1]
-        ],
-        isEvening ? '#60636e' : wet >= 0.45 ? '#bab9b4' : '#e6dfd1'
-      );
-
-      // Inset basalt cobblestone roadway with raised Lioz limestone curbstones
-      const insetX = st.style === 'tram-avenue' ? 6 : 10;
-      const insetY = st.style === 'tram-avenue' ? 22 : st.style === 'bus-road' ? 18 : 4;
-      const rx0 = st.x + insetX;
-      const ry0 = st.y + insetY;
-      const rx1 = st.x + st.w - insetX;
-      const ry1 = st.y + st.h - insetY;
-      if (rx1 > rx0 && ry1 > ry0) {
-        this.drawPoly3D(
-          ctx,
-          cam,
-          [
-            [rx0, ry0, 0.15],
-            [rx1, ry0, 0.15],
-            [rx1, ry1, 0.15],
-            [rx0, ry1, 0.15]
-          ],
-          isEvening ? '#3c4250' : wet >= 0.45 ? '#6c727a' : '#8e887f',
-          isEvening ? '#7d8390' : '#dcd4c5',
-          2.0
-        );
-        // Dark basalt mosaic border ribbon inlaid into sidewalk just outside the Lioz curbstone
-        if (st.w > st.h && Math.abs((ry0 + ry1) * 0.5 - cam.camY) < 420) {
-          const borderCol = isEvening ? 'rgba(30, 41, 59, 0.65)' : 'rgba(55, 62, 72, 0.52)';
-          const bxStart = Math.max(rx0, Math.floor((cam.camX - 420) / 40) * 40);
-          const bxEnd = Math.min(rx1, Math.ceil((cam.camX + 420) / 40) * 40);
-          for (let bx = bxStart; bx < bxEnd; bx += 40) {
-            const bx2 = Math.min(bxEnd, bx + 40);
-            this.drawLine3D(ctx, cam, [bx, ry0 - 6, 0.2], [bx2, ry0 - 6, 0.2], borderCol, 2.0);
-            this.drawLine3D(ctx, cam, [bx, ry1 + 6, 0.2], [bx2, ry1 + 6, 0.2], borderCol, 2.0);
-          }
-        }
-      }
-    }
-
-    // Authentic 3D Interlocking Lisbon Basalt Cobblestone Setts (Pedras de Basalto) & Limestone Calcada Paving near the camera!
-    const roadYCorridors = [
-      { y0: 250, y1: 320, isRoad: true },
-      { y0: 579, y1: 642, isRoad: true },
-      { y0: 896, y1: 968, isRoad: true }
-    ];
-    const sideYCorridors = [
-      { y0: 212, y1: 244, isRoad: false },
-      { y0: 326, y1: 362, isRoad: false },
-      { y0: 534, y1: 572, isRoad: false },
-      { y0: 648, y1: 684, isRoad: false },
-      { y0: 858, y1: 890, isRoad: false },
-      { y0: 974, y1: 1022, isRoad: false }
-    ];
-
-    const roadStones = isEvening
-      ? ['#444c5d', '#383f4e', '#4f586b', '#3f4756', '#4a5263']
-      : wet >= 0.45
-        ? ['#525b68', '#636c7a', '#48505c', '#717a88', '#5b6472']
-        : ['#746e66', '#8a847b', '#635e57', '#999288', '#7d776e'];
-    const calcadaStones = isEvening
-      ? ['#686d78', '#5c616c', '#737884']
-      : wet >= 0.45
-        ? ['#b6b8b5', '#c5c7c4', '#a7aaa8']
-        : ['#f1ebdf', '#e3dccd', '#f7f2e7', '#d8d0c0'];
-
-    const nearDist = 205;
-    const cobbleDist = 350;
-    const cobMinX = Math.max(120, Math.floor((cam.camX - cobbleDist) / 24) * 24);
-    const cobMaxX = Math.min(WORLD_WIDTH - 120, Math.ceil((cam.camX + cobbleDist) / 24) * 24);
-    const nearMinX = Math.max(120, Math.floor((cam.camX - nearDist) / 14) * 14);
-    const nearMaxX = Math.min(WORLD_WIDTH - 120, Math.ceil((cam.camX + nearDist) / 14) * 14);
-    const mortarRoad = isEvening ? 'rgba(15, 23, 42, 0.56)' : 'rgba(46, 42, 36, 0.44)';
-    const mortarCalcada = isEvening ? 'rgba(30, 41, 59, 0.3)' : 'rgba(124, 116, 102, 0.34)';
-
-    // 1) Authentic Fine Staggered Basalt Cobblestone Setts (Paralelepipedos de Basalto) on roadways ahead of the camera
-    for (const cor of roadYCorridors) {
-      if (Math.abs((cor.y0 + cor.y1) * 0.5 - cam.camY) > cobbleDist + 80) continue;
-      // 1a) Fine high-detail basalt cobblestone setts (13x8.5) close to the viewer
-      let row = 0;
-      for (let sy = cor.y0; sy < cor.y1 - 3; sy += 8.5, row += 1) {
-        if (Math.abs(sy - cam.camY) > nearDist) continue;
-        const offset = (row % 2) * 6.5;
-        for (let sx = nearMinX + offset; sx < nearMaxX; sx += 13) {
-          const dx = sx - cam.camX;
-          const dy = sy - cam.camY;
-          if (dx * cam.fx + dy * cam.fy < 4) continue;
-          const d2 = dx * dx + dy * dy;
-          if (d2 > nearDist * nearDist) continue;
-          const hash = Math.abs((Math.round(sx) * 7 + Math.round(sy) * 13) % roadStones.length);
-          this.drawPoly3D(
-            ctx,
-            cam,
-            [
-              [sx + 0.8, sy + 0.8, 0.21],
-              [sx + 12.1, sy + 0.8, 0.21],
-              [sx + 12.1, sy + 7.5, 0.21],
-              [sx + 0.8, sy + 7.5, 0.21]
-            ],
-            roadStones[hash],
-            mortarRoad,
-            0.75
-          );
-        }
-      }
-      // 1b) Mid-distance basalt cobblestone setts (22x13) extending smoothly down the street
-      let mRow = 0;
-      for (let sy = cor.y0; sy < cor.y1 - 4; sy += 13, mRow += 1) {
-        if (Math.abs(sy - cam.camY) > cobbleDist) continue;
-        const offset = (mRow % 2) * 11;
-        for (let sx = cobMinX + offset; sx < cobMaxX; sx += 22) {
-          const dx = sx - cam.camX;
-          const dy = sy - cam.camY;
-          if (dx * cam.fx + dy * cam.fy < 4) continue;
-          const d2 = dx * dx + dy * dy;
-          if (d2 <= (nearDist - 12) * (nearDist - 12) || d2 > cobbleDist * cobbleDist) continue;
-          const hash = Math.abs((sx * 7 + sy * 13) % roadStones.length);
-          this.drawPoly3D(
-            ctx,
-            cam,
-            [
-              [sx + 1.1, sy + 1.1, 0.2],
-              [sx + 20.6, sy + 1.1, 0.2],
-              [sx + 20.6, sy + 11.6, 0.2],
-              [sx + 1.1, sy + 11.6, 0.2]
-            ],
-            roadStones[hash],
-            mortarRoad,
-            0.65
-          );
-        }
-      }
-    }
-
-    // 2) Authentic Calcada Portuguesa Limestone & Black Basalt Mosaic Tesserae on sidewalks & Tagus promenade
-    for (const cor of sideYCorridors) {
-      if (Math.abs((cor.y0 + cor.y1) * 0.5 - cam.camY) > cobbleDist + 60) continue;
-      // 2a) Fine near-camera Calcada Portuguesa tesserae (11x9) with authentic Mar Largo wave & diamond inlay
-      let row = 0;
-      for (let sy = cor.y0; sy < cor.y1 - 3; sy += 9, row += 1) {
-        if (Math.abs(sy - cam.camY) > nearDist) continue;
-        const offset = (row % 2) * 5.5;
-        for (let sx = nearMinX + offset; sx < nearMaxX; sx += 11) {
-          const dx = sx - cam.camX;
-          const dy = sy - cam.camY;
-          if (dx * cam.fx + dy * cam.fy < 4) continue;
-          const d2 = dx * dx + dy * dy;
-          if (d2 > nearDist * nearDist) continue;
-          const isWaterfrontWave =
-            cor.y0 >= 974 &&
-            (Math.abs((sy - 996) - Math.sin(sx * 0.068) * 9) < 4.8 ||
-              Math.abs((sy - 1013) - Math.sin(sx * 0.068 + 1.6) * 5) < 3.6);
-          const gx = Math.round(sx / 11);
-          const isSidewalkBorder =
-            cor.y0 < 974 &&
-            (sy <= cor.y0 + 5 || sy >= cor.y1 - 12) &&
-            (gx % 2 === 0);
-          const isBasaltStar =
-            cor.y0 < 974 && !isSidewalkBorder && ((gx + row) % 6 === 0) && (row % 2 === 1);
-          const col = isWaterfrontWave || isSidewalkBorder || isBasaltStar
-            ? (isEvening ? '#273142' : '#3d4552')
-            : calcadaStones[Math.abs((Math.round(sx) * 5 + Math.round(sy) * 11) % calcadaStones.length)];
-          this.drawPoly3D(
-            ctx,
-            cam,
-            [
-              [sx + 0.7, sy + 0.7, 0.2],
-              [sx + 10.2, sy + 0.7, 0.2],
-              [sx + 10.2, sy + 8.1, 0.2],
-              [sx + 0.7, sy + 8.1, 0.2]
-            ],
-            col,
-            mortarCalcada,
-            0.55
-          );
-        }
-      }
-      // 2b) Mid-distance Calcada Portuguesa paving extending down the sidewalk
-      let mRow = 0;
-      for (let sy = cor.y0; sy < cor.y1 - 4; sy += 14, mRow += 1) {
-        if (Math.abs(sy - cam.camY) > cobbleDist) continue;
-        const offset = (mRow % 2) * 9;
-        for (let sx = cobMinX + offset; sx < cobMaxX; sx += 18) {
-          const dx = sx - cam.camX;
-          const dy = sy - cam.camY;
-          if (dx * cam.fx + dy * cam.fy < 4) continue;
-          const d2 = dx * dx + dy * dy;
-          if (d2 <= (nearDist - 12) * (nearDist - 12) || d2 > cobbleDist * cobbleDist) continue;
-          const isWaterfrontWave =
-            cor.y0 >= 974 && Math.abs((sy - 996) - Math.sin(sx * 0.068) * 9) < 6.5;
-          const isBasaltDiamond = !isWaterfrontWave && ((Math.round(sx / 18) + mRow) % 5 === 0) && (mRow % 2 === 1);
-          const col = isWaterfrontWave || isBasaltDiamond
-            ? (isEvening ? '#2e3748' : '#464f5c')
-            : calcadaStones[Math.abs((sx * 5 + sy * 11) % calcadaStones.length)];
-          this.drawPoly3D(
-            ctx,
-            cam,
-            [
-              [sx + 1, sy + 1, 0.19],
-              [sx + 16.5, sy + 1, 0.19],
-              [sx + 16.5, sy + 12.5, 0.19],
-              [sx + 1, sy + 12.5, 0.19]
-            ],
-            col,
-            mortarCalcada,
-            0.55
-          );
-        }
       }
     }
 
@@ -1495,24 +1482,6 @@ export class LisboaStreetView3DRenderer {
         ctx.lineTo(footPt.x + 5.1 * s, by - 1.6 * s);
         ctx.closePath();
         ctx.fill();
-      }
-    }
-
-    // Zebra Crosswalks in crisp 3D perspective
-    for (const cw of CROSSWALKS) {
-      if (Math.hypot(cw.x + cw.w * 0.5 - cam.camX, cw.y + cw.h * 0.5 - cam.camY) > 760) continue;
-      for (let sx = cw.x + 3; sx < cw.x + cw.w - 4; sx += 11) {
-        this.drawPoly3D(
-          ctx,
-          cam,
-          [
-            [sx, cw.y + 4, 0.25],
-            [sx + 6, cw.y + 4, 0.25],
-            [sx + 6, cw.y + cw.h - 4, 0.25],
-            [sx, cw.y + cw.h - 4, 0.25]
-          ],
-          isEvening ? 'rgba(218, 224, 232, 0.58)' : 'rgba(248, 244, 236, 0.85)'
-        );
       }
     }
 
@@ -1706,7 +1675,16 @@ export class LisboaStreetView3DRenderer {
     }
     if (monthInfo.hasCastanhaVendors) {
       for (const cv of CASTANHA_VENDORS) {
-        seasonalProps.push({ type: 'chestnut-cart', x: cv.x, y: cv.y, r: 12, vendorName: cv.vendorName, cry: cv.cry });
+        seasonalProps.push({
+          type: 'chestnut-cart',
+          id: cv.id,
+          x: cv.x,
+          y: cv.y,
+          r: 12,
+          vendorName: cv.vendorName,
+          cry: cv.cry,
+          highlighted: nearbyInteraction?.type === 'castanha-cart' && nearbyInteraction.id === cv.id
+        });
         // Live Castanha vendor standing warmly beside the smoking chestnut cart shouting "Quentes e boas!"
         const vx = cv.x + 17;
         const vy = cv.y - 4;
@@ -1754,7 +1732,9 @@ export class LisboaStreetView3DRenderer {
         y0: rb.y - 6,
         x1: rb.x + 18,
         y1: rb.y + 6,
-        bench: rb
+        bench: rb,
+        highlighted: nearbyInteraction?.type === 'riverside-bench' && nearbyInteraction.id === rb.id,
+        isSeated: state.seatedBenchId === rb.id
       });
     }
 
@@ -1778,7 +1758,8 @@ export class LisboaStreetView3DRenderer {
         y0: prop.y - prop.r * 0.5,
         x1: prop.x + prop.r * 0.5,
         y1: prop.y + prop.r * 0.5,
-        prop
+        prop,
+        highlighted: Boolean(prop.highlighted)
       });
     }
 
@@ -3099,16 +3080,19 @@ export class LisboaStreetView3DRenderer {
     this.drawLine3D(ctx, cam, [spot.x + 16, spot.y, 0], [spot.x + 16, spot.y, 10], '#334155', 2);
   }
 
-  drawRiversideBench3D(ctx, cam, bench, isEvening) {
+  drawRiversideBench3D(ctx, cam, bench, highlighted = false, isSeated = false, isEvening = false) {
     // Classic Ribeira das Naus wooden slat & cast-iron riverside promenade bench facing the Tagus River
+    if (isSeated) return; // Avoid clipping the bench seat right in front of the seated first-person camera
     const x = bench.x;
     const y = bench.y;
+    const edgeStroke = highlighted ? '#facc15' : '#472d1b';
+    const edgeW = highlighted ? 2.2 : 1.1;
     // Contact shadow
     this.drawPoly3D(
       ctx,
       cam,
       [[x - 20, y - 6, 0.3], [x + 20, y - 6, 0.3], [x + 20, y + 6, 0.3], [x - 20, y + 6, 0.3]],
-      'rgba(15, 23, 42, 0.22)'
+      highlighted ? 'rgba(250, 204, 21, 0.24)' : 'rgba(15, 23, 42, 0.22)'
     );
     // Cast-iron legs & curved armrests
     for (const lx of [x - 16, x + 16]) {
@@ -3116,22 +3100,24 @@ export class LisboaStreetView3DRenderer {
       this.drawLine3D(ctx, cam, [lx, y + 4, 0], [lx, y + 4, 11], '#1e293b', 2.2);
     }
     // Warm cedar seat & backrest slats (backrest on north side so bench looks south over the Tagus!)
-    this.drawPoly3D(
+    const seatPoly = this.drawPoly3D(
       ctx,
       cam,
       [[x - 19, y - 4, 9], [x + 19, y - 4, 9], [x + 19, y + 5, 9], [x - 19, y + 5, 9]],
       shadeColor('#a16236', 1.0, isEvening),
-      '#472d1b',
-      1.1
+      edgeStroke,
+      edgeW
     );
-    this.drawPoly3D(
+    const backPoly = this.drawPoly3D(
       ctx,
       cam,
       [[x - 19, y - 5, 11], [x + 19, y - 5, 11], [x + 19, y - 5, 19], [x - 19, y - 5, 19]],
       shadeColor('#8b522c', 0.95, isEvening),
-      '#472d1b',
-      1.1
+      edgeStroke,
+      edgeW
     );
+    if (seatPoly) this.lastHitTargets.push({ kind: 'riverside-bench', id: bench.id, bench, poly: seatPoly });
+    if (backPoly) this.lastHitTargets.push({ kind: 'riverside-bench', id: bench.id, bench, poly: backPoly });
   }
 
   drawJogger3D(ctx, cam, jog, isEvening) {
@@ -3334,7 +3320,7 @@ export class LisboaStreetView3DRenderer {
     }
   }
 
-  drawSeasonalProp3D(ctx, cam, prop, isEvening, animTime) {
+  drawSeasonalProp3D(ctx, cam, prop, isEvening, animTime, highlighted = false) {
     const base = this.projectWorldPt(cam, prop.x, prop.y, 0);
     if (!base) return;
     const scale = this.focal / base.cz;
@@ -3444,42 +3430,46 @@ export class LisboaStreetView3DRenderer {
       this.drawLine3D(ctx, cam, [cx - hw, cy - 3, 14], [cx - hw - 8, cy - 3, 16], '#78350f', 2.4);
       this.drawLine3D(ctx, cam, [cx - hw, cy + 3, 14], [cx - hw - 8, cy + 3, 16], '#78350f', 2.4);
 
-      // 3D Iron Firebox Body (back-to-front visible faces)
+      // 3D Iron Firebox Body (back-to-front visible faces) + clickable hit registration
       const bodyDark = shadeColor('#1f2937', 0.9, isEvening);
       const bodySide = shadeColor('#334155', 0.95, isEvening);
-      const bodyTrim = '#9ca3af';
-      this.drawPoly3D(
+      const bodyTrim = highlighted ? '#facc15' : '#9ca3af';
+      const trimW = highlighted ? 2.2 : 1.1;
+      const pNorth = this.drawPoly3D(
         ctx,
         cam,
         [[cx - hw, cy - hd, zBot], [cx + hw, cy - hd, zBot], [cx + hw, cy - hd, zTop], [cx - hw, cy - hd, zTop]],
         bodyDark,
         bodyTrim,
-        1.1
+        trimW
       );
-      this.drawPoly3D(
+      const pWest = this.drawPoly3D(
         ctx,
         cam,
         [[cx - hw, cy - hd, zBot], [cx - hw, cy + hd, zBot], [cx - hw, cy + hd, zTop], [cx - hw, cy - hd, zTop]],
         bodySide,
         bodyTrim,
-        1.1
+        trimW
       );
-      this.drawPoly3D(
+      const pEast = this.drawPoly3D(
         ctx,
         cam,
         [[cx + hw, cy - hd, zBot], [cx + hw, cy + hd, zBot], [cx + hw, cy + hd, zTop], [cx + hw, cy - hd, zTop]],
         bodySide,
         bodyTrim,
-        1.1
+        trimW
       );
-      this.drawPoly3D(
+      const pSouth = this.drawPoly3D(
         ctx,
         cam,
         [[cx - hw, cy + hd, zBot], [cx + hw, cy + hd, zBot], [cx + hw, cy + hd, zTop], [cx - hw, cy + hd, zTop]],
         bodyDark,
         bodyTrim,
-        1.1
+        trimW
       );
+      for (const poly of [pNorth, pWest, pEast, pSouth]) {
+        if (poly && prop.id) this.lastHitTargets.push({ kind: 'castanha-cart', id: prop.id, prop, poly });
+      }
 
       // Glowing charcoal ember slit on front & west faces of the roaster drum
       this.drawPoly3D(
@@ -3499,7 +3489,7 @@ export class LisboaStreetView3DRenderer {
         0.9
       );
 
-      // Top roasting tray mounded with hot roasted chestnuts & glowing embers
+      // Top roasting tray mounded with hot roasted chestnuts & stacked folded kraft paper cones (cartuchos de papel!)
       this.drawPoly3D(
         ctx,
         cam,
@@ -3516,6 +3506,47 @@ export class LisboaStreetView3DRenderer {
         '#f97316',
         0.9
       );
+      // 3 folded white/kraft paper cones brimming with glossy brown roasted chestnuts ready to buy (3.00 EUR)!
+      for (const [coneOx, coneOy] of [[-5.5, -2.5], [-2.5, 1.5], [1.5, -2.5]]) {
+        const cPt = this.projectWorldPt(cam, cx + coneOx, cy + coneOy, zTop + 1.2);
+        if (!cPt) continue;
+        const cs = clamp(this.focal / cPt.cz, 0.35, 1.8);
+        ctx.fillStyle = '#f5e6c8';
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = Math.max(0.9, 0.8 * cs);
+        ctx.beginPath();
+        ctx.moveTo(cPt.x, cPt.y + 1.5 * cs);
+        ctx.lineTo(cPt.x - 2.8 * cs, cPt.y - 5.2 * cs);
+        ctx.lineTo(cPt.x + 2.8 * cs, cPt.y - 5.2 * cs);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Glossy roasted chestnuts peeking out top of each folded paper cone
+        ctx.fillStyle = '#5c2808';
+        for (const [nx, ny] of [[-1.2, -5.4], [0.2, -6.0], [1.3, -5.2]]) {
+          ctx.beginPath();
+          ctx.arc(cPt.x + nx * cs, cPt.y + ny * cs, 1.15 * cs, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // Crisp price sign on the roaster ("3 EUR")
+      const signPt = this.projectWorldPt(cam, cx - hw * 0.4, cy - hd * 0.5, 15.8);
+      if (signPt && signPt.cz < 240) {
+        const ss = clamp(this.focal / signPt.cz, 0.5, 1.4);
+        const bw = 54 * ss;
+        const bh = 13 * ss;
+        drawRoundedRect(ctx, signPt.x - bw * 0.5, signPt.y - bh * 0.5, bw, bh, 3);
+        ctx.fillStyle = highlighted ? '#fef08a' : '#fff7ed';
+        ctx.fill();
+        ctx.strokeStyle = '#9a3412';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = '#7c2d12';
+        ctx.font = `800 ${Math.max(7, Math.round(7.5 * ss))}px "Segoe UI", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('CONES 3 EUR', signPt.x, signPt.y + 2.8 * ss);
+        ctx.textAlign = 'left';
+      }
 
       // Tall iron chimney smokestack rising from corner of cart + warm curling woodsmoke puffs
       const stackX = cx + hw - 2.5;
@@ -3832,6 +3863,309 @@ export class LisboaStreetView3DRenderer {
     ctx.restore();
   }
 
+  renderPerspectiveCalcadaGround(ctx, cam, hy, isEvening, isGolden, wet, brightSummer) {
+    if (typeof document === 'undefined' || typeof ctx.drawImage !== 'function') return false;
+    const w = this.viewWidth;
+    const h = this.viewHeight;
+    const hyInt = clamp(Math.floor(hy), 40, h - 20);
+    const groundH = h - hyInt;
+    if (groundH <= 4) return false;
+
+    if (!this.groundCanvas || this.groundCanvas.width !== w || this.groundH !== groundH) {
+      this.groundCanvas = document.createElement('canvas');
+      this.groundCanvas.width = w;
+      this.groundCanvas.height = groundH;
+      this.groundCtx = this.groundCanvas.getContext('2d');
+      this.groundImg = this.groundCtx.createImageData(w, groundH);
+      this.groundU32 = new Uint32Array(this.groundImg.data.buffer);
+      this.groundH = groundH;
+    }
+
+    const u32 = this.groundU32;
+    const tex = this.calcadaTex;
+    const mask = tex.mask;
+    const tMosaic = tex.sidewalkMosaic;
+    const tWhite = tex.sidewalkWhite;
+    const tBlack = tex.sidewalkBlack;
+    const tMar = tex.marLargo;
+    const tLeque = tex.lequeRoad;
+
+    // Atmospheric distance fog color matching current Lisbon season & time of day
+    const fogR = isEvening ? 54 : wet >= 0.5 ? 148 : brightSummer ? 222 : isGolden ? 204 : 196;
+    const fogG = isEvening ? 62 : wet >= 0.5 ? 156 : brightSummer ? 214 : isGolden ? 174 : 190;
+    const fogB = isEvening ? 80 : wet >= 0.5 ? 166 : brightSummer ? 198 : isGolden ? 148 : 178;
+
+    // Global stone illumination tint (evening blue twilight, golden hour warmth, wet slate rain sheen, bright July limestone)
+    let mulR = isEvening ? 0.58 : isGolden ? 1.06 : brightSummer ? 1.08 : wet >= 0.45 ? 0.84 : 1.0;
+    let mulG = isEvening ? 0.62 : isGolden ? 0.96 : brightSummer ? 1.06 : wet >= 0.45 ? 0.86 : 1.0;
+    let mulB = isEvening ? 0.76 : isGolden ? 0.84 : brightSummer ? 1.03 : wet >= 0.45 ? 0.92 : 1.0;
+    const wetSheen = wet >= 0.45 ? (isEvening ? 14 : 20) : 0;
+
+    const camX = cam.camX;
+    const camY = cam.camY;
+    const camZ = cam.camZ;
+    const fx = cam.fx;
+    const fy = cam.fy;
+    const rx = cam.rx;
+    const ry = cam.ry;
+    const focal = this.focal;
+    const halfW = w * 0.5;
+    const horizonY = cam.horizonY;
+    const littleEndian = IS_LITTLE_ENDIAN;
+
+    const SIDE_SCALE = 2.45; // ~5cm hand-knapped calcada tesserae
+    const MAR_SCALE = 2.25;  // Iconic Rossio / Ribeira Mar Largo wave scale
+    const LEQUE_SCALE = 2.35; // Authentic overlapping 1.4m Lisbon leque fan cobblestone arches
+
+    for (let row = 0; row < groundH; row += 1) {
+      const sy = hyInt + row + 0.5;
+      const dy = sy - horizonY;
+      const rowOff = row * w;
+      if (dy < 0.8) {
+        u32.fill(0, rowOff, rowOff + w);
+        continue;
+      }
+
+      const cz = (camZ * focal) / dy;
+      const stepScale = cz / focal;
+      const dwx = rx * stepScale;
+      const dwy = ry * stepScale;
+      let wx = camX + fx * cz - rx * (halfW * stepScale);
+      let wy = camY + fy * cz - ry * (halfW * stepScale);
+
+      const fog = cz <= 190 ? 0 : cz >= 1020 ? 0.82 : ((cz - 190) / 830) * 0.82;
+      const invFog = 1 - fog;
+      const fogAddR = fogR * fog;
+      const fogAddG = fogG * fog;
+      const fogAddB = fogB * fog;
+
+      for (let sx = 0; sx < w; sx += 1, wx += dwx, wy += dwy) {
+        if (wy >= WATERFRONT_Y) {
+          u32[rowOff + sx] = 0;
+          continue;
+        }
+
+        let r;
+        let g;
+        let b;
+
+        if (wy >= WATERFRONT_Y - 14) {
+          // Carved Lioz limestone seawall coping slabs along the Tagus parapet
+          const slab = ((wx % 26) + 26) % 26;
+          const isEdge = wy >= WATERFRONT_Y - 2 || wy < WATERFRONT_Y - 12.5 || slab < 1.3;
+          r = isEdge ? 142 : 226;
+          g = isEdge ? 134 : 218;
+          b = isEdge ? 122 : 202;
+        } else if (wy >= 972) {
+          // Ribeira das Naus / Cais do Sodre Tagus Promenade: iconic black-and-white hand-laid Mar Largo wave mosaic!
+          const u = Math.floor(wx * MAR_SCALE) & mask;
+          const v = Math.floor(wy * MAR_SCALE) & mask;
+          const ti = (v * 128 + u) * 4;
+          const onFrame = wy < 976.5 || wy > 1011.5;
+          const buf = onFrame ? tBlack : tMar;
+          r = buf[ti];
+          g = buf[ti + 1];
+          b = buf[ti + 2];
+        } else {
+          // Classify roadway carriageway vs. raised Lioz limestone curb vs. Camoes Plaza vs. Chiado/Alfama/Bairro Alto sidewalk
+          const inXSpan = wx >= 116 && wx <= 2284;
+          const inNorthRoad = inXSpan && wy >= 248 && wy <= 322;
+          const inTramRoad = inXSpan && wy >= 577 && wy <= 643;
+          const inSouthRoad = inXSpan && wy >= 893 && wy <= 972;
+          const inVertRoad =
+            (wy >= 248 && wy <= 972 && (
+              (wx >= 120 && wx <= 205) ||
+              (wx >= 1344 && wx <= 1422) ||
+              (wx >= 1685 && wx <= 1775) ||
+              (wx >= 2155 && wx <= 2280)
+            )) ||
+            (wy >= 124 && wy <= 972 && wx >= 475 && wx <= 550);
+
+          if (inNorthRoad || inTramRoad || inSouthRoad || inVertRoad) {
+            // Check 3px raised Lioz limestone curbstone (lancil) along road edges
+            const onHorizCurb =
+              (inNorthRoad && (wy < 251 || wy > 319)) ||
+              (inTramRoad && (wy < 580 || wy > 640)) ||
+              (inSouthRoad && (wy < 896 || wy > 969));
+            const onVertCurb =
+              inVertRoad && !inNorthRoad && !inTramRoad && !inSouthRoad && (
+                (wx >= 475 && wx <= 478) || (wx >= 547 && wx <= 550) ||
+                (wx >= 1344 && wx <= 1347) || (wx >= 1419 && wx <= 1422) ||
+                (wx >= 1685 && wx <= 1688) || (wx >= 1772 && wx <= 1775)
+              );
+
+            if (onHorizCurb || onVertCurb) {
+              const joint = (((wx + wy) % 24) + 24) % 24 < 1.3;
+              r = joint ? 128 : 224;
+              g = joint ? 120 : 216;
+              b = joint ? 110 : 202;
+            } else {
+              // Overlapping curved fan-arch (Leque) basalt street cobblestones!
+              const u = Math.floor(wx * LEQUE_SCALE) & mask;
+              const v = Math.floor(wy * LEQUE_SCALE) & mask;
+              const ti = (v * 128 + u) * 4;
+              r = tLeque[ti];
+              g = tLeque[ti + 1];
+              b = tLeque[ti + 2];
+
+              // Weathered Lisbon zebra crosswalk paint brushed cleanly OVER the cobblestone texture (cobble joints show through!)
+              let onCrosswalk = false;
+              if (
+                (wy >= 254 && wy <= 316) ||
+                (wy >= 579 && wy <= 641) ||
+                (wy >= 900 && wy <= 962)
+              ) {
+                if (
+                  (wx >= 491 && wx <= 532 && ((wx - 491) % 11) < 6) ||
+                  (wx >= 885 && wx <= 932 && ((wx - 885) % 11) < 6) ||
+                  (wx >= 1361 && wx <= 1404 && ((wx - 1361) % 11) < 6) ||
+                  (wx >= 1705 && wx <= 1748 && ((wx - 1705) % 11) < 6)
+                ) {
+                  onCrosswalk = true;
+                }
+              }
+              if (onCrosswalk) {
+                r = (r * 0.34 + 244 * 0.66) | 0;
+                g = (g * 0.34 + 240 * 0.66) | 0;
+                b = (b * 0.34 + 230 * 0.66) | 0;
+              }
+            }
+          } else if (wx >= 865 && wx <= 1035 && wy >= 230 && wy <= 972) {
+            // Praca Luis de Camoes Plaza: black basalt border frame + sweeping hand-laid Mar Largo waves!
+            const u = Math.floor(wx * MAR_SCALE) & mask;
+            const v = Math.floor(wy * MAR_SCALE) & mask;
+            const ti = (v * 128 + u) * 4;
+            const onPlazaEdge = wx < 872 || wx > 1028;
+            const buf = onPlazaEdge ? tBlack : tMar;
+            r = buf[ti];
+            g = buf[ti + 1];
+            b = buf[ti + 2];
+          } else {
+            // Sidewalks across Bairro Alto, Chiado, and Alfama: authentic hand-laid Calcada Portuguesa!
+            // Double black basalt decorative ribbon (faixa de basalto) running parallel to every curb edge
+            const onBasaltRibbon =
+              inXSpan && (
+                (wy >= 241 && wy <= 245) || (wy >= 325 && wy <= 329) ||
+                (wy >= 569 && wy <= 573) || (wy >= 647 && wy <= 651) ||
+                (wy >= 885 && wy <= 889)
+              );
+            const onWhiteMargin =
+              inXSpan && (
+                (wy >= 245 && wy < 248) || (wy > 322 && wy <= 325) ||
+                (wy >= 573 && wy < 577) || (wy > 643 && wy <= 647) ||
+                (wy >= 889 && wy < 893)
+              );
+            const u = Math.floor(wx * SIDE_SCALE) & mask;
+            const v = Math.floor(wy * SIDE_SCALE) & mask;
+            const ti = (v * 128 + u) * 4;
+            const buf = onBasaltRibbon ? tBlack : onWhiteMargin ? tWhite : tMosaic;
+            r = buf[ti];
+            g = buf[ti + 1];
+            b = buf[ti + 2];
+          }
+        }
+
+        // Apply Lisbon sunlight / twilight / wet rain-sheen + atmospheric perspective fade
+        const nr = clamp(((r * mulR + wetSheen * (r > 120 ? 0.5 : 0.9)) * invFog + fogAddR) | 0, 0, 255);
+        const ng = clamp(((g * mulG + wetSheen * (g > 120 ? 0.55 : 1.0)) * invFog + fogAddG) | 0, 0, 255);
+        const nb = clamp(((b * mulB + wetSheen * 1.15) * invFog + fogAddB) | 0, 0, 255);
+        u32[rowOff + sx] = littleEndian
+          ? (0xff000000 | (nb << 16) | (ng << 8) | nr)
+          : ((nr << 24) | (ng << 16) | (nb << 8) | 0xff);
+      }
+    }
+
+    this.groundCtx.putImageData(this.groundImg, 0, 0);
+    ctx.drawImage(this.groundCanvas, 0, hyInt);
+    return true;
+  }
+
+  drawHeldCastanhaCone3D(ctx, timer, animTime, isEvening) {
+    // Cozy first-person steaming kraft-paper cone of hot roasted Castanhas Assadas in bottom-right corner
+    const w = this.viewWidth;
+    const h = this.viewHeight;
+    const fade = clamp(timer / 2.0, 0, 1);
+    const swayX = Math.sin(animTime * 2.2) * 3;
+    const swayY = Math.cos(animTime * 2.8) * 2.5;
+    const cx = w - 92 + swayX;
+    const cy = h - 38 + swayY;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+
+    // Gentle curling steam wisps rising off the hot roasted chestnuts
+    for (let i = 0; i < 4; i += 1) {
+      const p = (animTime * 0.75 + i * 0.25) % 1;
+      const sx = cx - 8 + Math.sin(animTime * 2.4 + i * 1.5) * 10 + i * 5;
+      const sy = cy - 68 - p * 48;
+      ctx.fillStyle = `rgba(241, 245, 249, ${(1 - p) * 0.42})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 6 + p * 11, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Back folded paper cone lip (traditional Lisbon cartucho made from folded newspaper/kraft sheet)
+    ctx.fillStyle = shadeColor('#ebd9b7', 0.92, isEvening);
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx - 28, cy - 58);
+    ctx.lineTo(cx + 12, cy - 84);
+    ctx.lineTo(cx + 34, cy - 52);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Cluster of glossy charred roasted chestnuts dusted with coarse sea salt grains
+    for (const [ox, oy, rx, ry] of [
+      [-14, -56, 10, 8], [2, -62, 11, 8.5], [16, -54, 10, 8],
+      [-6, -48, 10, 8], [10, -48, 10, 8], [1, -55, 9.5, 7.5]
+    ]) {
+      ctx.fillStyle = shadeColor('#5c240a', 1, isEvening);
+      ctx.beginPath();
+      ctx.ellipse(cx + ox, cy + oy, rx, ry, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#291004';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+      // Charred roast split & coarse sea salt glint
+      ctx.fillStyle = '#d97706';
+      ctx.beginPath();
+      ctx.ellipse(cx + ox - 2, cy + oy - 1.5, rx * 0.42, ry * 0.28, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(cx + ox + 2, cy + oy - 3, 2, 2);
+    }
+
+    // Front rolled kraft-paper cone body wrapping the chestnuts
+    ctx.fillStyle = shadeColor('#f5e6c8', 1, isEvening);
+    ctx.beginPath();
+    ctx.moveTo(cx - 32, cy - 54);
+    ctx.lineTo(cx + 32, cy - 50);
+    ctx.lineTo(cx + 4, cy + 44);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#92400e';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Diagonal folded seam & subtle Portuguese stamp
+    ctx.strokeStyle = 'rgba(146, 64, 14, 0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy - 52);
+    ctx.lineTo(cx + 4, cy + 36);
+    ctx.stroke();
+    ctx.fillStyle = '#7c2d12';
+    ctx.font = '700 8.5px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CASTANHAS', cx + 2, cy - 26);
+    ctx.fillText('LISBOA', cx + 2, cy - 15);
+    ctx.textAlign = 'left';
+
+    ctx.restore();
+  }
+
   drawStreetViewHud(ctx, cam, state, monthInfo = getMonthInfo(state.month)) {
     ctx.save();
 
@@ -3861,6 +4195,21 @@ export class LisboaStreetView3DRenderer {
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '600 10px "Segoe UI", sans-serif';
     ctx.fillText(line2, 26, 52, boxW - 22);
+
+    // Subtle seated riverside bench pill while relaxing along the Tagus
+    if (state.seatedBenchId && state.seatedBench) {
+      const seatMsg = `SEATED: ${state.seatedBench.name}  |  Restoring Energy  |  Drag to pan Tagus & Almada  |  [E] or Move to stand`;
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      const sw = Math.min(this.viewWidth - 28, ctx.measureText(seatMsg).width + 24);
+      drawRoundedRect(ctx, 14, 72, sw, 24, 6);
+      ctx.fillStyle = 'rgba(15, 118, 110, 0.88)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(253, 224, 71, 0.72)';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+      ctx.fillStyle = '#fef9c3';
+      ctx.fillText(seatMsg, 26, 87, sw - 20);
+    }
 
     // Top-right Live Lisboa Radar Mini-Map with Rotating Blue View Cone
     const mapW = 152;

@@ -1875,21 +1875,81 @@ export const RIVERSIDE_JOGGERS = [
 
 // Wooden & Lioz limestone benches lining the Ribeira das Naus / Tagus waterfront seawall
 export const RIVERSIDE_BENCHES = [
-  { id: 'rv-bench-1', x: 295, y: 1016 },
-  { id: 'rv-bench-2', x: 475, y: 1016 },
-  { id: 'rv-bench-3', x: 950, y: 1016 },
-  { id: 'rv-bench-4', x: 1240, y: 1016 },
-  { id: 'rv-bench-5', x: 1520, y: 1016 },
-  { id: 'rv-bench-6', x: 1795, y: 1016 },
-  { id: 'rv-bench-7', x: 2010, y: 1016 }
+  { id: 'rv-bench-1', x: 295, y: 1016, name: 'Bairro Alto Waterfront Bench', viewNote: 'Overlooking Ponte 25 de Abril and the western Tagus estuary' },
+  { id: 'rv-bench-2', x: 475, y: 1016, name: 'Cais do Sodre West Bench', viewNote: 'Framing Ponte 25 de Abril, Cristo Rei, and passing lateen sailboats' },
+  { id: 'rv-bench-3', x: 950, y: 1016, name: 'Ribeira das Naus Bench', viewNote: 'Clear riverside view of Cristo Rei, Almada Velha, and Cais do Ginjal' },
+  { id: 'rv-bench-4', x: 1240, y: 1016, name: 'Terreiro do Paco Seawall Bench', viewNote: 'Watching Boca do Vento elevator, river gulls, and Tagus swells' },
+  { id: 'rv-bench-5', x: 1520, y: 1016, name: 'Cais das Colunas Bench', viewNote: 'Looking across the shimmering river toward Farol de Cacilhas' },
+  { id: 'rv-bench-6', x: 1795, y: 1016, name: 'Alfama Waterfront Bench', viewNote: 'Relaxing beside stone pines and harbor seagulls on the seawall' },
+  { id: 'rv-bench-7', x: 2010, y: 1016, name: 'Santa Apolonia Promenade Bench', viewNote: 'Peaceful eastern Tagus view watching Fragata sails drift past' }
 ];
+
+// Authentic Lisbon street roasted chestnut cone sold from October through February
+export const CASTANHA_CONE_ITEM = {
+  id: 'item-castanhas-cone',
+  name: 'Hot Paper Cone of Castanhas Assadas',
+  shortName: 'Cartucho de Castanhas',
+  kind: 'food',
+  costEur: 3.0,
+  fullnessDelta: 24,
+  energyDelta: 18,
+  description: 'A piping-hot folded paper cone of 12 smoky charcoal-roasted chestnuts dusted with coarse sea salt.'
+};
 
 // Seasonal autumn/winter roasted chestnut street carts (Assadores de Castanhas: Oct - Feb)
 export const CASTANHA_VENDORS = [
-  { id: 'castanha-chiado', x: 988, y: 538, vendorName: 'Sr. Joaquim', cry: 'Quentes e boas!' },
-  { id: 'castanha-alfama', x: 1852, y: 538, vendorName: 'Dona Rosa', cry: 'Castanhas assadas!' },
-  { id: 'castanha-ribeira', x: 895, y: 1012, vendorName: 'Sr. Antonio', cry: 'Quentes e boas!' },
-  { id: 'castanha-cais', x: 1585, y: 1012, vendorName: 'Dona Maria', cry: 'Castanhas quentinhas!' }
+  {
+    id: 'castanha-chiado',
+    x: 988,
+    y: 538,
+    vendorName: 'Sr. Joaquim',
+    locationName: 'Largo do Chiado',
+    cry: 'Quentes e boas!',
+    phrase: {
+      pt: 'Uma duzia de castanhas assadas, quentes e boas, por favor!',
+      pronunciation: 'Oo-mah doo-zee-ah deh kahsh-tah-nyash ah-sah-dash, ken-tesh ee boh-ash, poor fah-vohr!',
+      en: 'A dozen hot, tasty roasted chestnuts, please!'
+    }
+  },
+  {
+    id: 'castanha-alfama',
+    x: 1852,
+    y: 538,
+    vendorName: 'Dona Rosa',
+    locationName: 'Calcada da Se (Alfama)',
+    cry: 'Castanhas assadas!',
+    phrase: {
+      pt: 'Um cartucho de castanhas com sal grosso, por favor!',
+      pronunciation: 'Oom kahr-too-shoo deh kahsh-tah-nyash kohn sahl groh-soo, poor fah-vohr!',
+      en: 'A paper cone of roasted chestnuts with sea salt, please!'
+    }
+  },
+  {
+    id: 'castanha-ribeira',
+    x: 895,
+    y: 1012,
+    vendorName: 'Sr. Antonio',
+    locationName: 'Ribeira das Naus Waterfront',
+    cry: 'Quentes e boas!',
+    phrase: {
+      pt: 'Castanhas quentinhas junto ao Tejo, por favor!',
+      pronunciation: 'Kahsh-tah-nyash ken-tee-nyash zhoon-too ow Teh-zhoo, poor fah-vohr!',
+      en: 'Piping-hot chestnuts by the Tagus River, please!'
+    }
+  },
+  {
+    id: 'castanha-cais',
+    x: 1585,
+    y: 1012,
+    vendorName: 'Dona Maria',
+    locationName: 'Cais do Sodre Promenade',
+    cry: 'Castanhas quentinhas!',
+    phrase: {
+      pt: 'Quero um cartucho quentinho para o passeio na ribeira!',
+      pronunciation: 'Keh-roo oom kahr-too-shoo ken-tee-nyoo pah-rah oo pah-say-oo nah ree-bay-rah!',
+      en: 'I would like a warm paper cone for my riverside stroll!'
+    }
+  }
 ];
 
 // Grounded in IPMA 1991-2020 Lisboa/Instituto Geofisico climate normals & authentic Lisboa cultural calendar

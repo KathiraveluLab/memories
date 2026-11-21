@@ -6,6 +6,9 @@ import {
   METRO_STATIONS,
   VENUES,
   REST_SPOTS,
+  RIVERSIDE_BENCHES,
+  CASTANHA_VENDORS,
+  CASTANHA_CONE_ITEM,
   PLAYER_OUTFITS,
   LISBOA_MONTHS,
   getMonthInfo,
@@ -364,6 +367,34 @@ function handleCanvasClick(event) {
         setStatusBanner(`Walking along the sidewalk toward ${hit3d.venue.name}...`);
         return;
       }
+      if (hit3d.kind === 'castanha-cart') {
+        const cv = CASTANHA_VENDORS.find((v) => v.id === hit3d.id);
+        if (cv) {
+          const walkY = cv.y >= 970 ? 996 : cv.y + 10;
+          const path = buildOverworldPath(
+            state.player.x,
+            state.player.y,
+            cv.x,
+            walkY,
+            { type: 'buyCastanha', id: cv.id }
+          );
+          engine.setWalkPath(path);
+          setStatusBanner(`Walking to ${cv.vendorName}'s Castanhas Assadas cart (${CASTANHA_CONE_ITEM.costEur.toFixed(2)} EUR)...`);
+          return;
+        }
+      }
+      if (hit3d.kind === 'riverside-bench' && hit3d.bench) {
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          hit3d.bench.x,
+          998,
+          { type: 'sitRiversideBench', id: hit3d.bench.id }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking along the Tagus promenade to sit on ${hit3d.bench.name}...`);
+        return;
+      }
     }
   }
 
@@ -538,6 +569,41 @@ function handleCanvasClick(event) {
     }
   }
 
+  // Check seasonal Castanha roasted chestnut street carts (Oct - Feb)
+  if (getMonthInfo(state.month).hasCastanhaVendors) {
+    for (const cv of CASTANHA_VENDORS) {
+      if (Math.hypot(worldPt.x - cv.x, worldPt.y - cv.y) <= 36) {
+        const walkY = cv.y >= 970 ? 996 : cv.y + 10;
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          cv.x,
+          walkY,
+          { type: 'buyCastanha', id: cv.id }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking to ${cv.vendorName}'s Castanhas Assadas cart (${CASTANHA_CONE_ITEM.costEur.toFixed(2)} EUR)...`);
+        return;
+      }
+    }
+  }
+
+  // Check interactive Tagus riverside benches
+  for (const rb of RIVERSIDE_BENCHES) {
+    if (Math.hypot(worldPt.x - rb.x, worldPt.y - rb.y) <= 34) {
+      const path = buildOverworldPath(
+        state.player.x,
+        state.player.y,
+        rb.x,
+        998,
+        { type: 'sitRiversideBench', id: rb.id }
+      );
+      engine.setWalkPath(path);
+      setStatusBanner(`Walking along the Tagus promenade to sit on ${rb.name}...`);
+      return;
+    }
+  }
+
   // Snap clicks inside vehicle lanes gently onto the nearest sidewalk edge
   let targetY = worldPt.y;
   if (isPointInVehicleLane(worldPt.x, targetY)) {
@@ -551,6 +617,7 @@ function renderActiveContextPanel(state) {
   const venue = engine.getCurrentVenue();
   const riding = engine.getRidingVehicle();
   const metroStation = engine.getActiveMetroStation();
+  const nearby = state.mode === 'overworld' && !riding ? engine.getNearbyInteraction() : null;
 
   const sig = JSON.stringify({
     mode: state.mode,
@@ -567,6 +634,8 @@ function renderActiveContextPanel(state) {
     stopId: riding?.currentStopId || null,
     nextStop: riding?.nextStopName || null,
     alight: state.alightAtNextStop,
+    seatedBenchId: state.seatedBenchId || null,
+    nearbyCastanhaId: nearby?.type === 'castanha-cart' ? nearby.id : null,
     euros: state.euros
   });
 
@@ -853,6 +922,59 @@ function renderActiveContextPanel(state) {
         <button type="button" class="btn btn-primary btn-sm" data-venue-action="toast">Raise a Toast ("Saude!") [T]</button>
         <button type="button" class="btn btn-sm" data-venue-action="postcard">Shared Postcard [P]</button>
         ${venue.id === 'se-de-lisboa' ? '<button type="button" class="btn btn-sm" data-venue-action="cathedral-bell">Toll 1147 Bell Tower</button>' : ''}
+      </div>
+    `;
+    return;
+  }
+
+  if (state.seatedBenchId && state.seatedBench) {
+    dom.activeContextPanel.classList.remove('hidden');
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>${escapeHtml(state.seatedBench.name)}</h3>
+          <div class="item-meta">Tagus Waterfront Seating | Restoring Energy (+4.5/s)</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" data-stand-up-bench="true">Stand Up [E]</button>
+      </div>
+      <p class="helper-text">
+        ${escapeHtml(state.seatedBench.viewNote)}. Drag the 3D view to admire Ponte 25 de Abril, Cristo Rei, and passing sailboats, or press [E] / WASD anytime to stand up.
+      </p>
+      <div class="action-strip">
+        <button type="button" class="btn btn-sm" data-venue-action="postcard">Snap Tagus Postcard [P]</button>
+      </div>
+    `;
+    return;
+  }
+
+  if (nearby?.type === 'castanha-cart' && nearby.vendor) {
+    const cv = nearby.vendor;
+    const item = CASTANHA_CONE_ITEM;
+    const affordable = state.euros >= item.costEur;
+    dom.activeContextPanel.classList.remove('hidden');
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>${escapeHtml(cv.vendorName)} - Castanhas Assadas</h3>
+          <div class="item-meta">${escapeHtml(cv.locationName)} | Charcoal Street Roaster</div>
+        </div>
+        <span class="badge badge-tram">SEASONAL</span>
+      </div>
+      <div class="context-quote">"${escapeHtml(cv.cry)}"</div>
+      <div class="phrase-callout">
+        <span class="pt">${escapeHtml(cv.phrase.pt)}</span>
+        <span class="pron">${escapeHtml(cv.phrase.pronunciation)}</span>
+        <span>${escapeHtml(cv.phrase.en)}</span>
+      </div>
+      <div class="item-card">
+        <div>
+          <h4>${escapeHtml(item.name)}</h4>
+          <div class="item-meta">${escapeHtml(item.description)}</div>
+          <div class="item-meta"><strong>${item.costEur.toFixed(2)} EUR</strong> | +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" data-buy-castanha="${escapeHtml(cv.id)}" ${affordable ? '' : 'disabled'}>
+          Buy Cone [E]
+        </button>
       </div>
     `;
     return;
@@ -1643,7 +1765,9 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyE' || event.code === 'Space') {
     if (!event.repeat) {
       const res = engine.triggerNearbyInteraction();
-      if (res && res.ok && res.feedback) {
+      if (res && res.ok && res.soundEffect) {
+        soundEngine.playEffect(res.soundEffect);
+      } else if (res && res.ok && res.feedback) {
         soundEngine.playEffect('door');
       } else if (res && !res.ok && res.error) {
         setStatusBanner(res.error, true);
@@ -1666,7 +1790,10 @@ window.addEventListener('keydown', (event) => {
     }
   }
   if (event.code === 'Escape') {
-    if (engine.getState().mode === 'interior') {
+    if (engine.getState().seatedBenchId) {
+      engine.standUpFromRiversideBench();
+      refreshUi(true);
+    } else if (engine.getState().mode === 'interior') {
       engine.exitVenue();
       refreshUi(true);
     } else if (engine.getState().mode === 'metro' && engine.getState().metro.phase === 'platform') {
@@ -1752,6 +1879,9 @@ if (dom.btnViewMode) {
 
 dom.btnContextAction.addEventListener('click', () => {
   const res = engine.triggerNearbyInteraction();
+  if (res && res.ok && res.soundEffect) {
+    soundEngine.playEffect(res.soundEffect);
+  }
   if (res && !res.ok && res.error) {
     setStatusBanner(res.error, true);
   }
@@ -1868,6 +1998,19 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 });
 
 dom.activeContextPanel.addEventListener('click', (event) => {
+  if (event.target.closest('[data-stand-up-bench]')) {
+    engine.standUpFromRiversideBench();
+    refreshUi(true);
+    return;
+  }
+  const castanhaBtn = event.target.closest('[data-buy-castanha]');
+  if (castanhaBtn) {
+    const res = engine.buyCastanhaCone(castanhaBtn.dataset.buyCastanha);
+    if (res.ok) soundEngine.playEffect('register');
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
   const sbVisitBtn = event.target.closest('[data-sb-visit]');
   if (sbVisitBtn) {
     const res = engine.interactWithSouthBankSpot(sbVisitBtn.dataset.sbVisit);

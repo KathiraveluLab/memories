@@ -22,7 +22,7 @@ import {
   getMonthInfo
 } from './data.js';
 import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES, FERRY_PIER_ZONES } from './engine.js';
-import { LisboaStreetView3DRenderer } from './streetview3d.js';
+import { LisboaStreetView3DRenderer, buildCalcadaTextureData } from './streetview3d.js';
 import { LisboaScenes3DRenderer } from './scenes3d.js';
 
 const ALL_STOPS = getAllTransitStops();
@@ -82,80 +82,30 @@ export class LisboaCanvasRenderer {
       return { sidewalk: null, street: null, plaza: null };
     }
 
-    const buildTile = (size, mortarColor, palette, stoneH, minW, maxW, seedOffset) => {
+    const tex = buildCalcadaTextureData();
+    const toPattern = (rgbaData, targetSize = 64) => {
+      const src = document.createElement('canvas');
+      src.width = tex.size;
+      src.height = tex.size;
+      const sctx = src.getContext('2d');
+      const img = sctx.createImageData(tex.size, tex.size);
+      img.data.set(rgbaData);
+      sctx.putImageData(img, 0, 0);
+
       const tile = document.createElement('canvas');
-      tile.width = size;
-      tile.height = size;
+      tile.width = targetSize;
+      tile.height = targetSize;
       const tctx = tile.getContext('2d');
-      tctx.fillStyle = mortarColor;
-      tctx.fillRect(0, 0, size, size);
-
-      let seed = 1337 + seedOffset * 97;
-      const rand = () => {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        return seed / 4294967296;
-      };
-
-      const rows = Math.floor(size / stoneH);
-      for (let r = 0; r < rows; r += 1) {
-        const y = r * stoneH;
-        const offset = (r % 2) * Math.round((minW + maxW) * 0.35);
-        let x = -offset;
-        while (x < size) {
-          const w = Math.round(minW + rand() * (maxW - minW));
-          const color = palette[Math.floor(rand() * palette.length)];
-          const sx = x + 1;
-          const sy = y + 1;
-          const sw = w - 2;
-          const sh = stoneH - 2;
-
-          for (const wrapX of [sx, sx - size, sx + size]) {
-            if (wrapX + sw < 0 || wrapX > size) continue;
-            drawRoundedRect(tctx, wrapX, sy, sw, sh, 2.5);
-            tctx.fillStyle = color;
-            tctx.fill();
-            tctx.fillStyle = 'rgba(255, 252, 245, 0.24)';
-            tctx.fillRect(wrapX + 1.5, sy + 1, Math.max(2, sw - 3), 2);
-            tctx.fillStyle = 'rgba(35, 32, 28, 0.14)';
-            tctx.fillRect(wrapX + 1.5, sy + sh - 2, Math.max(2, sw - 3), 1.5);
-          }
-          x += w;
-        }
-      }
+      tctx.imageSmoothingEnabled = true;
+      tctx.drawImage(src, 0, 0, targetSize, targetSize);
       return this.ctx.createPattern(tile, 'repeat');
     };
 
-    const sidewalk = buildTile(
-      96,
-      '#b8afa0',
-      ['#ebe4d6', '#e2dacb', '#f2ece0', '#dcd3c3', '#e7dfd0'],
-      12,
-      12,
-      18,
-      1
-    );
-
-    const street = buildTile(
-      96,
-      '#686259',
-      ['#a69f95', '#968f86', '#b5aea3', '#8c867d', '#aba49a', '#9e978d'],
-      12,
-      14,
-      20,
-      2
-    );
-
-    const plaza = buildTile(
-      64,
-      '#b9b2a4',
-      ['#f2ede3', '#eae4d8', '#f6f2ea', '#e3dcd0'],
-      8,
-      8,
-      10,
-      3
-    );
-
-    return { sidewalk, street, plaza };
+    return {
+      sidewalk: toPattern(tex.sidewalkMosaic, 56),
+      street: toPattern(tex.lequeRoad, 56),
+      plaza: toPattern(tex.marLargo, 64)
+    };
   }
 
   screenToWorld(canvasX, canvasY, state) {
@@ -437,7 +387,7 @@ export class LisboaCanvasRenderer {
     this.drawCrosswalks(ctx);
 
     // 3. Tagus River Waterfront & Cais do Sodre Transtejo Ferry Terminal
-    this.drawTagusWaterfront(ctx);
+    this.drawTagusWaterfront(ctx, state, nearbyInteraction);
     this.drawFerryTerminal(ctx, nearbyInteraction?.type === 'ferry', isEvening);
 
     // 4. Transit corridors (Bus road markings + Steel Tram 28E Rails)
@@ -477,7 +427,7 @@ export class LisboaCanvasRenderer {
 
     // 11. Classic wrought-iron Lisbon streetlamps & seasonal street decorations (Christmas lights, Carnaval, 25 de Abril, Santos Populares, Parasols, Chestnut carts)
     this.drawLisbonStreetlamps(ctx, isEvening, lampsGlowing);
-    this.drawSeasonalOverworldDecor(ctx, monthInfo, isEvening);
+    this.drawSeasonalOverworldDecor(ctx, monthInfo, isEvening, nearbyInteraction);
 
     // 12. Walk Target Indicator
     if (state.player.walkTarget) {
@@ -688,7 +638,15 @@ export class LisboaCanvasRenderer {
     }
   }
 
-  drawTagusWaterfront(ctx) {
+  drawTagusWaterfront(ctx, state = null, nearbyInteraction = null) {
+    // Authentic Mar Largo black-and-white Calcada Portuguesa wave promenade along Ribeira das Naus (y: 974..1012)
+    if (this.patterns.plaza) {
+      ctx.fillStyle = this.patterns.plaza;
+      ctx.fillRect(0, 974, WORLD_WIDTH, WATERFRONT_Y - 990);
+      ctx.fillStyle = '#2e3540';
+      ctx.fillRect(0, 974, WORLD_WIDTH, 3);
+      ctx.fillRect(0, WATERFRONT_Y - 19, WORLD_WIDTH, 3);
+    }
     ctx.fillStyle = '#d5ccbc';
     ctx.fillRect(0, WATERFRONT_Y - 18, WORLD_WIDTH, 18);
     ctx.fillStyle = '#1b4d89';
@@ -824,12 +782,20 @@ export class LisboaCanvasRenderer {
 
     // Wooden & Lioz Limestone Riverside Promenade Benches overlooking the Tagus
     for (const rb of RIVERSIDE_BENCHES) {
+      const isHi = nearbyInteraction?.type === 'riverside-bench' && nearbyInteraction.id === rb.id;
+      const isSeatedHere = state?.seatedBenchId === rb.id;
+      if (isHi || isSeatedHere) {
+        ctx.strokeStyle = isSeatedHere ? '#34d399' : '#facc15';
+        ctx.lineWidth = 2.4;
+        drawRoundedRect(ctx, rb.x - 19, rb.y - 8, 38, 15, 4);
+        ctx.stroke();
+      }
       ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
       ctx.fillRect(rb.x - 16, rb.y - 3, 32, 11);
       ctx.fillStyle = '#8b522c';
       drawRoundedRect(ctx, rb.x - 16, rb.y - 5, 32, 9, 2);
       ctx.fill();
-      ctx.strokeStyle = '#472d1b';
+      ctx.strokeStyle = isHi ? '#facc15' : '#472d1b';
       ctx.lineWidth = 1.1;
       ctx.stroke();
     }
@@ -2623,7 +2589,7 @@ export class LisboaCanvasRenderer {
     }
   }
 
-  drawSeasonalOverworldDecor(ctx, monthInfo, isEvening) {
+  drawSeasonalOverworldDecor(ctx, monthInfo, isEvening, nearbyInteraction = null) {
     const style = monthInfo?.decorStyle;
     if (!style) return;
 
@@ -2738,10 +2704,25 @@ export class LisboaCanvasRenderer {
       for (const cv of CASTANHA_VENDORS) {
         const cx = cv.x;
         const cy = cv.y;
+        const isHi = nearbyInteraction?.type === 'castanha-cart' && nearbyInteraction.id === cv.id;
+        if (isHi) {
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 2.4;
+          drawRoundedRect(ctx, cx - 14, cy - 12, 28, 22, 4);
+          ctx.stroke();
+        }
         ctx.fillStyle = '#1e293b';
         ctx.fillRect(cx - 10, cy - 8, 20, 14);
         ctx.fillStyle = '#f97316';
         ctx.fillRect(cx - 6, cy - 5, 12, 6);
+        // Tiny kraft-paper chestnut cones ready for sale (3 EUR)
+        ctx.fillStyle = '#f5e6c8';
+        ctx.beginPath();
+        ctx.moveTo(cx - 8, cy - 2);
+        ctx.lineTo(cx - 10, cy - 8);
+        ctx.lineTo(cx - 5, cy - 8);
+        ctx.closePath();
+        ctx.fill();
         const rise = (this.animTime * 12) % 14;
         ctx.fillStyle = 'rgba(226, 232, 240, 0.55)';
         ctx.beginPath();
@@ -3493,11 +3474,11 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 13px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(interaction.label, this.viewWidth / 2, by + 19);
+    ctx.fillText(interaction.label, this.viewWidth / 2, by + 19, bw - 24);
 
     ctx.fillStyle = '#cbd5e1';
     ctx.font = '500 11px "Segoe UI", sans-serif';
-    ctx.fillText(interaction.sublabel, this.viewWidth / 2, by + 36);
+    ctx.fillText(interaction.sublabel, this.viewWidth / 2, by + 36, bw - 24);
     ctx.restore();
   }
 
