@@ -313,6 +313,30 @@ export class LisboaScenes3DRenderer {
       ctx.fillRect(foot.x - headR * 1.45, head.y + headR * 0.25, headR * 2.9, Math.max(2, headR * 0.35));
     }
 
+    // Raised celebratory drink glass / tumbler when mingling inside Bar da Noite!
+    if (opts.holdingDrink && h > 16) {
+      const lift = opts.partyBob ? Math.sin((opts.animTime || 0) * 3.8 + (opts.phaseOffset || 0)) * h * 0.045 : 0;
+      const gx = foot.x + w * 0.56;
+      const gy = head.y + h * 0.42 - lift;
+      ctx.strokeStyle = skin;
+      ctx.lineWidth = Math.max(1.6, w * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(foot.x + w * 0.32, head.y + h * 0.48);
+      ctx.lineTo(gx, gy + h * 0.03);
+      ctx.stroke();
+      const gw = Math.max(3, w * 0.22);
+      const gh = Math.max(4.5, h * 0.11);
+      ctx.fillStyle = opts.holdingDrink;
+      ctx.fillRect(gx - gw * 0.5, gy - gh, gw, gh);
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 0.9;
+      ctx.strokeRect(gx - gw * 0.5, gy - gh, gw, gh);
+      if (opts.drinkType === 'imperial') {
+        ctx.fillStyle = '#fffbeb';
+        ctx.fillRect(gx - gw * 0.5, gy - gh - Math.max(1.5, gh * 0.22), gw, Math.max(1.5, gh * 0.22));
+      }
+    }
+
     if (opts.label && h > 16) {
       const fs = clamp(Math.round(h * 0.14), 9, 12);
       ctx.save();
@@ -440,6 +464,7 @@ export class LisboaScenes3DRenderer {
     };
     const layout = theme.layout || 'shop';
     const isCathedral = layout === 'cathedral';
+    const isBar = layout === 'bar';
     const cam = this.buildCamera(state);
 
     const xMin = 56;
@@ -449,7 +474,7 @@ export class LisboaScenes3DRenderer {
     const ceilZ = isCathedral ? 196 : 134;
 
     // 1. Base ceiling & warm room backdrop
-    ctx.fillStyle = isCathedral ? '#3b3732' : shadeColor(theme.wall, 0.72);
+    ctx.fillStyle = isCathedral ? '#3b3732' : isBar ? '#170d20' : shadeColor(theme.wall, 0.72);
     ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
 
     // 2. Ceiling plane + wooden Lisbon ceiling beams (or cathedral ribbed arches)
@@ -562,6 +587,25 @@ export class LisboaScenes3DRenderer {
             // Glowing charcoal sardine grill hood on back left
             this.drawPoly3D(ctx, cam, [lerpW(0.08, 38), lerpW(0.28, 38), lerpW(0.28, 86), lerpW(0.08, 86)], '#334155', '#94a3b8', 1.4);
             this.drawPoly3D(ctx, cam, [lerpW(0.11, 40), lerpW(0.25, 40), lerpW(0.25, 50), lerpW(0.11, 50)], '#f97316');
+          }
+        } else if (isBar) {
+          // Illuminated backlit Bairro Alto liquor & ginjinha bottle wall (tapered glass bottles with necks & cream labels!)
+          this.drawPoly3D(ctx, cam, [lerpW(0.08, 38), lerpW(0.92, 38), lerpW(0.92, 106), lerpW(0.08, 106)], '#1b0d26', '#e879f9', 1.8);
+          const bottleCols = ['#dc2626', '#d97706', '#059669', '#0284c7', '#9333ea', '#ca8a04'];
+          for (let shelf = 0; shelf < 3; shelf += 1) {
+            const sz = 45 + shelf * 20;
+            this.drawPoly3D(ctx, cam, [lerpW(0.1, sz), lerpW(0.9, sz), lerpW(0.9, sz + 2.8), lerpW(0.1, sz + 2.8)], shelf === 1 ? '#f472b6' : '#fbbf24');
+            for (let bi = 0; bi < 16; bi += 1) {
+              const bu = 0.12 + bi * 0.049;
+              const col = bottleCols[(bi + shelf * 2) % bottleCols.length];
+              // Bottle body
+              this.drawPoly3D(ctx, cam, [lerpW(bu, sz + 2.8), lerpW(bu + 0.019, sz + 2.8), lerpW(bu + 0.019, sz + 12.2), lerpW(bu, sz + 12.2)], col, 'rgba(255,255,255,0.35)', 0.6);
+              // Tapered bottle neck & foil cap
+              this.drawPoly3D(ctx, cam, [lerpW(bu + 0.006, sz + 12.2), lerpW(bu + 0.013, sz + 12.2), lerpW(bu + 0.013, sz + 16.5), lerpW(bu + 0.006, sz + 16.5)], col);
+              this.drawPoly3D(ctx, cam, [lerpW(bu + 0.005, sz + 16.2), lerpW(bu + 0.014, sz + 16.2), lerpW(bu + 0.014, sz + 17.6), lerpW(bu + 0.005, sz + 17.6)], '#fde047');
+              // Cream vintage label on bottle belly
+              this.drawPoly3D(ctx, cam, [lerpW(bu + 0.003, sz + 5.5), lerpW(bu + 0.016, sz + 5.5), lerpW(bu + 0.016, sz + 9.5), lerpW(bu + 0.003, sz + 9.5)], '#fef3c7');
+            }
           }
         } else {
           // Framed Lisbon azulejo panels, mirrors, or boutique shelves on back wall
@@ -733,6 +777,12 @@ export class LisboaScenes3DRenderer {
             for (const bx of [256, 284, 312, 386, 414]) {
               this.drawBox3D(ctx, cam, bx - 10, 146, bx + 10, 164, counterH, counterH + 4.5, { front: '#d97706', side: '#b45309', top: '#f59e0b', stroke: '#78350f' });
             }
+          } else if (isBar) {
+            // Gleaming brass beer tap tower & colorful ginjinha/caipirinha glasses on the bar counter!
+            this.drawBox3D(ctx, cam, 246, 142, 274, 162, counterH, counterH + 18, { front: '#eab308', side: '#ca8a04', top: '#fef08a', stroke: '#78350f' });
+            for (const [gx, col] of [[310, '#f59e0b'], [334, '#ef4444'], [360, '#10b981'], [410, '#ec4899']]) {
+              this.drawBox3D(ctx, cam, gx - 5, 150, gx + 5, 160, counterH, counterH + 7, { front: col, side: col, top: '#fffbeb', stroke: '#ffffff', lineWidth: 0.8 });
+            }
           }
         }
       }
@@ -813,6 +863,33 @@ export class LisboaScenes3DRenderer {
       });
     }
 
+    // Lively Bairro Alto bar patrons enjoying drinks & toasts inside Bar da Noite!
+    if (isBar) {
+      const barPatrons = [
+        { x: 256, y: 204, outfitId: 'alfama-dress', drink: '#f59e0b', drinkType: 'imperial', emote: 'Saude!', phase: 0.4 },
+        { x: 492, y: 206, outfitId: 'fado-blazer', drink: '#dc2626', drinkType: 'ginjinha', emote: 'Ginjinha!', phase: 1.9 },
+        { x: 284, y: 252, outfitId: 'bohemian-poncho', drink: '#10b981', drinkType: 'caipirinha', emote: 'Boa noite!', phase: 3.1 },
+        { x: 472, y: 262, outfitId: 'maritime-striped', drink: '#ec4899', drinkType: 'sangria', emote: 'Que festa!', phase: 4.5 }
+      ];
+      const activeIdx = Math.floor(animTime / 2.8) % barPatrons.length;
+      barPatrons.forEach((bp, idx) => {
+        items.push({
+          dist: Math.hypot(bp.x - cam.camX, bp.y - cam.camY),
+          draw: () => this.drawPersonSprite3D(ctx, cam, {
+            x: bp.x,
+            y: bp.y,
+            outfitId: bp.outfitId,
+            holdingDrink: bp.drink,
+            drinkType: bp.drinkType,
+            partyBob: true,
+            animTime,
+            phaseOffset: bp.phase,
+            emoteText: idx === activeIdx || idx === (activeIdx + 2) % barPatrons.length ? bp.emote : ''
+          })
+        });
+      });
+    }
+
     // Connected LAN Multiplayer Peers inside the same store
     for (const rp of state.remotePlayers || []) {
       if (rp.mode === 'interior' && rp.currentVenueId === state.currentVenueId) {
@@ -835,16 +912,58 @@ export class LisboaScenes3DRenderer {
     items.sort((a, b) => b.dist - a.dist);
     for (const it of items) it.draw();
 
-    // Hanging glowing brass pendant lamps from ceiling
-    for (const lx of [220, 380, 540]) {
-      this.drawLine3D(ctx, cam, [lx, 240, ceilZ], [lx, 240, ceilZ - 24], '#785616', 1.8);
-      const lp = this.projectWorldPt(cam, lx, 240, ceilZ - 26);
-      if (lp) {
-        const r = clamp((6 * this.focal) / lp.cz, 2.5, 10);
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath();
-        ctx.arc(lp.x, lp.y, r, 0, Math.PI * 2);
-        ctx.fill();
+    // Hanging glowing brass pendant lamps (or colorful twinkling party string lights inside Bar da Noite!)
+    if (isBar) {
+      const partyCols = ['#f472b6', '#fde047', '#38bdf8', '#fb923c', '#c084fc'];
+      for (const sy of [136, 198, 268]) {
+        const strandPts = [];
+        for (let bi = 0; bi <= 8; bi += 1) {
+          const t = bi / 8;
+          const bx = xMin + 14 + t * (xMax - xMin - 28);
+          const sag = Math.sin(t * Math.PI) * 18;
+          const lp = this.projectWorldPt(cam, bx, sy, ceilZ - 14 - sag);
+          if (lp) strandPts.push({ lp, bi });
+        }
+        if (strandPts.length >= 2) {
+          ctx.strokeStyle = 'rgba(244, 114, 182, 0.65)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          strandPts.forEach((entry, i) => {
+            if (i === 0) ctx.moveTo(entry.lp.x, entry.lp.y);
+            else ctx.lineTo(entry.lp.x, entry.lp.y);
+          });
+          ctx.stroke();
+        }
+        for (let k = 1; k < strandPts.length - 1; k += 1) {
+          const { lp, bi } = strandPts[k];
+          const twinkle = 0.75 + 0.25 * Math.sin(animTime * 4.8 + bi * 1.1 + sy * 0.03);
+          const r = clamp((4.8 * this.focal) / lp.cz, 2.5, 9) * twinkle;
+          const col = partyCols[(bi + Math.round(sy / 60)) % partyCols.length];
+          const glow = ctx.createRadialGradient(lp.x, lp.y, 1, lp.x, lp.y, r * 4.2);
+          glow.addColorStop(0, col);
+          glow.addColorStop(0.45, 'rgba(232, 121, 249, 0.28)');
+          glow.addColorStop(1, 'rgba(232, 121, 249, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(lp.x, lp.y, r * 4.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fffbeb';
+          ctx.beginPath();
+          ctx.arc(lp.x, lp.y, r * 0.62, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else {
+      for (const lx of [220, 380, 540]) {
+        this.drawLine3D(ctx, cam, [lx, 240, ceilZ], [lx, 240, ceilZ - 24], '#785616', 1.8);
+        const lp = this.projectWorldPt(cam, lx, 240, ceilZ - 26);
+        if (lp) {
+          const r = clamp((6 * this.focal) / lp.cz, 2.5, 10);
+          ctx.fillStyle = '#fef08a';
+          ctx.beginPath();
+          ctx.arc(lp.x, lp.y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 

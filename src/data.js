@@ -555,6 +555,91 @@ export const METRO_STATIONS = [
 export const VENUES = [
   // BAIRRO ALTO
   {
+    id: 'bar-bairro-alto',
+    name: 'Bar da Noite - Bairro Alto',
+    neighborhood: 'bairro-alto',
+    type: 'bar',
+    badge: '[BAR & NIGHTLIFE]',
+    archStyle: 'bairro-bar',
+    x: 34,
+    y: 55,
+    w: 184,
+    h: 140,
+    doorSide: 'south',
+    doorX: 126,
+    doorY: 195,
+    spawnOutside: { x: 126, y: 220 },
+    wallColor: '#3a2244',
+    roofColor: '#7a2538',
+    awningColor: '#881337',
+    accentColor: '#d946ef',
+    proprietor: 'Diogo',
+    proprietorRole: 'Head Bartender',
+    cashierName: 'Rita',
+    cashierRole: 'Night Host & DJ',
+    description: 'A glowing bohemian Bairro Alto hilltop bar draped in festoon party lights, pouring chilled imperiais, ginjinha in chocolate cups, and caipirinhas while revelers gather outside every evening.',
+    greeting: 'Boa noite! Welcome to the top of Bairro Alto! Grab an imperial or a ginjinha, clink glasses under the string lights, and soak in the evening party.',
+    phrase: {
+      pt: 'Boa noite! Duas imperiais e uma ginjinha para festejar no Bairro Alto!',
+      pronunciation: 'Boh-ah noy-teh! Doo-ash eem-peh-ree-aish ee oo-mah zheen-zhee-nyah pah-rah fesh-teh-zhahr noo Bye-roo Ahl-too!',
+      en: 'Good evening! Two draft beers and a ginjinha to celebrate in Bairro Alto!'
+    },
+    memory: {
+      id: 'mem-bar-bairro-alto',
+      title: 'Evening Lights at Bar da Noite',
+      category: 'venue',
+      neighborhood: 'Bairro Alto',
+      caption: 'Glowing festoon bulbs, neon bar signs, clinking glasses, and lively laughter spilling across the Bairro Alto hilltop.'
+    },
+    interiorTheme: {
+      floorPrimary: '#3a2544',
+      floorSecondary: '#2d1c36',
+      wall: '#2a1836',
+      trim: '#c026d3',
+      counter: '#54243e',
+      layout: 'bar'
+    },
+    displayNote: 'Every evening after sunset, Bairro Alto transforms into Lisbon liveliest open-air street gathering, with music, string lights, and glasses raised outside historic tiny bars.',
+    items: [
+      {
+        id: 'item-ginjinha',
+        name: 'Ginjinha em Copo de Chocolate',
+        kind: 'food',
+        costEur: 2.5,
+        fullnessDelta: 12,
+        energyDelta: 22,
+        description: 'Classic Lisbon sour-cherry liqueur served in an edible dark-chocolate shot cup.'
+      },
+      {
+        id: 'item-imperial',
+        name: 'Imperial Fresquinha & Tremocos',
+        kind: 'food',
+        costEur: 3.0,
+        fullnessDelta: 16,
+        energyDelta: 20,
+        description: 'Crisp ice-cold Lisbon draft beer paired with salty yellow lupini beans.'
+      },
+      {
+        id: 'item-caipirinha',
+        name: 'Caipirinha do Bairro Alto',
+        kind: 'food',
+        costEur: 6.0,
+        fullnessDelta: 14,
+        energyDelta: 28,
+        description: 'Fresh muddled lime, cane sugar, and crushed ice mixed for the Bairro Alto street party.'
+      },
+      {
+        id: 'item-sangria-petiscos',
+        name: 'Sangria de Frutos & Petiscos',
+        kind: 'food',
+        costEur: 8.5,
+        fullnessDelta: 34,
+        energyDelta: 32,
+        description: 'Chilled spiced berry sangria served with marinated olives, cured cheese, and warm toasted bread.'
+      }
+    ]
+  },
+  {
     id: 'quiosque-sao-pedro',
     name: 'Quiosque de Sao Pedro',
     neighborhood: 'bairro-alto',
@@ -1991,6 +2076,22 @@ export const RIVERSIDE_JOGGERS = [
   { id: 'jogger-2', name: 'Tejo Runner', x: 1020, y: 992, patrolAxis: 'x', min: 855, max: 1380, speed: 82, shirt: '#ef4444', shorts: '#1e293b', hair: '#2a221e', isJogger: true },
   { id: 'jogger-3', name: 'Alfama Sprinter', x: 1620, y: 992, patrolAxis: 'x', min: 1465, max: 2115, speed: 80, shirt: '#10b981', shorts: '#1e293b', hair: '#5a3d28', isJogger: true }
 ];
+
+// Evening Bairro Alto hilltop street-party revelers enjoying drinks outside Bar da Noite & Sao Pedro (Golden Hour & Evening)
+export const BAIRRO_ALTO_PARTY_REVELERS = [
+  { id: 'party-1', name: 'Ines & Friends', x: 82, y: 214, outfitId: 'alfama-dress', drinkColor: '#f59e0b', drinkType: 'imperial', toastPhrase: 'Saude!', phaseOffset: 0.2 },
+  { id: 'party-2', name: 'Tomas', x: 168, y: 216, outfitId: 'fado-blazer', drinkColor: '#dc2626', drinkType: 'ginjinha', toastPhrase: 'Ginjinha!', phaseOffset: 1.4 },
+  { id: 'party-3', name: 'Sofia B.', x: 194, y: 238, outfitId: 'bohemian-poncho', drinkColor: '#10b981', drinkType: 'caipirinha', toastPhrase: 'Viva o Bairro Alto!', phaseOffset: 2.5 },
+  { id: 'party-4', name: 'Miguel R.', x: 266, y: 228, outfitId: 'maritime-striped', drinkColor: '#f59e0b', drinkType: 'imperial', toastPhrase: 'Mais uma imperial!', phaseOffset: 3.6 },
+  { id: 'party-5', name: 'Clara M.', x: 406, y: 222, outfitId: 'lisbon-trench', drinkColor: '#e11d48', drinkType: 'sangria', toastPhrase: 'Boa noite!', phaseOffset: 4.8 },
+  { id: 'party-6', name: 'Andre', x: 564, y: 218, outfitId: 'tile-artisan', drinkColor: '#f59e0b', drinkType: 'imperial', toastPhrase: 'Que festa!', phaseOffset: 5.7 },
+  { id: 'party-7', name: 'Joana', x: 642, y: 224, outfitId: 'alfama-dress', drinkColor: '#10b981', drinkType: 'caipirinha', toastPhrase: 'A nossa!', phaseOffset: 6.4 }
+];
+
+export function isBairroAltoPartyTime(minutesOfDay) {
+  const m = ((Math.floor(Number(minutesOfDay) || 0) % 1440) + 1440) % 1440;
+  return m >= 17 * 60 || m < 4 * 60;
+}
 
 // Wooden & Lioz limestone benches lining the Ribeira das Naus / Tagus waterfront seawall
 export const RIVERSIDE_BENCHES = [

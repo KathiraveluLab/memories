@@ -21,6 +21,7 @@ import {
   RIVERSIDE_BENCHES,
   CASTANHA_VENDORS,
   CASTANHA_CONE_ITEM,
+  isBairroAltoPartyTime,
   DEFAULT_MONTH,
   LISBOA_MONTHS,
   getMonthInfo,
@@ -423,6 +424,7 @@ export function createInitialState() {
     monthInfo: getMonthInfo(DEFAULT_MONTH),
     day: 1,
     minutesOfDay: DAY_START_MINUTES,
+    bairroAltoPartyActive: isBairroAltoPartyTime(DAY_START_MINUTES),
     eveningNoticeShown: false,
     player: {
       name: 'Traveler 1',
@@ -2878,6 +2880,7 @@ export class MemoriesGameEngine {
       }
     }
 
+    this.state.bairroAltoPartyActive = isBairroAltoPartyTime(this.state.minutesOfDay);
     this.checkGameOver();
     return this.state;
   }
@@ -4650,6 +4653,16 @@ export class MemoriesGameEngine {
     return { ok: true, postcard: card, state: this.state };
   }
 
+  jumpToEvening() {
+    this.state.minutesOfDay = 20 * 60 + 30;
+    this.state.bairroAltoPartyActive = true;
+    this.state.eveningNoticeShown = true;
+    this.state.statusMessage =
+      'Evening falls over Lisboa (20:30)! String lights glow atop Bairro Alto as revelers gather with drinks outside Bar da Noite!';
+    recordLog(this.state, 'evening', 'Evening arrived (20:30) - Bairro Alto hilltop party lights & Bar da Noite came alive.');
+    return { ok: true, minutesOfDay: this.state.minutesOfDay, state: this.state };
+  }
+
   restOvernight() {
     if (this.state.ridingFunicularId) {
       this.disembarkFunicular();
@@ -4688,6 +4701,7 @@ export class MemoriesGameEngine {
 
     this.state.day += 1;
     this.state.minutesOfDay = DAY_START_MINUTES;
+    this.state.bairroAltoPartyActive = false;
     this.state.eveningNoticeShown = false;
     this.state.energy = 100;
     this.state.fullness = Math.max(this.state.fullness, 75);

@@ -177,6 +177,7 @@ const dom = {
   lanPlayersList: document.getElementById('lan-players-list'),
   btnContextAction: document.getElementById('btn-context-action'),
   btnSecondaryAction: document.getElementById('btn-secondary-action'),
+  btnEvening: document.getElementById('btn-evening'),
   btnOvernight: document.getElementById('btn-overnight'),
   btnReset: document.getElementById('btn-reset'),
   statusBanner: document.getElementById('status-banner'),
@@ -978,7 +979,8 @@ function renderActiveContextPanel(state) {
     const isFadoVenue =
       venue.id === 'tasca-do-fado' ||
       venue.id === 'vinil-do-alto' ||
-      venue.id === 'taberna-sardinha';
+      venue.id === 'taberna-sardinha' ||
+      venue.id === 'bar-bairro-alto';
     const currentFado = isFadoVenue ? soundEngine.getCurrentFadoTrack() : null;
     const fadoBarHtml = currentFado
       ? `
@@ -2039,6 +2041,13 @@ if (dom.btnSound) {
     soundEngine.update(engine.getState());
     updateAudioIndicator();
     setStatusBanner(nowMuted ? 'Lisboa soundscapes muted.' : 'Lisboa soundscapes enabled.');
+  });
+}
+
+if (dom.btnEvening) {
+  dom.btnEvening.addEventListener('click', () => {
+    engine.jumpToEvening();
+    refreshUi(true);
   });
 }
 

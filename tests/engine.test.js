@@ -22,6 +22,8 @@ import {
   CASTANHA_VENDORS,
   CASTANHA_CONE_ITEM,
   FUNICULAR_LINES,
+  BAIRRO_ALTO_PARTY_REVELERS,
+  isBairroAltoPartyTime,
   getTerrainElevation,
   getTerrainSlope,
   LISBOA_MONTHS,
@@ -72,14 +74,15 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
     true,
     'Every building on the map must be in VENUES so players can enter and explore it'
   );
-  assert.equal(VENUES.length, 15);
+  assert.equal(VENUES.length, 16);
   assert.ok(VENUES.some((v) => v.id === 'se-de-lisboa'), 'Se de Lisboa must be an enterable venue');
+  assert.ok(VENUES.some((v) => v.id === 'bar-bairro-alto'), 'Bar da Noite must be an enterable venue at the top of Bairro Alto');
   assert.equal(METRO_STATIONS.length, 3);
   assert.equal(FERRY_DESTINATIONS.length, 3);
   assert.deepEqual(FERRY_DESTINATIONS.map((d) => d.id), ['cacilhas', 'seixal', 'montijo']);
   assert.equal(REST_SPOTS.length, 3);
   assert.equal(TRANSIT_LINES.length, 2);
-  assert.equal(getAllMemoryCatalog().length, 26);
+  assert.equal(getAllMemoryCatalog().length, 27);
 
   // Realistic speeds: walking must be noticeably slower than both Tram 28E and Carris Bus 737/758
   const tramLine = TRANSIT_LINES.find((l) => l.mode === 'tram');
@@ -575,7 +578,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   }
   assert.equal(engine.exitFerryTerminal().ok, true);
   assert.equal(state.mode, 'overworld');
-  assert.equal(state.memories.length, 26);
+  assert.equal(state.memories.length, 27);
   assert.equal(state.albumCompleted, true);
 
   // Proportional walk-speed slowdown on low energy / fullness, critical low-energy crawl until eating a meal, and Wallet 0.00 EUR Game Over Scorecard
@@ -628,10 +631,10 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(state.euros, 0);
   assert.equal(state.gameOver, true);
   assert.ok(state.gameOverSummary, 'Expected gameOverSummary scorecard when wallet reaches 0.00 EUR');
-  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
-  assert.equal(state.gameOverSummary.memoriesTotal, 26);
-  assert.equal(state.gameOverSummary.memoriesList.length, 26);
-  assert.equal(state.gameOverSummary.venuesVisited, 15);
+  assert.equal(state.gameOverSummary.memoriesCaptured, 27);
+  assert.equal(state.gameOverSummary.memoriesTotal, 27);
+  assert.equal(state.gameOverSummary.memoriesList.length, 27);
+  assert.equal(state.gameOverSummary.venuesVisited, 16);
   assert.ok(state.gameOverSummary.totalScore >= 2600);
 
   // Verify Comparative Multiplayer End-of-Stroll Scorecard & Exportable Memory Summary Card (.txt and .json)
@@ -678,7 +681,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   const exportedJson = engine.exportMemorySummaryCard({ format: 'json' });
   assert.equal(exportedJson.ok, true);
   const parsedCard = JSON.parse(exportedJson.cardText);
-  assert.equal(parsedCard.memoriesCaptured, 26);
+  assert.equal(parsedCard.memoriesCaptured, 27);
   assert.equal(parsedCard.multiplayerComparison.length, 2);
 
   // Verify Game Over also triggers with the full Final Memories Scorecard when Energy goes to 0, Fullness goes to 0, or both go to 0
@@ -695,7 +698,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(state.gameOver, true);
   assert.equal(state.gameOverReason, 'energy');
   assert.equal(state.gameOverSummary.title, 'GAME OVER - Energy Reached 0');
-  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
+  assert.equal(state.gameOverSummary.memoriesCaptured, 27);
 
   state.gameOver = false;
   state.gameOverReason = null;
@@ -707,7 +710,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(state.gameOver, true);
   assert.equal(state.gameOverReason, 'fullness');
   assert.equal(state.gameOverSummary.title, 'GAME OVER - Fullness Reached 0');
-  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
+  assert.equal(state.gameOverSummary.memoriesCaptured, 27);
 
   state.gameOver = false;
   state.gameOverReason = null;
@@ -720,7 +723,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   assert.equal(state.gameOver, true);
   assert.equal(state.gameOverReason, 'energy-and-fullness');
   assert.equal(state.gameOverSummary.title, 'GAME OVER - Energy & Fullness Reached 0');
-  assert.equal(state.gameOverSummary.memoriesCaptured, 26);
+  assert.equal(state.gameOverSummary.memoriesCaptured, 27);
 });
 
 test('AC-08: directional arrow-key doorway entry for south/north buildings and Metro entrances, plus exit cooldown', () => {
@@ -1273,6 +1276,42 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
   // Render high Bairro Alto downhill vista in Street View 3D
   engine.setCameraAngles(Math.PI * 0.5, -0.09);
   renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+
+  // Verify Top-of-Bairro-Alto Evening Bar (Bar da Noite) & Street Party Atmosphere with drinks and lights
+  const barVenue = VENUES.find((v) => v.id === 'bar-bairro-alto');
+  assert.ok(barVenue && barVenue.neighborhood === 'bairro-alto' && barVenue.interiorTheme.layout === 'bar');
+  assert.ok(getTerrainElevation(barVenue.doorX, barVenue.doorY) > 70, 'Bar da Noite must sit high atop Bairro Alto ridge');
+  assert.ok(BAIRRO_ALTO_PARTY_REVELERS.length >= 6);
+  for (const rev of BAIRRO_ALTO_PARTY_REVELERS) {
+    assert.equal(isOverworldPositionValid(rev.x, rev.y), true, `Bairro Alto party reveler ${rev.id} must not collide with buildings`);
+    assert.equal(isPointInVehicleLane(rev.x, rev.y), false, `Bairro Alto party reveler ${rev.id} must stay off vehicle lanes`);
+    assert.ok(rev.drinkColor && rev.toastPhrase, `Bairro Alto party reveler ${rev.id} should hold a drink and toast`);
+  }
+  assert.equal(isBairroAltoPartyTime(11 * 60), false);
+  assert.equal(isBairroAltoPartyTime(20 * 60 + 30), true);
+
+  engine.jumpToEvening();
+  assert.equal(engine.getState().bairroAltoPartyActive, true);
+  engine.setPlayerPosition(barVenue.spawnOutside.x, barVenue.spawnOutside.y);
+  const partyStreetAudio = computeSoundscapeProfile(engine.getState());
+  assert.equal(partyStreetAudio.activeLabel, 'Bairro Alto Evening Party');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('overhead');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('street3d');
+
+  // Step inside Bar da Noite, order a Bairro Alto Ginjinha / Imperial, and verify bar soundscape & 3D/2D interior renders
+  const enterBarRes = engine.enterVenue('bar-bairro-alto');
+  assert.equal(enterBarRes.ok, true);
+  const barAudio = computeSoundscapeProfile(engine.getState());
+  assert.equal(barAudio.activeLabel, 'Bairro Alto Bar & Party');
+  const drinkRes = engine.purchaseVenueItem('item-ginjinha');
+  assert.equal(drinkRes.ok, true);
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('overhead');
+  renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  engine.setViewMode('street3d');
+  engine.exitVenue();
 
   assert.ok(drawCalls > 600, `Expected substantial canvas draw calls, got ${drawCalls}`);
 });

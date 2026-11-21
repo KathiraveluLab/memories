@@ -545,7 +545,7 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       assert.equal(brunoCard.scorecard.multiplayerComparison.length, 2);
       assert.equal(brunoCard.scorecard.multiplayerComparison[0].name, 'Alice');
       assert.equal(brunoCard.scorecard.multiplayerComparison[0].totalScore, 2975);
-      assert.ok(brunoCard.cardText.includes('#1 Alice - 2975 pts | Memories: 19/26'));
+      assert.ok(brunoCard.cardText.includes('#1 Alice - 2975 pts | Memories: 19/27'));
 
       // 4d. Server-Authoritative Ambient Villagers & Ferry-Mode Remote Players stay synchronized across clients!
       assert.ok(Array.isArray(joinA.transit.npcs) && joinA.transit.npcs.length === 6);

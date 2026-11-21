@@ -1,4 +1,4 @@
-import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, REST_SPOTS, getMonthInfo } from './data.js';
+import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, REST_SPOTS, getMonthInfo, isBairroAltoPartyTime } from './data.js';
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -103,6 +103,18 @@ export function computeSoundscapeProfile(state) {
       };
     }
 
+    if (venue.interiorTheme?.layout === 'bar') {
+      return {
+        ...EMPTY_PROFILE,
+        fadoMusic: 0.72,
+        folkGuitar: 0.88,
+        cafeSteam: 0.28,
+        rainLevel: indoorRain,
+        badgeTone: 'warm',
+        activeLabel: 'Bairro Alto Bar & Party'
+      };
+    }
+
     if (venue.interiorTheme?.layout === 'azulejo') {
       return {
         ...EMPTY_PROFILE,
@@ -182,6 +194,19 @@ export function computeSoundscapeProfile(state) {
   }
   if (state.miradouroEncore) {
     miradouroGuitar = Math.max(miradouroGuitar, 0.78);
+  }
+
+  const inBairroPartyZone = px <= 840 && py <= 285 && isBairroAltoPartyTime(state.minutesOfDay);
+  if (inBairroPartyZone) {
+    return {
+      ...EMPTY_PROFILE,
+      folkGuitar: Math.max(miradouroGuitar, 0.78),
+      fadoMusic: 0.36,
+      riverWater,
+      rainLevel: outdoorRain,
+      badgeTone: 'warm',
+      activeLabel: 'Bairro Alto Evening Party'
+    };
   }
 
   return {

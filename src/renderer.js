@@ -18,6 +18,8 @@ import {
   CASTANHA_VENDORS,
   TRANSIT_LINES,
   FUNICULAR_LINES,
+  BAIRRO_ALTO_PARTY_REVELERS,
+  isBairroAltoPartyTime,
   getTerrainElevation,
   getAllTransitStops,
   getOutfitById,
@@ -445,9 +447,10 @@ export class LisboaCanvasRenderer {
       this.drawTransitStop(ctx, stop, isHighlighted, isEvening);
     }
 
-    // 11. Classic wrought-iron Lisbon streetlamps & seasonal street decorations (Christmas lights, Carnaval, 25 de Abril, Santos Populares, Parasols, Chestnut carts)
+    // 11. Classic wrought-iron Lisbon streetlamps, seasonal street decorations & Bairro Alto hilltop evening party lights
     this.drawLisbonStreetlamps(ctx, isEvening, lampsGlowing);
     this.drawSeasonalOverworldDecor(ctx, monthInfo, isEvening, nearbyInteraction);
+    this.drawBairroAltoPartyAtmosphere(ctx, state, isEvening || isGolden);
 
     // 12. Walk Target Indicator
     if (state.player.walkTarget) {
@@ -459,7 +462,7 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // 13. Ambient Lisbon Locals, Seasonal Crowds & Warm-Month Tagus Riverside Joggers
+    // 13. Ambient Lisbon Locals, Seasonal Crowds, Warm-Month Joggers & Bairro Alto Evening Party Revelers
     for (const npc of state.npcs) {
       this.drawCharacterSprite(ctx, npc.x, npc.y, {
         facing: npc.patrolAxis === 'x' ? (npc.dir > 0 ? 'right' : 'left') : (npc.dir > 0 ? 'down' : 'up'),
@@ -471,6 +474,25 @@ export class LisboaCanvasRenderer {
         hairColor: npc.hair,
         hasUmbrella: carryingUmbrella,
         isPlayer: false
+      });
+    }
+    if (isBairroAltoPartyTime(state.minutesOfDay)) {
+      const toastSlot = Math.floor(this.animTime / 2.6) % BAIRRO_ALTO_PARTY_REVELERS.length;
+      BAIRRO_ALTO_PARTY_REVELERS.forEach((rev, ri) => {
+        this.drawCharacterSprite(ctx, rev.x, rev.y, {
+          facing: ri % 2 === 0 ? 'down' : 'right',
+          walkPhase: this.animTime * 4 + rev.phaseOffset,
+          isMoving: false,
+          outfitId: rev.outfitId,
+          emoteText: ri % 3 === toastSlot % 3 ? rev.toastPhrase : '',
+          isPlayer: false
+        });
+        // Tiny raised drink glass beside each evening party reveler
+        ctx.fillStyle = rev.drinkColor;
+        ctx.fillRect(rev.x + 8, rev.y - 10, 4, 6);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(rev.x + 8, rev.y - 10, 4, 6);
       });
     }
     for (const jog of state.joggers || []) {
@@ -1769,6 +1791,7 @@ export class LisboaCanvasRenderer {
       'palacete-gallery': 'ochre-plaster',
       'casas-rosa': 'rose-plaster',
       'bohemian-shop': 'rose-plaster',
+      'bairro-bar': 'rose-plaster',
       bertrand: 'cobalt-azulejo',
       'azulejo-gallery': 'cobalt-azulejo',
       'arcaded-azulejo': 'cobalt-azulejo',
@@ -1866,7 +1889,7 @@ export class LisboaCanvasRenderer {
         ctx.fillRect(cartX + 3 + i * 6, curbY - 5, 4, 8);
       });
 
-    // 2. BAKERY (Casa da Rosa - Padaria): Glass bread & pastry bow windows, chimney steam, A-frame chalkboard
+      // 2. BAKERY (Casa da Rosa - Padaria): Glass bread & pastry bow windows, chimney steam, A-frame chalkboard
     } else if (venue.archStyle === 'casas-rosa') {
       // Animated warm bread-oven steam rising from chimney
       const puffY = venue.y - 4 - ((this.animTime * 12) % 14);
@@ -1926,7 +1949,7 @@ export class LisboaCanvasRenderer {
       ctx.fillText('PAO', venue.x + 45, curbY + 1);
       ctx.textAlign = 'left';
 
-    // 3. FADO RESTAURANT (Tasca do Fado): Checkered sidewalk dining table, wine barrel, Portuguese guitar emblem
+      // 3. FADO RESTAURANT (Tasca do Fado): Checkered sidewalk dining table, wine barrel, Portuguese guitar emblem
     } else if (venue.archStyle === 'tasca') {
       for (const wx of [venue.x + 18, venue.x + venue.w - 44]) {
         this.drawLisbonWindow(ctx, wx, winY, 24, 28, {
@@ -1985,7 +2008,7 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1.4;
       ctx.stroke();
 
-    // 4. ALFAMA GRILL RESTAURANT (Taberna da Sardinha): Festive flags, outdoor charcoal grill w/ smoke, dining tables
+      // 4. ALFAMA GRILL RESTAURANT (Taberna da Sardinha): Festive flags, outdoor charcoal grill w/ smoke, dining tables
     } else if (venue.archStyle === 'alfama-taberna') {
       for (const wx of [venue.x + 20, venue.x + venue.w - 44]) {
         this.drawLisbonWindow(ctx, wx, winY + 4, 24, 26, {
@@ -2033,7 +2056,48 @@ export class LisboaCanvasRenderer {
       ctx.arc(gx + 10, venue.y + venue.h - 16 - smokeShift, 4, 0, Math.PI * 2);
       ctx.fill();
 
-    // 5. VINYL & PRINT SHOP (Vinil & Gravuras do Alto): Vinyl record emblem, Tram poster showcase, outdoor record crate
+      // 5. VINYL & PRINT SHOP (Vinil & Gravuras do Alto): Vinyl record emblem, Tram poster showcase, outdoor record crate
+    } else if (venue.archStyle === 'bairro-bar') {
+      // Glowing Bairro Alto Nightlife Bar (Bar da Noite): neon trim, warm party windows & sidewalk oak cocktail barrels!
+      ctx.fillStyle = '#2a1636';
+      ctx.fillRect(venue.x + 2, facadeY + 2, venue.w - 4, facadeH - 4);
+      ctx.strokeStyle = '#e879f9';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(venue.x + 3, facadeY + 3, venue.w - 6, facadeH - 6);
+      for (const wx of [venue.x + 16, venue.x + venue.w - 48]) {
+        ctx.fillStyle = isEvening ? '#f0abfc' : '#fde047';
+        drawRoundedRect(ctx, wx, winY + 2, 32, 26, 4);
+        ctx.fill();
+        ctx.strokeStyle = '#c026d3';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+      // Neon BAR roof sign
+      drawRoundedRect(ctx, venue.doorX - 24, venue.y + roofH + 5, 48, 15, 3);
+      ctx.fillStyle = '#3b0764';
+      ctx.fill();
+      ctx.strokeStyle = '#f0abfc';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.fillStyle = '#fde047';
+      ctx.font = '800 8.5px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('BAR', venue.doorX, venue.y + roofH + 15.5);
+      ctx.textAlign = 'left';
+      // Sidewalk oak wine-barrel cocktail tables flanking door
+      for (const bx of [venue.doorX - 42, venue.doorX + 42]) {
+        ctx.fillStyle = '#7c4724';
+        ctx.beginPath();
+        ctx.arc(bx, curbY, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(bx, curbY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (venue.archStyle === 'bohemian-shop') {
       for (const wx of [venue.x + 14, venue.x + venue.w - 64]) {
         ctx.fillStyle = '#3b2442';
@@ -2073,7 +2137,7 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(venue.x + 33, curbY - 4, 16, 3);
       ctx.fillRect(venue.x + 33, curbY, 16, 3);
 
-    // 6. ART & ARCHITECTURE GALLERIES (Palacete do Loreto & Galeria Pombalina): Exhibition banners + illuminated framed art
+      // 6. ART & ARCHITECTURE GALLERIES (Palacete do Loreto & Galeria Pombalina): Exhibition banners + illuminated framed art
     } else if (isGallery) {
       const bannerColor = venue.archStyle === 'azulejo-gallery' ? '#1b4d89' : '#9c3626';
       // Hanging vertical museum banners flanking the doorway
@@ -2101,7 +2165,7 @@ export class LisboaCanvasRenderer {
         ctx.strokeRect(wx + 4, winY + 7, 12, 14);
       }
 
-    // 7. GUESTHOUSE (Pensao Residencial do Alto): 3 upper residential shuttered balconies, olive urns, vertical PENSAO sign
+      // 7. GUESTHOUSE (Pensao Residencial do Alto): 3 upper residential shuttered balconies, olive urns, vertical PENSAO sign
     } else if (venue.archStyle === 'pensao') {
       // Three evenly spaced residential guestroom shuttered windows with Juliet balconies
       for (const wx of [venue.x + 22, venue.x + venue.w / 2 - 10, venue.x + venue.w - 42]) {
@@ -2136,7 +2200,7 @@ export class LisboaCanvasRenderer {
         ctx.fill();
       }
 
-    // 8. CONFEITARIA & TEA SALON (Arcadas do Chiado): Stone arcades with tiered pastry displays + cafe parasol
+      // 8. CONFEITARIA & TEA SALON (Arcadas do Chiado): Stone arcades with tiered pastry displays + cafe parasol
     } else if (venue.archStyle === 'arcaded-azulejo') {
       for (const ax of [venue.x + 36, venue.x + venue.w - 36]) {
         const ay = venue.y + 24;
@@ -2176,7 +2240,7 @@ export class LisboaCanvasRenderer {
       ctx.arc(px, curbY, 10, Math.PI, Math.PI * 1.5);
       ctx.fill();
 
-    // 9. CERAMIC TILE WORKSHOP (Oficina de Azulejos): Framed Tagus caravel tile mural + outdoor tile easels
+      // 9. CERAMIC TILE WORKSHOP (Oficina de Azulejos): Framed Tagus caravel tile mural + outdoor tile easels
     } else if (venue.archStyle === 'azulejo-atelier') {
       for (const wx of [venue.x + 16, venue.x + venue.w - 60]) {
         ctx.fillStyle = '#15406a';
@@ -2209,7 +2273,7 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#1d568a';
       ctx.fillRect(ex - 3, curbY - 4, 6, 4);
 
-    // 10. CORK & GLOVE ATELIER (Atelier de Cortica & Luvas): Mahogany luxury boutique vitrines
+      // 10. CORK & GLOVE ATELIER (Atelier de Cortica & Luvas): Mahogany luxury boutique vitrines
     } else if (venue.archStyle === 'chiado-arcade') {
       for (const wx of [venue.x + 16, venue.x + venue.w - 58]) {
         ctx.fillStyle = '#5c3317';
@@ -2226,7 +2290,7 @@ export class LisboaCanvasRenderer {
         ctx.fillRect(wx + 4, winY + 26, 32, 5);
       }
 
-    // 11. TRADITIONAL GROCER (Mercearia & Conservas de Alfama): Rainbow fish-tin windows + outdoor wooden market crates
+      // 11. TRADITIONAL GROCER (Mercearia & Conservas de Alfama): Rainbow fish-tin windows + outdoor wooden market crates
     } else if (venue.archStyle === 'mercearia') {
       for (const wx of [venue.x + 14, venue.x + venue.w - 60]) {
         ctx.fillStyle = '#15544a';
@@ -3465,6 +3529,39 @@ export class LisboaCanvasRenderer {
     }
   }
 
+  drawBairroAltoPartyAtmosphere(ctx, state, partyLit) {
+    // Criss-crossing overhead festoon party light strings atop Bairro Alto (outside Bar da Noite & Sao Pedro!)
+    ctx.save();
+    const bulbCols = ['#fde047', '#f472b6', '#fb923c', '#38bdf8', '#c084fc'];
+    for (const bx of [82, 165, 255, 350, 455, 575, 695]) {
+      ctx.strokeStyle = partyLit ? 'rgba(244, 114, 182, 0.58)' : 'rgba(51, 65, 85, 0.35)';
+      ctx.lineWidth = partyLit ? 1.6 : 1;
+      ctx.beginPath();
+      ctx.moveTo(bx, 196);
+      ctx.quadraticCurveTo(bx + 10, 222, bx, 246);
+      ctx.stroke();
+      for (let i = 1; i <= 4; i += 1) {
+        const by = 196 + i * 10;
+        const col = bulbCols[(i + Math.round(bx / 50)) % bulbCols.length];
+        if (partyLit) {
+          const tw = 0.72 + 0.28 * Math.sin(this.animTime * 4.5 + bx + i);
+          const gl = ctx.createRadialGradient(bx + 4, by, 1, bx + 4, by, 11 * tw);
+          gl.addColorStop(0, col);
+          gl.addColorStop(1, 'rgba(244, 114, 182, 0)');
+          ctx.fillStyle = gl;
+          ctx.beginPath();
+          ctx.arc(bx + 4, by, 11 * tw, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = partyLit ? '#fffbeb' : col;
+        ctx.beginPath();
+        ctx.arc(bx + 4, by, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   drawMiniMap(ctx, state) {
     const mw = 156;
     const mh = 76;
@@ -3707,6 +3804,33 @@ export class LisboaCanvasRenderer {
           ctx.fillRect(68 + c * 24, 34 + r * 24, 14, 14);
         }
       }
+    } else if (theme.layout === 'bar') {
+      // Backlit Bairro Alto Bar da Noite liquor shelves, neon sign & overhead twinkling festoon party bulbs!
+      ctx.fillStyle = '#1b0e26';
+      ctx.fillRect(18, 16, INTERIOR_WIDTH - 36, 116);
+      ctx.strokeStyle = '#e879f9';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(18, 16, INTERIOR_WIDTH - 36, 116);
+      const bCols = ['#ef4444', '#f59e0b', '#10b981', '#38bdf8', '#c084fc'];
+      for (let s = 0; s < 2; s += 1) {
+        const sy = 56 + s * 42;
+        ctx.fillStyle = s === 0 ? '#f472b6' : '#fbbf24';
+        ctx.fillRect(28, sy, INTERIOR_WIDTH - 56, 3);
+        for (let bx = 38; bx < INTERIOR_WIDTH - 48; bx += 22) {
+          if (bx > 235 && bx < 525) continue;
+          ctx.fillStyle = bCols[((bx / 22) + s) % bCols.length | 0];
+          ctx.fillRect(bx, sy - 20, 10, 19);
+        }
+      }
+      // Twinkling overhead party bulbs inside 2D bar plan
+      for (let i = 0; i < 9; i += 1) {
+        const lx = 56 + i * 80;
+        const col = bCols[i % bCols.length];
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(lx, 18, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (theme.layout === 'bakery') {
       // Back wall of Bakery / Confeitaria: glowing brick wood-fired bread oven + tiered oak bread racks
       this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');
@@ -3903,10 +4027,10 @@ export class LisboaCanvasRenderer {
       phase.id === 'evening' ? '#1c2c4d' : phase.id === 'golden' ? '#e89a54' : '#8ec5e8';
     const winXs =
       theme.layout === 'cathedral' ||
-      theme.layout === 'bookshop' ||
-      theme.layout === 'gallery' ||
-      theme.layout === 'bakery' ||
-      theme.layout === 'restaurant'
+        theme.layout === 'bookshop' ||
+        theme.layout === 'gallery' ||
+        theme.layout === 'bakery' ||
+        theme.layout === 'restaurant'
         ? []
         : [88, 588];
     for (const wx of winXs) {
