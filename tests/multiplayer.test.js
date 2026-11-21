@@ -578,6 +578,26 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       });
       assert.equal(aliceAtCacilhasOnB.players.find((p) => p.id === joinA.player.id).ferryPortId, 'cacilhas');
 
+      // 4d-ii. Global Month & Seasonal Weather Sync (switching to July expands shared Lisbon crowds from 6 -> 12 across all peers!)
+      const setJulRes = await fetch(`${baseUrl}/api/clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-month', month: 7 })
+      });
+      const setJulJson = await setJulRes.json();
+      assert.equal(setJulJson.ok, true);
+      assert.equal(setJulJson.month, 7);
+      assert.equal(setJulJson.clock.month, 7);
+      assert.ok(setJulJson.transit.npcs.length >= 12);
+
+      const julOnB = await streamB.waitFor(
+        (evt) => evt.clock?.month === 7 && Array.isArray(evt.transit?.npcs) && evt.transit.npcs.length >= 12
+      );
+      brunoEngine.syncGlobalClock(julOnB.clock);
+      brunoEngine.syncGlobalTransit(julOnB.transit);
+      assert.equal(brunoEngine.getState().month, 7);
+      assert.equal(brunoEngine.getState().npcs.length, 12);
+
       // 5. Bruno leaves cleanly -> Alice immediately receives 1-player roster
       await fetch(`${baseUrl}/api/leave`, {
         method: 'POST',

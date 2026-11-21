@@ -15,6 +15,10 @@ import {
   TRANSIT_LINES,
   MILESTONE_MEMORIES,
   AMBIENT_NPCS,
+  SEASONAL_CROWD_NPCS,
+  DEFAULT_MONTH,
+  LISBOA_MONTHS,
+  getMonthInfo,
   PLAYER_OUTFITS,
   getAllTransitStops,
   getAllMemoryCatalog,
@@ -295,8 +299,8 @@ function createInitialVehicles() {
   });
 }
 
-function createInitialNpcs() {
-  return AMBIENT_NPCS.map((npc) => ({
+function createNpcRecord(npc) {
+  return {
     ...npc,
     homeX: npc.x,
     homeY: npc.y,
@@ -305,7 +309,13 @@ function createInitialNpcs() {
     isMoving: true,
     blockedTime: 0,
     avoidSide: 0
-  }));
+  };
+}
+
+function createInitialNpcs(month = DEFAULT_MONTH) {
+  const info = getMonthInfo(month);
+  const extras = SEASONAL_CROWD_NPCS.slice(0, Math.max(0, info.crowdExtra || 0));
+  return [...AMBIENT_NPCS, ...extras].map(createNpcRecord);
 }
 
 function recordLog(state, type, summary) {
@@ -371,6 +381,8 @@ export function createInitialState() {
     gameOverReason: null,
     gameOverSummary: null,
     lastExportedSummaryCard: '',
+    month: DEFAULT_MONTH,
+    monthInfo: getMonthInfo(DEFAULT_MONTH),
     day: 1,
     minutesOfDay: DAY_START_MINUTES,
     eveningNoticeShown: false,
@@ -823,6 +835,7 @@ export class MemoriesGameEngine {
     const lines = [
       '=== MEMORIES: LISBOA EXPLORATION SUMMARY CARD ===',
       `Traveler: ${this.state.player.name} (${outfit.name})`,
+      `Month & Weather: ${getMonthInfo(this.state.month).name} (${getMonthInfo(this.state.month).ptName}) - ${getMonthInfo(this.state.month).avgHighC}C / ${getMonthInfo(this.state.month).avgLowC}C, ${getMonthInfo(this.state.month).weatherLabel} | ${getMonthInfo(this.state.month).eventTitle}`,
       `Stroll Status: ${this.state.gameOver ? `Game Over (${sc.reasonLabel || 'Wallet 0.00 EUR'})` : `Active Stroll (${sc.eurosRemaining.toFixed(2)} EUR remaining)`}`,
       `Vitals: Wallet ${sc.eurosRemaining.toFixed(2)} EUR | Energy ${sc.energyRemaining}/100 | Fullness ${sc.fullnessRemaining}/100`,
       `Timeline: Day ${sc.dayReached} - ${sc.finalClock} | Neighborhood: ${sc.finalNeighborhood}`,
@@ -1121,11 +1134,20 @@ export class MemoriesGameEngine {
       this.state.sharedFadoTrackIndex = transit.fadoTrackIndex;
     }
 
-    // 4. Authoritative Ambient Lisboa Background Villagers (strictly synced across all connected computers!)
+    // 4. Authoritative Ambient Lisboa Background Villagers & Seasonal Crowds (strictly synced across all connected computers!)
     if (Array.isArray(transit.npcs)) {
+      const serverIds = new Set(transit.npcs.map((n) => n.id));
+      const allDefs = new Map([...AMBIENT_NPCS, ...SEASONAL_CROWD_NPCS].map((d) => [d.id, d]));
+      // Keep base NPCs and active server seasonal NPCs aligned cleanly
+      this.state.npcs = this.state.npcs.filter((n) => !n.seasonal || serverIds.has(n.id));
       for (const sn of transit.npcs) {
-        const localNpc = this.state.npcs.find((n) => n.id === sn.id);
-        if (!localNpc) continue;
+        let localNpc = this.state.npcs.find((n) => n.id === sn.id);
+        if (!localNpc) {
+          const def = allDefs.get(sn.id);
+          if (!def) continue;
+          localNpc = createNpcRecord(def);
+          this.state.npcs.push(localNpc);
+        }
         localNpc.targetX = sn.x;
         localNpc.targetY = sn.y;
         const jumpDist = Math.hypot((sn.x ?? localNpc.x) - localNpc.x, (sn.y ?? localNpc.y) - localNpc.y);
@@ -1293,12 +1315,50 @@ export class MemoriesGameEngine {
     if (Number.isFinite(clock.day) && clock.day >= 1) {
       this.state.day = Math.floor(clock.day);
     }
+    if (Number.isFinite(clock.month) && clock.month >= 1 && clock.month <= 12 && clock.month !== this.state.month) {
+      this.setMonth(clock.month, { silent: true });
+    }
     const nextMins = ((Math.floor(clock.minutesOfDay) % 1440) + 1440) % 1440;
     if (nextMins < EVENING_SUGGEST_MINUTES) {
       this.state.eveningNoticeShown = false;
     }
     this.state.minutesOfDay = nextMins;
     this.timeAccumulator = 0;
+  }
+
+  setMonth(monthNumber, { silent = false } = {}) {
+    const info = getMonthInfo(monthNumber);
+    this.state.month = info.month;
+    this.state.monthInfo = info;
+
+    // Adjust active seasonal sidewalk crowds cleanly while keeping the 6 core Lisbon locals in place
+    const baseIds = new Set(AMBIENT_NPCS.map((n) => n.id));
+    const targetExtras = SEASONAL_CROWD_NPCS.slice(0, Math.max(0, info.crowdExtra || 0));
+    const targetExtraIds = new Set(targetExtras.map((n) => n.id));
+    const existingById = new Map(this.state.npcs.map((n) => [n.id, n]));
+
+    const nextNpcs = [];
+    for (const baseDef of AMBIENT_NPCS) {
+      nextNpcs.push(existingById.get(baseDef.id) || createNpcRecord(baseDef));
+    }
+    for (const extraDef of targetExtras) {
+      if (baseIds.has(extraDef.id)) continue;
+      if (targetExtraIds.has(extraDef.id)) {
+        nextNpcs.push(existingById.get(extraDef.id) || createNpcRecord(extraDef));
+      }
+    }
+    this.state.npcs = nextNpcs;
+
+    if (!silent) {
+      this.state.statusMessage =
+        `${info.name} (${info.ptName}) in Lisboa: ${info.avgHighC}C / ${info.avgLowC}C (${info.weatherLabel}) - ${info.eventTitle}. ${info.eventNote}`;
+      recordLog(
+        this.state,
+        'season',
+        `Calendar set to ${info.name} (${info.ptName}): ${info.weatherLabel}, ${info.eventTitle}.`
+      );
+    }
+    return info;
   }
 
   clearGlobalClock() {
@@ -1311,11 +1371,15 @@ export class MemoriesGameEngine {
     const prevOutfit = this.state?.player?.outfitId || PLAYER_OUTFITS[0].id;
     const prevRemotes = this.state?.remotePlayers || [];
     const prevViewMode = this.state?.viewMode || 'street3d';
+    const prevMonth = this.state?.month || DEFAULT_MONTH;
     this.state = createInitialState();
     this.state.viewMode = prevViewMode;
     this.state.player.name = prevName;
     this.state.player.outfitId = prevOutfit;
     this.state.remotePlayers = prevRemotes;
+    if (prevMonth !== DEFAULT_MONTH) {
+      this.setMonth(prevMonth, { silent: true });
+    }
     this.timeAccumulator = 0;
     this.doorEntryCooldown = 0;
     return this.state;

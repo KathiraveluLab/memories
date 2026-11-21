@@ -10,7 +10,8 @@ import {
   VENUES,
   REST_SPOTS,
   getAllTransitStops,
-  getOutfitById
+  getOutfitById,
+  getMonthInfo
 } from './data.js';
 import { getDayPhase } from './engine.js';
 
@@ -381,20 +382,22 @@ export class LisboaStreetView3DRenderer {
     this.lastHitTargets = [];
     const cam = this.buildCamera(state);
     const phase = getDayPhase(state.minutesOfDay);
+    const monthInfo = getMonthInfo(state.month);
     const isEvening = phase.id === 'evening';
     const isGolden = phase.id === 'golden';
+    const lampsGlowing = isEvening || isGolden || monthInfo.rainIntensity >= 0.45 || monthInfo.decorStyle === 'christmas-lights';
 
-    // 1. Sky dome, sun/moon & 360-degree Lisboa hills + Tagus River panorama
-    this.drawSkyAndPanorama(ctx, cam, phase, animTime);
+    // 1. Sky dome, sun/moon & 360-degree Lisboa hills + Tagus River panorama (season & climate responsive)
+    this.drawSkyAndPanorama(ctx, cam, phase, animTime, monthInfo);
 
     // 2. Ground plane: cobblestone terrain, Tagus water, streets, curbs, crosswalks & Tram 28E rails
-    this.drawGroundAndStreets(ctx, cam, state, isEvening, animTime);
+    this.drawGroundAndStreets(ctx, cam, state, isEvening, animTime, monthInfo);
 
     // 3. Google Street View hover ground chevron & walk target ring on cobblestones
     this.drawGroundIndicators(ctx, cam, state, animTime);
 
     // 4. Collect all visible 3D buildings, landmarks, vehicles, trees, lamps, benches, stops, locals & LAN peers
-    const occluders = this.collectOccluders(cam, state, nearbyInteraction);
+    const occluders = this.collectOccluders(cam, state, nearbyInteraction, monthInfo);
     const sorted = sortOccludersBackToFront(occluders, cam.camX, cam.camY);
 
     // 5. Render back-to-front in exact topological order
@@ -410,40 +413,63 @@ export class LisboaStreetView3DRenderer {
       } else if (item.kind === 'vehicle') {
         this.drawTransitVehicle3D(ctx, cam, item.vehicle, isEvening);
       } else if (item.kind === 'tree') {
-        this.drawTree3D(ctx, cam, item.tree, isEvening);
+        this.drawTree3D(ctx, cam, item.tree, isEvening, monthInfo);
       } else if (item.kind === 'lamp') {
-        this.drawStreetlamp3D(ctx, cam, item.lamp, isEvening, isGolden);
+        this.drawStreetlamp3D(ctx, cam, item.lamp, isEvening, lampsGlowing);
       } else if (item.kind === 'bench') {
         this.drawBench3D(ctx, cam, item.spot, item.captured, isEvening);
       } else if (item.kind === 'stop') {
         this.drawTransitStop3D(ctx, cam, item.stop, item.highlighted, isEvening);
+      } else if (item.kind === 'seasonal-prop') {
+        this.drawSeasonalProp3D(ctx, cam, item.prop, isEvening, animTime);
+      } else if (item.kind === 'decor-arch') {
+        this.drawSeasonalDecorArch3D(ctx, cam, item.arch, monthInfo, isEvening, animTime);
       } else if (item.kind === 'person') {
-        this.drawPerson3D(ctx, cam, item.person, isEvening);
+        this.drawPerson3D(ctx, cam, item.person, isEvening, monthInfo);
       }
     }
 
     // 6. Overhead Tram 28E electric catenary wire spanning above Rua do Loreto / Largo do Chiado
     this.drawOverheadTramWire(ctx, cam, isEvening);
 
-    // 7. Crisp Google Street View style HUD: street address badge + compass & live radar mini-map
-    this.drawStreetViewHud(ctx, cam, state);
+    // 7. Weather atmosphere overlay (Atlantic rain streaks, summer sunbeams, drifting blossoms/confetti/autumn leaves)
+    this.drawWeatherAtmosphere3D(ctx, cam, monthInfo, phase, animTime);
+
+    // 8. Crisp Google Street View style HUD: street address, month/weather/event badge & live radar mini-map
+    this.drawStreetViewHud(ctx, cam, state, monthInfo);
   }
 
-  drawSkyAndPanorama(ctx, cam, phase, animTime) {
+  drawSkyAndPanorama(ctx, cam, phase, animTime, monthInfo = getMonthInfo()) {
     const w = this.viewWidth;
     const hy = clamp(cam.horizonY, 60, this.viewHeight - 80);
     const isEvening = phase.id === 'evening';
     const isGolden = phase.id === 'golden';
+    const isHeavyRain = (monthInfo.rainIntensity || 0) >= 0.7;
+    const isRainy = (monthInfo.rainIntensity || 0) >= 0.35;
+    const isBrightSummer = (monthInfo.sunBrightness || 1) >= 1.15;
 
     const skyGrad = ctx.createLinearGradient(0, 0, 0, hy + 2);
     if (isEvening) {
-      skyGrad.addColorStop(0, '#0a1630');
-      skyGrad.addColorStop(0.58, '#172b54');
-      skyGrad.addColorStop(1, '#2b3f6b');
+      skyGrad.addColorStop(0, isHeavyRain ? '#0b1322' : '#0a1630');
+      skyGrad.addColorStop(0.58, isHeavyRain ? '#1b273b' : '#172b54');
+      skyGrad.addColorStop(1, isHeavyRain ? '#2c3a4f' : '#2b3f6b');
+    } else if (isHeavyRain) {
+      skyGrad.addColorStop(0, '#3e4f63');
+      skyGrad.addColorStop(0.55, '#64778c');
+      skyGrad.addColorStop(1, '#9baab8');
+    } else if (isRainy && !isGolden) {
+      skyGrad.addColorStop(0, '#3e6b99');
+      skyGrad.addColorStop(0.58, '#789bb8');
+      skyGrad.addColorStop(1, '#c2d3e0');
     } else if (isGolden) {
-      skyGrad.addColorStop(0, '#36588f');
-      skyGrad.addColorStop(0.55, '#c97c5d');
-      skyGrad.addColorStop(1, '#f7cf86');
+      skyGrad.addColorStop(0, isBrightSummer ? '#295796' : '#36588f');
+      skyGrad.addColorStop(0.55, isBrightSummer ? '#e08448' : '#c97c5d');
+      skyGrad.addColorStop(1, isBrightSummer ? '#fde088' : '#f7cf86');
+    } else if (isBrightSummer) {
+      // Dazzling dry July / August Lisbon cobalt sky
+      skyGrad.addColorStop(0, '#0e58b8');
+      skyGrad.addColorStop(0.58, '#3ca3ec');
+      skyGrad.addColorStop(1, '#e0f6ff');
     } else if (phase.id === 'morning') {
       skyGrad.addColorStop(0, '#2972b8');
       skyGrad.addColorStop(0.65, '#72b7e8');
@@ -456,8 +482,8 @@ export class LisboaStreetView3DRenderer {
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, w, hy + 2);
 
-    // Evening stars
-    if (isEvening) {
+    // Evening stars (hidden under thick Atlantic rain clouds)
+    if (isEvening && !isHeavyRain) {
       ctx.fillStyle = 'rgba(255, 251, 235, 0.72)';
       for (let i = 0; i < 28; i += 1) {
         const starAngle = (i * 0.71) % (Math.PI * 2);
@@ -469,42 +495,65 @@ export class LisboaStreetView3DRenderer {
       }
     }
 
-    // Sun or Moon positioned authentically on the sky dome
-    const celestialYaw = isEvening ? -1.1 : isGolden ? 2.65 : 0.75;
-    const relSun = Math.atan2(Math.sin(celestialYaw - cam.yaw), Math.cos(celestialYaw - cam.yaw));
-    if (Math.abs(relSun) < 0.95) {
-      const sunX = w * 0.5 + relSun * this.focal;
-      const sunY = isGolden ? hy - 48 : isEvening ? 64 : 74;
-      const glow = ctx.createRadialGradient(sunX, sunY, 6, sunX, sunY, 54);
-      if (isEvening) {
-        glow.addColorStop(0, 'rgba(241, 245, 249, 0.95)');
-        glow.addColorStop(0.4, 'rgba(226, 232, 240, 0.25)');
-        glow.addColorStop(1, 'rgba(226, 232, 240, 0)');
-      } else {
-        glow.addColorStop(0, isGolden ? 'rgba(255, 237, 160, 0.95)' : 'rgba(255, 250, 220, 0.92)');
-        glow.addColorStop(0.42, isGolden ? 'rgba(251, 146, 60, 0.35)' : 'rgba(254, 240, 138, 0.28)');
-        glow.addColorStop(1, 'rgba(254, 240, 138, 0)');
+    // Sun or Moon positioned authentically on the sky dome (dimmed in heavy November rain, blazing bright in July/August)
+    if (!isHeavyRain) {
+      const celestialYaw = isEvening ? -1.1 : isGolden ? 2.65 : 0.75;
+      const relSun = Math.atan2(Math.sin(celestialYaw - cam.yaw), Math.cos(celestialYaw - cam.yaw));
+      if (Math.abs(relSun) < 0.95) {
+        const sunX = w * 0.5 + relSun * this.focal;
+        const sunY = isGolden ? hy - 48 : isEvening ? 64 : isBrightSummer ? 58 : 74;
+        const sunRadius = isBrightSummer && !isEvening ? 88 : 54;
+        const glow = ctx.createRadialGradient(sunX, sunY, 6, sunX, sunY, sunRadius);
+        if (isEvening) {
+          glow.addColorStop(0, 'rgba(241, 245, 249, 0.95)');
+          glow.addColorStop(0.4, 'rgba(226, 232, 240, 0.25)');
+          glow.addColorStop(1, 'rgba(226, 232, 240, 0)');
+        } else if (isBrightSummer) {
+          glow.addColorStop(0, 'rgba(255, 254, 232, 0.99)');
+          glow.addColorStop(0.32, 'rgba(254, 240, 138, 0.58)');
+          glow.addColorStop(0.68, 'rgba(253, 224, 71, 0.18)');
+          glow.addColorStop(1, 'rgba(254, 240, 138, 0)');
+        } else {
+          glow.addColorStop(0, isGolden ? 'rgba(255, 237, 160, 0.95)' : 'rgba(255, 250, 220, 0.92)');
+          glow.addColorStop(0.42, isGolden ? 'rgba(251, 146, 60, 0.35)' : 'rgba(254, 240, 138, 0.28)');
+          glow.addColorStop(1, 'rgba(254, 240, 138, 0)');
+        }
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(sunX, sunY, 54, 0, Math.PI * 2);
-      ctx.fill();
     }
 
-    // Soft Atlantic drifting clouds
-    if (!isEvening) {
-      ctx.fillStyle = isGolden ? 'rgba(255, 232, 198, 0.48)' : 'rgba(255, 255, 255, 0.55)';
-      for (let i = 0; i < 6; i += 1) {
-        const cloudYaw = ((i * 1.05) + animTime * 0.008) % (Math.PI * 2);
+    // Seasonal Atlantic cloud deck (sparse wisps in July/Aug, dense dark grey storm clouds in Nov/Dec)
+    const cloudCount = Math.max(2, Math.round(3 + (monthInfo.cloudiness || 0.25) * 11));
+    if (!isEvening || isRainy) {
+      ctx.fillStyle = isHeavyRain
+        ? isEvening
+          ? 'rgba(30, 41, 59, 0.72)'
+          : 'rgba(92, 108, 126, 0.68)'
+        : isRainy
+          ? isEvening
+            ? 'rgba(42, 56, 78, 0.55)'
+            : 'rgba(182, 198, 214, 0.62)'
+          : isGolden
+            ? 'rgba(255, 232, 198, 0.48)'
+            : isBrightSummer
+              ? 'rgba(255, 255, 255, 0.34)'
+              : 'rgba(255, 255, 255, 0.55)';
+      for (let i = 0; i < cloudCount; i += 1) {
+        const cloudYaw = (((i * (Math.PI * 2)) / cloudCount) + animTime * (isRainy ? 0.018 : 0.008)) % (Math.PI * 2);
         const rel = Math.atan2(Math.sin(cloudYaw - cam.yaw), Math.cos(cloudYaw - cam.yaw));
-        if (Math.abs(rel) > 1.05) continue;
+        if (Math.abs(rel) > 1.08) continue;
         const cx = w * 0.5 + rel * this.focal;
-        const cy = 44 + (i % 3) * 28;
+        const cy = (isHeavyRain ? 30 : 44) + (i % 3) * (isHeavyRain ? 26 : 28);
+        const rx = isHeavyRain ? 96 : isRainy ? 72 : 56;
+        const ry = isHeavyRain ? 24 : isRainy ? 17 : 13;
         ctx.beginPath();
-        ctx.ellipse(cx, cy, 56, 13, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.ellipse(cx + 26, cy - 5, 34, 10, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + rx * 0.45, cy - ry * 0.35, rx * 0.62, ry * 0.75, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -821,17 +870,27 @@ export class LisboaStreetView3DRenderer {
     }
   }
 
-  drawGroundAndStreets(ctx, cam, state, isEvening, animTime) {
+  drawGroundAndStreets(ctx, cam, state, isEvening, animTime, monthInfo = getMonthInfo()) {
     const w = this.viewWidth;
     const h = this.viewHeight;
     const hy = clamp(cam.horizonY, 60, h - 80);
+    const wet = monthInfo.wetGround || 0;
+    const brightSummer = (monthInfo.sunBrightness || 1) >= 1.15;
 
-    // Base warm Lisbon calcada ground plane
+    // Base warm Lisbon calcada ground plane (shifts to glossy wet slate in rainy months, bright sun-bleached cream in July/August)
     const groundGrad = ctx.createLinearGradient(0, hy, 0, h);
     if (isEvening) {
-      groundGrad.addColorStop(0, '#3a4254');
-      groundGrad.addColorStop(0.35, '#4c5261');
-      groundGrad.addColorStop(1, '#5d606c');
+      groundGrad.addColorStop(0, wet >= 0.4 ? '#2b3446' : '#3a4254');
+      groundGrad.addColorStop(0.35, wet >= 0.4 ? '#384254' : '#4c5261');
+      groundGrad.addColorStop(1, wet >= 0.4 ? '#454e60' : '#5d606c');
+    } else if (wet >= 0.5) {
+      groundGrad.addColorStop(0, '#969da6');
+      groundGrad.addColorStop(0.28, '#abb1b8');
+      groundGrad.addColorStop(1, '#bcc2c7');
+    } else if (brightSummer) {
+      groundGrad.addColorStop(0, '#dad2c2');
+      groundGrad.addColorStop(0.28, '#eee6d6');
+      groundGrad.addColorStop(1, '#f8f2e4');
     } else {
       groundGrad.addColorStop(0, '#c7c1b6');
       groundGrad.addColorStop(0.28, '#ddd6c8');
@@ -1096,6 +1155,41 @@ export class LisboaStreetView3DRenderer {
       this.drawLine3D(ctx, cam, [tx, 617, 0.3], [tx2, 617, 0.3], isEvening ? '#7c8a9e' : '#4a5565', 2.4);
       this.drawLine3D(ctx, cam, [tx, 602, 0.35], [tx2, 602, 0.35], 'rgba(255, 255, 255, 0.35)', 0.9);
     }
+
+    // Wet rain puddles & concentric raindrop ripples across the limestone calcada during rainy months
+    if (wet >= 0.38) {
+      const puddles = [
+        [520, 552], [790, 548], [960, 560], [1160, 550], [1480, 554], [1860, 548],
+        [920, 672], [1220, 674], [960, 480], [1040, 986], [1560, 990]
+      ];
+      for (let i = 0; i < puddles.length; i += 1) {
+        const [px, py] = puddles[i];
+        if (Math.hypot(px - cam.camX, py - cam.camY) > 620) continue;
+        const pts = [];
+        for (let k = 0; k < 10; k += 1) {
+          const a = (k / 10) * Math.PI * 2;
+          pts.push([px + Math.cos(a) * 18, py + Math.sin(a) * 9, 0.38]);
+        }
+        this.drawPoly3D(
+          ctx,
+          cam,
+          pts,
+          isEvening ? 'rgba(96, 132, 178, 0.34)' : 'rgba(130, 166, 198, 0.36)',
+          'rgba(224, 242, 254, 0.32)',
+          1
+        );
+        const rp = this.projectWorldPt(cam, px, py, 0.45);
+        if (rp) {
+          const rPhase = (animTime * 1.9 + i * 0.43) % 1;
+          const rRad = clamp(((3 + rPhase * 12) * this.focal) / rp.cz, 2, 24);
+          ctx.strokeStyle = `rgba(224, 242, 254, ${(1 - rPhase) * 0.55})`;
+          ctx.lineWidth = 1.1;
+          ctx.beginPath();
+          ctx.ellipse(rp.x, rp.y, rRad, rRad * 0.34, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
   }
 
   drawGroundIndicators(ctx, cam, state, animTime) {
@@ -1131,7 +1225,7 @@ export class LisboaStreetView3DRenderer {
     }
   }
 
-  collectOccluders(cam, state, nearbyInteraction) {
+  collectOccluders(cam, state, nearbyInteraction, monthInfo = getMonthInfo()) {
     const list = [];
     const inRange = (x0, y0, x1, y1) => {
       const nx = clamp(cam.camX, x0, x1);
@@ -1230,6 +1324,76 @@ export class LisboaStreetView3DRenderer {
         y1: lamp.y + 4,
         lamp
       });
+    }
+
+    // Seasonal 3D Lisbon plaza landmarks & street kiosks (Christmas tree, Chestnut roasters, Summer parasols, Manjericos)
+    const seasonalProps = [];
+    if (monthInfo.decorStyle === 'christmas-lights') {
+      seasonalProps.push(
+        { type: 'christmas-tree', x: 992, y: 440, r: 22 },
+        { type: 'christmas-tree', x: 1855, y: 536, r: 16 }
+      );
+    } else if (monthInfo.decorStyle === 'november-rain') {
+      seasonalProps.push(
+        { type: 'chestnut-cart', x: 988, y: 538, r: 14 },
+        { type: 'chestnut-cart', x: 1852, y: 538, r: 14 }
+      );
+    } else if (monthInfo.decorStyle === 'summer-sun' || monthInfo.decorStyle === 'summer-festival') {
+      seasonalProps.push(
+        { type: 'summer-parasol', x: 994, y: 452, r: 18, color: '#0284c7' },
+        { type: 'summer-parasol', x: 1098, y: 534, r: 18, color: '#d97706' },
+        { type: 'summer-parasol', x: 1030, y: 982, r: 18, color: '#dc2626' },
+        { type: 'summer-parasol', x: 1465, y: 982, r: 18, color: '#0f766e' }
+      );
+    } else if (monthInfo.decorStyle === 'santos-populares') {
+      seasonalProps.push(
+        { type: 'manjerico-stall', x: 992, y: 454, r: 14 },
+        { type: 'manjerico-stall', x: 1856, y: 538, r: 14 }
+      );
+    }
+    for (const prop of seasonalProps) {
+      if (!inRange(prop.x - prop.r, prop.y - prop.r, prop.x + prop.r, prop.y + prop.r)) continue;
+      list.push({
+        kind: 'seasonal-prop',
+        x0: prop.x - prop.r * 0.5,
+        y0: prop.y - prop.r * 0.5,
+        x1: prop.x + prop.r * 0.5,
+        y1: prop.y + prop.r * 0.5,
+        prop
+      });
+    }
+
+    // Overhead 3D seasonal street decoration arches depth-sorted cleanly behind/in front of buildings
+    const decorStyle = monthInfo.decorStyle;
+    if (
+      decorStyle === 'christmas-lights' ||
+      decorStyle === 'janeiras-stars' ||
+      decorStyle === 'carnaval' ||
+      decorStyle === 'cravos-25-abril' ||
+      decorStyle === 'santos-populares' ||
+      decorStyle === 'alfama-fado' ||
+      decorStyle === 'marathon-banners' ||
+      decorStyle === 'autumn-leaves' ||
+      decorStyle === 'summer-festival'
+    ) {
+      const corridors = [
+        { y0: 540, y1: 678, z: 102, xs: [360, 560, 760, 960, 1160, 1360, 1560, 1760, 1960] },
+        { y0: 224, y1: 352, z: 98, xs: [380, 620, 940, 1180, 1460, 1840] }
+      ];
+      for (const cor of corridors) {
+        for (const x of cor.xs) {
+          if (!inRange(x - 6, cor.y0, x + 6, cor.y1)) continue;
+          if (Math.hypot(x - cam.camX, (cor.y0 + cor.y1) * 0.5 - cam.camY) > 760) continue;
+          list.push({
+            kind: 'decor-arch',
+            x0: x - 4,
+            y0: cor.y0,
+            x1: x + 4,
+            y1: cor.y1,
+            arch: { x, y0: cor.y0, y1: cor.y1, z: cor.z }
+          });
+        }
+      }
     }
 
     for (const spot of REST_SPOTS) {
@@ -2098,7 +2262,7 @@ export class LisboaStreetView3DRenderer {
     }
   }
 
-  drawTree3D(ctx, cam, tree, isEvening) {
+  drawTree3D(ctx, cam, tree, isEvening, monthInfo = getMonthInfo()) {
     const base = this.projectWorldPt(cam, tree.x, tree.y, 0);
     const crown = this.projectWorldPt(cam, tree.x, tree.y, 58);
     if (!base || !crown) return;
@@ -2107,6 +2271,38 @@ export class LisboaStreetView3DRenderer {
     const canopyR = clamp(28 * scale, 6, 78);
     const trunkH = Math.max(6, base.y - crown.y);
     const isJacaranda = tree.c === '#7a58ab';
+    const foliageMode = monthInfo.foliageMode || 'bloom';
+
+    // Seasonal Lisbon tree palette: Jacarandas burst vibrant purple in May/June, green in summer, amber in autumn, crisp olive in winter
+    let treeColor = tree.c;
+    let treeHighlight = tree.highlight;
+    if (isJacaranda) {
+      if (foliageMode === 'bloom') {
+        treeColor = '#7a58ab';
+        treeHighlight = '#b796e6';
+      } else if (foliageMode === 'spring') {
+        treeColor = (monthInfo.jacarandaBloom || 0) >= 0.3 ? '#766b9e' : '#4a8559';
+        treeHighlight = (monthInfo.jacarandaBloom || 0) >= 0.3 ? '#a995d4' : '#79b885';
+      } else if (foliageMode === 'lush') {
+        treeColor = '#377a4d';
+        treeHighlight = '#68b47c';
+      } else if (foliageMode === 'autumn') {
+        treeColor = '#b86d28';
+        treeHighlight = '#e6a545';
+      } else {
+        treeColor = '#4e6357';
+        treeHighlight = '#728a7c';
+      }
+    } else if (foliageMode === 'autumn') {
+      treeColor = '#6f7339';
+      treeHighlight = '#b59d4a';
+    } else if (foliageMode === 'winter') {
+      treeColor = '#3a624a';
+      treeHighlight = '#5d8a6e';
+    } else if (foliageMode === 'lush') {
+      treeColor = '#2f7a48';
+      treeHighlight = '#64ba7c';
+    }
 
     // 1. Stone sidewalk tree-well curb ring & dappled ground shadow
     ctx.fillStyle = 'rgba(15, 23, 42, 0.26)';
@@ -2127,9 +2323,9 @@ export class LisboaStreetView3DRenderer {
     ctx.ellipse(base.x, base.y, trunkW * 1.05, Math.max(1.8, trunkW * 0.36), 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Fallen purple Jacaranda petals on the calcada stones around the tree base
-    if (isJacaranda && canopyR > 12) {
-      ctx.fillStyle = shadeColor('#9b72cf', 0.95, isEvening);
+    // Fallen purple Jacaranda petals (May/June) OR fallen autumn leaves (Oct/Nov) around the tree base
+    if (canopyR > 12 && ((isJacaranda && (monthInfo.jacarandaBloom || 0) >= 0.5) || foliageMode === 'autumn')) {
+      ctx.fillStyle = shadeColor(foliageMode === 'autumn' ? '#d97706' : '#9b72cf', 0.95, isEvening);
       for (const [px, py] of [[-0.55, 0.08], [0.48, 0.12], [-0.25, 0.16], [0.22, -0.06], [0.62, -0.02]]) {
         ctx.beginPath();
         ctx.arc(base.x + px * canopyR, base.y + py * canopyR, Math.max(1.3, 2.2 * scale), 0, Math.PI * 2);
@@ -2178,10 +2374,10 @@ export class LisboaStreetView3DRenderer {
     }
 
     // 3. Multi-layered volumetric 3D foliage canopy (deep shadow base -> mid clusters -> sunlit crown -> blossom highlights)
-    const cDeep = shadeColor(tree.c, 0.72, isEvening);
-    const cMain = shadeColor(tree.c, 0.94, isEvening);
-    const cHi = shadeColor(tree.highlight, 1.04, isEvening);
-    const cSpec = shadeColor(tree.highlight, 1.2, isEvening);
+    const cDeep = shadeColor(treeColor, 0.72, isEvening);
+    const cMain = shadeColor(treeColor, 0.94, isEvening);
+    const cHi = shadeColor(treeHighlight, 1.04, isEvening);
+    const cSpec = shadeColor(treeHighlight, 1.2, isEvening);
 
     for (const [ox, oy, mr, col] of [
       // Under-canopy shadow clusters
@@ -2281,7 +2477,7 @@ export class LisboaStreetView3DRenderer {
     ctx.textAlign = 'left';
   }
 
-  drawPerson3D(ctx, cam, person, isEvening) {
+  drawPerson3D(ctx, cam, person, isEvening, monthInfo = getMonthInfo()) {
     const foot = this.projectWorldPt(cam, person.x, person.y, 0);
     const head = this.projectWorldPt(cam, person.x, person.y, 32);
     if (!foot || !head) return;
@@ -2348,6 +2544,27 @@ export class LisboaStreetView3DRenderer {
       ctx.fillRect(foot.x - headR * 1.45, head.y + headR * 0.25, headR * 2.9, Math.max(2, headR * 0.35));
     }
 
+    // Pedestrians carry rain umbrellas during rainy Atlantic months (Nov/Dec/Jan/Oct)
+    if ((monthInfo.rainIntensity || 0) >= 0.4 && h > 14) {
+      const uColors = ['#1d4ed8', '#b91c1c', '#0f766e', '#ca8a04', '#4338ca'];
+      const uCol = uColors[Math.abs(Math.round(person.x)) % uColors.length];
+      const uTop = head.y - h * 0.24;
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = Math.max(1.2, w * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(foot.x + w * 0.24, head.y + h * 0.38);
+      ctx.lineTo(foot.x + w * 0.14, uTop);
+      ctx.stroke();
+      ctx.fillStyle = shadeColor(uCol, 1, isEvening);
+      ctx.beginPath();
+      ctx.arc(foot.x + w * 0.14, uTop + h * 0.08, w * 1.15, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
     // Floating LAN multiplayer nameplate & wave bubble
     if (person.label && h > 18) {
       const fs = clamp(Math.round(h * 0.16), 9, 13);
@@ -2384,21 +2601,403 @@ export class LisboaStreetView3DRenderer {
     }
   }
 
-  drawStreetViewHud(ctx, cam, state) {
+  drawSeasonalProp3D(ctx, cam, prop, isEvening, animTime) {
+    const base = this.projectWorldPt(cam, prop.x, prop.y, 0);
+    if (!base) return;
+    const scale = this.focal / base.cz;
+
+    if (prop.type === 'christmas-tree') {
+      // Grand Lisboa Arvore de Natal with tiered emerald boughs, twinkling fairy lights & golden star topper
+      const h = prop.r >= 20 ? 116 : 86;
+      const top = this.projectWorldPt(cam, prop.x, prop.y, h);
+      if (!top) return;
+      const th = Math.max(16, base.y - top.y);
+      const tw = th * 0.54;
+
+      // Pedestal pot
+      ctx.fillStyle = shadeColor('#881320', 0.95, isEvening);
+      ctx.fillRect(base.x - tw * 0.18, base.y - th * 0.1, tw * 0.36, th * 0.1);
+
+      // 4 layered evergreen cones
+      for (let tier = 0; tier < 4; tier += 1) {
+        const yBot = base.y - th * (0.09 + tier * 0.21);
+        const yTip = base.y - th * (0.38 + tier * 0.2);
+        const halfW = tw * (0.56 - tier * 0.11);
+        ctx.fillStyle = shadeColor(tier % 2 === 0 ? '#14532d' : '#166534', 1.0, isEvening);
+        ctx.beginPath();
+        ctx.moveTo(base.x - halfW, yBot);
+        ctx.lineTo(base.x + halfW, yBot);
+        ctx.lineTo(base.x, yTip);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.55)';
+        ctx.lineWidth = Math.max(1, scale * 1.4);
+        ctx.stroke();
+      }
+
+      // Twinkling holiday fairy lights & ornaments
+      const bulbCols = ['#fde047', '#ef4444', '#fef9c3', '#38bdf8', '#f59e0b'];
+      for (let i = 0; i < 16; i += 1) {
+        const u = (i + 1) / 17;
+        const spread = (1 - u) * tw * 0.46;
+        const bx = base.x + Math.sin(i * 2.4) * spread;
+        const by = base.y - th * (0.14 + u * 0.74);
+        const twinkle = 0.65 + 0.35 * Math.sin(animTime * 4.5 + i * 1.3);
+        const r = Math.max(1.8, tw * 0.045 * twinkle);
+        ctx.fillStyle = bulbCols[i % bulbCols.length];
+        ctx.beginPath();
+        ctx.arc(bx, by, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Glowing golden Christmas star topper
+      const starR = Math.max(4, tw * 0.15);
+      const glow = ctx.createRadialGradient(top.x, top.y, 1, top.x, top.y, starR * 2.8);
+      glow.addColorStop(0, 'rgba(254, 240, 138, 0.95)');
+      glow.addColorStop(0.5, 'rgba(250, 204, 21, 0.38)');
+      glow.addColorStop(1, 'rgba(250, 204, 21, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(top.x, top.y, starR * 2.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      for (let k = 0; k < 8; k += 1) {
+        const ang = (k * Math.PI) / 4;
+        const rad = k % 2 === 0 ? starR : starR * 0.42;
+        const sx = top.x + Math.cos(ang) * rad;
+        const sy = top.y + Math.sin(ang) * rad;
+        if (k === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+
+    if (prop.type === 'chestnut-cart') {
+      // Traditional Sao Martinho Castanhas Assadas roasted chestnut brazier cart with ember glow & rising steam
+      const top = this.projectWorldPt(cam, prop.x, prop.y, 34);
+      if (!top) return;
+      const ch = Math.max(12, base.y - top.y);
+      const cw = ch * 0.95;
+
+      // Iron cart wheels & brazier body
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(base.x - cw * 0.46, base.y - ch * 0.72, cw * 0.92, ch * 0.56);
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = Math.max(1, scale * 1.4);
+      ctx.strokeRect(base.x - cw * 0.46, base.y - ch * 0.72, cw * 0.92, ch * 0.56);
+      ctx.beginPath();
+      ctx.arc(base.x - cw * 0.3, base.y - ch * 0.12, ch * 0.14, 0, Math.PI * 2);
+      ctx.arc(base.x + cw * 0.3, base.y - ch * 0.12, ch * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Glowing orange Sao Martinho charcoal embers
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(base.x - cw * 0.34, base.y - ch * 0.62, cw * 0.68, ch * 0.16);
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(base.x - cw * 0.24, base.y - ch * 0.58, cw * 0.48, ch * 0.08);
+
+      // Rising warm chestnut smoke puffs
+      for (let s = 0; s < 4; s += 1) {
+        const rise = ((animTime * 0.7 + s * 0.25) % 1);
+        const sy = top.y - rise * ch * 1.25;
+        const sx = top.x + Math.sin(animTime * 2 + s * 1.7) * cw * 0.16;
+        ctx.fillStyle = `rgba(226, 232, 240, ${(1 - rise) * 0.42})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(2.5, cw * (0.14 + rise * 0.24)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return;
+    }
+
+    if (prop.type === 'summer-parasol') {
+      // Striped sunlit Lisbon summer cafe terrace parasol
+      const top = this.projectWorldPt(cam, prop.x, prop.y, 52);
+      if (!top) return;
+      const ph = Math.max(12, base.y - top.y);
+      const pr = ph * 0.52;
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = Math.max(1.5, ph * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(base.x, base.y);
+      ctx.lineTo(top.x, top.y);
+      ctx.stroke();
+
+      ctx.fillStyle = shadeColor(prop.color || '#0284c7', 1, isEvening);
+      ctx.beginPath();
+      ctx.moveTo(top.x - pr, top.y + ph * 0.24);
+      ctx.quadraticCurveTo(top.x, top.y - ph * 0.12, top.x + pr, top.y + ph * 0.24);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 252, 244, 0.9)';
+      ctx.beginPath();
+      ctx.moveTo(top.x - pr * 0.35, top.y + ph * 0.23);
+      ctx.lineTo(top.x, top.y + ph * 0.02);
+      ctx.lineTo(top.x + pr * 0.35, top.y + ph * 0.23);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+
+    if (prop.type === 'manjerico-stall') {
+      // Santos Populares sweet basil manjerico pots with tiny paper poem flags
+      const top = this.projectWorldPt(cam, prop.x, prop.y, 26);
+      if (!top) return;
+      const sh = Math.max(10, base.y - top.y);
+      const sw = sh * 1.1;
+      ctx.fillStyle = shadeColor('#b84a32', 1, isEvening);
+      ctx.fillRect(base.x - sw * 0.45, base.y - sh * 0.5, sw * 0.9, sh * 0.5);
+      for (const ox of [-0.26, 0, 0.26]) {
+        const px = base.x + sw * ox;
+        ctx.fillStyle = '#15803d';
+        ctx.beginPath();
+        ctx.arc(px, base.y - sh * 0.62, sh * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(px - sh * 0.08, base.y - sh * 0.98, sh * 0.22, sh * 0.16);
+      }
+    }
+  }
+
+  drawSeasonalDecorArch3D(ctx, cam, arch, monthInfo, isEvening, animTime) {
+    const style = monthInfo?.decorStyle;
+    if (!style || !arch) return;
+    const { x, y0, y1, z } = arch;
+
+    const buildPts = (zBase, sag) => {
+      const pts = [];
+      const steps = 10;
+      for (let i = 0; i <= steps; i += 1) {
+        const t = i / steps;
+        const wy = y0 + (y1 - y0) * t;
+        const wz = zBase - Math.sin(t * Math.PI) * sag;
+        const p = this.projectWorldPt(cam, x, wy, wz);
+        if (p) pts.push({ p, t, wy, wz });
+      }
+      return pts;
+    };
+
+    if (style === 'christmas-lights' || style === 'janeiras-stars') {
+      const isDec = style === 'christmas-lights';
+      const pts = buildPts(z + 8, 12);
+      if (pts.length < 2) return;
+
+      // Luminous warm-gold arch cable
+      ctx.strokeStyle = isDec ? 'rgba(253, 224, 71, 0.85)' : 'rgba(250, 204, 21, 0.65)';
+      ctx.lineWidth = isDec ? 2.2 : 1.5;
+      ctx.beginPath();
+      pts.forEach((entry, idx) => {
+        if (idx === 0) ctx.moveTo(entry.p.x, entry.p.y);
+        else ctx.lineTo(entry.p.x, entry.p.y);
+      });
+      ctx.stroke();
+
+      // Glowing golden LED bulbs & curtain icicles
+      for (let i = 0; i < pts.length; i += 1) {
+        const { p, t } = pts[i];
+        const s = clamp(this.focal / p.cz, 0.3, 1.5);
+        const twinkle = 0.72 + 0.28 * Math.sin(animTime * 4.2 + x * 0.03 + i);
+        if (isDec) {
+          ctx.strokeStyle = `rgba(254, 249, 195, ${0.42 * twinkle})`;
+          ctx.lineWidth = Math.max(0.8, 1.1 * s);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x, p.y + (9 + (i % 3) * 5) * s);
+          ctx.stroke();
+        }
+        const bulbR = Math.max(1.8, (isDec ? 3.2 : 2.2) * s * twinkle);
+        ctx.fillStyle = i % 3 === 0 ? '#fef08a' : i % 3 === 1 ? '#fde68a' : '#ffffff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, bulbR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hanging 8-point illuminated Lisboa Christmas Star at the center of each arch
+        if (Math.abs(t - 0.5) < 0.06) {
+          const starR = clamp(12 * s, 4, 22);
+          const sy = p.y + starR * 1.15;
+          const glow = ctx.createRadialGradient(p.x, sy, 1, p.x, sy, starR * 2.4);
+          glow.addColorStop(0, `rgba(254, 240, 138, ${0.9 * twinkle})`);
+          glow.addColorStop(0.5, `rgba(250, 204, 21, ${0.32 * twinkle})`);
+          glow.addColorStop(1, 'rgba(250, 204, 21, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(p.x, sy, starR * 2.4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#fef9c3';
+          ctx.beginPath();
+          for (let k = 0; k < 8; k += 1) {
+            const ang = (k * Math.PI) / 4;
+            const rad = k % 2 === 0 ? starR : starR * 0.36;
+            const sx = p.x + Math.cos(ang) * rad;
+            const sy2 = sy + Math.sin(ang) * rad;
+            if (k === 0) ctx.moveTo(sx, sy2);
+            else ctx.lineTo(sx, sy2);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      return;
+    }
+
+    const palettes = {
+      carnaval: ['#ec4899', '#facc15', '#06b6d4', '#10b981', '#ef4444'],
+      'cravos-25-abril': ['#dc2626', '#15803d', '#dc2626', '#facc15'],
+      'santos-populares': ['#ef4444', '#facc15', '#22c55e', '#3b82f6', '#ffffff'],
+      'alfama-fado': ['#881337', '#eab308', '#9f1239', '#fef08a'],
+      'marathon-banners': ['#1d4ed8', '#facc15', '#0284c7', '#ffffff'],
+      'autumn-leaves': ['#15803d', '#dc2626', '#d97706'],
+      'summer-festival': ['#fef08a', '#fb923c', '#38bdf8', '#facc15']
+    };
+    const cols = palettes[style];
+    if (!cols) return;
+
+    const pts = buildPts(z, 14);
+    if (pts.length < 2) return;
+
+    ctx.strokeStyle = isEvening ? 'rgba(203, 213, 225, 0.5)' : 'rgba(51, 65, 85, 0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    pts.forEach((entry, idx) => {
+      if (idx === 0) ctx.moveTo(entry.p.x, entry.p.y);
+      else ctx.lineTo(entry.p.x, entry.p.y);
+    });
+    ctx.stroke();
+
+    for (let i = 0; i < pts.length - 1; i += 1) {
+      const a = pts[i].p;
+      const b = pts[i + 1].p;
+      const s = clamp(this.focal / ((a.cz + b.cz) * 0.5), 0.25, 1.4);
+      const mx = (a.x + b.x) * 0.5;
+      const my = (a.y + b.y) * 0.5;
+      const sway = Math.sin(animTime * 3.2 + x * 0.04 + i) * 2.2 * s;
+
+      if (style === 'summer-festival') {
+        ctx.fillStyle = cols[i % cols.length];
+        ctx.beginPath();
+        ctx.arc(mx, my + 3 * s, Math.max(2, 3.6 * s), 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = cols[i % cols.length];
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.lineTo(mx + sway, my + 11 * s);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (i === Math.floor((pts.length - 1) / 2)) {
+        if (style === 'cravos-25-abril') {
+          const crR = clamp(8 * s, 3, 15);
+          ctx.fillStyle = '#15803d';
+          ctx.fillRect(mx - crR * 0.2, my + crR * 0.8, crR * 0.4, crR * 1.1);
+          ctx.fillStyle = '#dc2626';
+          ctx.beginPath();
+          ctx.arc(mx, my + crR * 0.5, crR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#f87171';
+          ctx.beginPath();
+          ctx.arc(mx - crR * 0.25, my + crR * 0.25, crR * 0.36, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (style === 'santos-populares') {
+          const lR = clamp(7.5 * s, 3, 14);
+          ctx.fillStyle = '#fde047';
+          ctx.beginPath();
+          ctx.arc(mx, my + lR * 1.2, lR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#dc2626';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  drawWeatherAtmosphere3D(ctx, cam, monthInfo, phase, animTime) {
+    const w = this.viewWidth;
+    const h = this.viewHeight;
+    const rain = monthInfo?.rainIntensity || 0;
+    const style = monthInfo?.decorStyle || '';
+
     ctx.save();
 
-    // Top-left Google Street View style address & compass bar (auto-sized so text never overflows!)
+    // 1. Realistic Atlantic Rainfall Streaks & Soft Misty Wash (strongest in November!)
+    if (rain >= 0.14) {
+      if (rain >= 0.7) {
+        ctx.fillStyle = phase.id === 'evening' ? 'rgba(15, 28, 46, 0.22)' : 'rgba(110, 128, 148, 0.16)';
+        ctx.fillRect(0, 0, w, h);
+      }
+      const dropCount = Math.round(35 + rain * 150);
+      ctx.strokeStyle = phase.id === 'evening'
+        ? `rgba(186, 224, 255, ${0.22 + rain * 0.28})`
+        : `rgba(220, 238, 252, ${0.25 + rain * 0.35})`;
+      ctx.lineWidth = rain >= 0.7 ? 1.45 : 1.1;
+      ctx.beginPath();
+      for (let i = 0; i < dropCount; i += 1) {
+        const speed = 380 + (i % 5) * 75 + rain * 220;
+        const rx = ((i * 97.3 + animTime * 85) % (w + 80)) - 40;
+        const ry = ((i * 53.7 + animTime * speed) % (h + 60)) - 30;
+        const len = 10 + rain * 16 + (i % 4) * 3;
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - len * 0.22, ry + len);
+      }
+      ctx.stroke();
+    }
+
+    // 2. Dazzling Lisbon Summer Brightness & Diagonal Sunbeams (July & August)
+    if ((monthInfo?.sunBrightness || 1) >= 1.15 && phase.id !== 'evening') {
+      const beamGrad = ctx.createLinearGradient(w * 0.78, 0, w * 0.22, h * 0.82);
+      beamGrad.addColorStop(0, 'rgba(255, 251, 220, 0.22)');
+      beamGrad.addColorStop(0.5, 'rgba(254, 240, 138, 0.08)');
+      beamGrad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+      ctx.fillStyle = beamGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // 3. Seasonal Floating Particles (Carnaval confetti, 25 de Abril red carnation petals, May Jacaranda blossoms, Oct autumn leaves)
+    if (style === 'carnaval' || style === 'cravos-25-abril' || style === 'jacaranda-bloom' || style === 'autumn-leaves') {
+      const pCount = style === 'carnaval' ? 42 : 28;
+      const pCols =
+        style === 'carnaval'
+          ? ['#ec4899', '#facc15', '#06b6d4', '#10b981', '#ef4444']
+          : style === 'cravos-25-abril'
+            ? ['#dc2626', '#ef4444', '#b91c1c']
+            : style === 'jacaranda-bloom'
+              ? ['#9b72cf', '#b796e6', '#7c55b5']
+              : ['#d97706', '#b45309', '#f59e0b', '#9a3412'];
+      for (let i = 0; i < pCount; i += 1) {
+        const px = ((i * 113.7 + animTime * (28 + (i % 4) * 9) + Math.sin(animTime * 2 + i) * 18) % (w + 40)) - 20;
+        const py = ((i * 67.3 + animTime * (36 + (i % 3) * 14)) % (h + 30)) - 15;
+        ctx.fillStyle = pCols[i % pCols.length];
+        ctx.beginPath();
+        ctx.ellipse(px, py, style === 'autumn-leaves' ? 4.2 : 3.2, 1.9, animTime * 1.8 + i, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  drawStreetViewHud(ctx, cam, state, monthInfo = getMonthInfo(state.month)) {
+    ctx.save();
+
+    // Top-left Google Street View style address, month, weather & compass bar (auto-sized so text never overflows!)
     const streetName = findNearestStreetName(state.player.x, state.player.y);
     const deg = (((cam.yaw * 180) / Math.PI) % 360 + 360) % 360;
     const dirs = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'];
     const compassLabel = dirs[Math.round(deg / 45) % 8];
     const line1 = `STREET VIEW 3D  |  ${state.currentNeighborhoodName.toUpperCase()}  |  FACING ${compassLabel}`;
-    const line2 = `${streetName}  |  Drag 360 deg  |  [V] Map`;
+    const line2 = `${monthInfo.name.toUpperCase()} (${monthInfo.avgHighC}C, ${monthInfo.weatherLabel})  |  ${monthInfo.eventTag}  |  ${streetName}`;
     ctx.font = '700 11px "Segoe UI", sans-serif';
     const w1 = ctx.measureText(line1).width;
     ctx.font = '600 10px "Segoe UI", sans-serif';
     const w2 = ctx.measureText(line2).width;
-    const boxW = Math.max(310, Math.min(540, Math.max(w1, w2) + 28));
+    const boxW = Math.max(340, Math.min(620, Math.max(w1, w2) + 28));
 
     drawRoundedRect(ctx, 14, 14, boxW, 52, 8);
     ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
@@ -2409,10 +3008,10 @@ export class LisboaStreetView3DRenderer {
 
     ctx.fillStyle = '#fde047';
     ctx.font = '700 11px "Segoe UI", sans-serif';
-    ctx.fillText(line1, 26, 33);
+    ctx.fillText(line1, 26, 33, boxW - 22);
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '600 10px "Segoe UI", sans-serif';
-    ctx.fillText(line2, 26, 52);
+    ctx.fillText(line2, 26, 52, boxW - 22);
 
     // Top-right Live Lisboa Radar Mini-Map with Rotating Blue View Cone
     const mapW = 152;

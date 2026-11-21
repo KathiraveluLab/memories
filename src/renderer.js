@@ -16,7 +16,8 @@ import {
   REST_SPOTS,
   TRANSIT_LINES,
   getAllTransitStops,
-  getOutfitById
+  getOutfitById,
+  getMonthInfo
 } from './data.js';
 import { getDayPhase, INTERIOR_STATIONS, METRO_PLATFORM_ZONES, FERRY_PIER_ZONES } from './engine.js';
 import { LisboaStreetView3DRenderer } from './streetview3d.js';
@@ -413,8 +414,11 @@ export class LisboaCanvasRenderer {
 
   renderOverworld(ctx, state, nearbyInteraction) {
     const phase = getDayPhase(state.minutesOfDay);
+    const monthInfo = getMonthInfo(state.month);
     const isEvening = phase.id === 'evening';
     const isGolden = phase.id === 'golden';
+    const lampsGlowing = isEvening || isGolden || (monthInfo.rainIntensity || 0) >= 0.45 || monthInfo.decorStyle === 'christmas-lights';
+    const carryingUmbrella = (monthInfo.rainIntensity || 0) >= 0.4;
 
     ctx.save();
     ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
@@ -469,8 +473,9 @@ export class LisboaCanvasRenderer {
       this.drawTransitStop(ctx, stop, isHighlighted, isEvening);
     }
 
-    // 11. Classic wrought-iron Lisbon streetlamps
-    this.drawLisbonStreetlamps(ctx, isEvening, isGolden);
+    // 11. Classic wrought-iron Lisbon streetlamps & seasonal street decorations (Christmas lights, Carnaval, 25 de Abril, Santos Populares, Parasols, Chestnut carts)
+    this.drawLisbonStreetlamps(ctx, isEvening, lampsGlowing);
+    this.drawSeasonalOverworldDecor(ctx, monthInfo, isEvening);
 
     // 12. Walk Target Indicator
     if (state.player.walkTarget) {
@@ -482,7 +487,7 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // 13. Ambient Lisbon Locals (walking safely on sidewalks and plazas in varied Lisbon attire)
+    // 13. Ambient Lisbon Locals & Seasonal Crowds (walking safely on sidewalks and plazas in varied Lisbon attire)
     for (const npc of state.npcs) {
       this.drawCharacterSprite(ctx, npc.x, npc.y, {
         facing: npc.patrolAxis === 'x' ? (npc.dir > 0 ? 'right' : 'left') : (npc.dir > 0 ? 'down' : 'up'),
@@ -492,6 +497,7 @@ export class LisboaCanvasRenderer {
         tunicColor: npc.shirt,
         scarfColor: '#e6dcc8',
         hairColor: npc.hair,
+        hasUmbrella: carryingUmbrella,
         isPlayer: false
       });
     }
@@ -542,8 +548,8 @@ export class LisboaCanvasRenderer {
 
     ctx.restore();
 
-    // 16. Time-of-day atmospheric lighting wash
-    this.drawTimeOfDayOverlay(ctx, phase);
+    // 16. Time-of-day & seasonal weather atmospheric overlay (Atlantic rain, summer sunbeams, petals/confetti)
+    this.drawTimeOfDayOverlay(ctx, phase, monthInfo);
 
     // 17. Mini-map HUD overlay inside top-right corner
     this.drawMiniMap(ctx, state);
@@ -876,6 +882,9 @@ export class LisboaCanvasRenderer {
   }
 
   drawTreesAndBenches(ctx, state) {
+    const monthInfo = getMonthInfo(state.month);
+    const foliageMode = monthInfo.foliageMode || 'bloom';
+    const jacBloom = monthInfo.jacarandaBloom || 0;
     const trees = [
       { x: 482, y: 125, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
       { x: 545, y: 125, c: '#7a58ab', shadow: '#54387d', highlight: '#b79ae0', jacaranda: true },
@@ -887,6 +896,41 @@ export class LisboaCanvasRenderer {
       { x: 2070, y: 985, c: '#3f7d52', shadow: '#295738', highlight: '#74b886', jacaranda: false }
     ];
     for (const t of trees) {
+      let cMain = t.c;
+      let cShadow = t.shadow;
+      let cHi = t.highlight;
+      if (t.jacaranda) {
+        if (foliageMode === 'bloom') {
+          cMain = '#7a58ab';
+          cShadow = '#54387d';
+          cHi = '#b79ae0';
+        } else if (foliageMode === 'spring') {
+          cMain = jacBloom >= 0.3 ? '#786ca0' : '#4a8559';
+          cShadow = jacBloom >= 0.3 ? '#524970' : '#2f5e3d';
+          cHi = jacBloom >= 0.3 ? '#aa96d6' : '#79b885';
+        } else if (foliageMode === 'lush') {
+          cMain = '#377a4d';
+          cShadow = '#245435';
+          cHi = '#68b47c';
+        } else if (foliageMode === 'autumn') {
+          cMain = '#b86d28';
+          cShadow = '#804816';
+          cHi = '#e6a545';
+        } else {
+          cMain = '#4e6357';
+          cShadow = '#34453c';
+          cHi = '#728a7c';
+        }
+      } else if (foliageMode === 'autumn') {
+        cMain = '#707339';
+        cShadow = '#4c4f24';
+        cHi = '#b59d4a';
+      } else if (foliageMode === 'winter') {
+        cMain = '#3a624a';
+        cShadow = '#254231';
+        cHi = '#5d8a6e';
+      }
+
       // Dappled canopy ground shadow
       ctx.fillStyle = 'rgba(22, 28, 38, 0.2)';
       ctx.beginPath();
@@ -902,9 +946,9 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#473628';
       ctx.fillRect(t.x - 7, t.y + 6, 14, 6);
 
-      // Fallen Jacaranda petals around sidewalk tree well
-      if (t.jacaranda) {
-        ctx.fillStyle = 'rgba(168, 121, 224, 0.55)';
+      // Fallen Jacaranda petals (May/June) or golden autumn leaves (Oct/Nov) around sidewalk tree well
+      if ((t.jacaranda && jacBloom >= 0.5) || foliageMode === 'autumn') {
+        ctx.fillStyle = foliageMode === 'autumn' ? 'rgba(217, 119, 6, 0.58)' : 'rgba(168, 121, 224, 0.55)';
         for (const [px, py] of [[-12, 11], [-5, 14], [7, 13], [13, 9], [-8, 7]]) {
           ctx.beginPath();
           ctx.arc(t.x + px, t.y + py, 1.8, 0, Math.PI * 2);
@@ -934,19 +978,19 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
 
       // Multi-layered volumetric foliage clusters (deep shadow -> mid -> sunlit top crown)
-      ctx.fillStyle = t.shadow;
+      ctx.fillStyle = cShadow;
       for (const [dx, dy, r] of [[-11, -4, 10], [11, -4, 10], [0, -2, 12]]) {
         ctx.beginPath();
         ctx.arc(t.x + dx, t.y + dy, r, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = t.c;
+      ctx.fillStyle = cMain;
       for (const [dx, dy, r] of [[-9, -9, 11], [9, -8, 11], [0, -12, 13.5], [-4, -6, 12]]) {
         ctx.beginPath();
         ctx.arc(t.x + dx, t.y + dy, r, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = t.highlight;
+      ctx.fillStyle = cHi;
       for (const [dx, dy, r] of [[-5, -15, 7.5], [5, -13, 6.5], [-10, -10, 5.5], [8, -7, 4.8]]) {
         ctx.beginPath();
         ctx.arc(t.x + dx, t.y + dy, r, 0, Math.PI * 2);
@@ -2533,6 +2577,132 @@ export class LisboaCanvasRenderer {
     }
   }
 
+  drawSeasonalOverworldDecor(ctx, monthInfo, isEvening) {
+    const style = monthInfo?.decorStyle;
+    if (!style) return;
+
+    ctx.save();
+    const xs = [360, 560, 760, 960, 1160, 1360, 1560, 1760, 1960];
+
+    if (style === 'christmas-lights' || style === 'janeiras-stars') {
+      const isDec = style === 'christmas-lights';
+      for (const x of xs) {
+        ctx.strokeStyle = isDec ? 'rgba(253, 224, 71, 0.78)' : 'rgba(250, 204, 21, 0.52)';
+        ctx.lineWidth = isDec ? 2.2 : 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x, 540);
+        ctx.quadraticCurveTo(x + 16, 610, x, 678);
+        ctx.stroke();
+        for (let k = 0; k <= 6; k += 1) {
+          const t = k / 6;
+          const by = 540 + t * 138;
+          const bx = x + Math.sin(t * Math.PI) * 16;
+          ctx.fillStyle = k === 3 ? '#fef08a' : '#fde68a';
+          ctx.beginPath();
+          ctx.arc(bx, by, k === 3 ? (isDec ? 5.5 : 4) : 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      if (isDec) {
+        // Illuminated Praca Luis de Camoes Christmas Tree in 2D map
+        for (const [tx, ty] of [[992, 440], [1855, 536]]) {
+          ctx.fillStyle = '#14532d';
+          ctx.beginPath();
+          ctx.moveTo(tx - 16, ty + 6);
+          ctx.lineTo(tx + 16, ty + 6);
+          ctx.lineTo(tx, ty - 28);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#fef08a';
+          ctx.beginPath();
+          ctx.arc(tx, ty - 29, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          for (const [ox, oy, col] of [[-6, -2, '#ef4444'], [5, -4, '#fde047'], [0, -14, '#38bdf8'], [-4, -10, '#fde047']]) {
+            ctx.fillStyle = col;
+            ctx.beginPath();
+            ctx.arc(tx + ox, ty + oy, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+    } else if (
+      style === 'carnaval' ||
+      style === 'cravos-25-abril' ||
+      style === 'santos-populares' ||
+      style === 'alfama-fado' ||
+      style === 'marathon-banners'
+    ) {
+      const palettes = {
+        carnaval: ['#ec4899', '#facc15', '#06b6d4', '#10b981', '#ef4444'],
+        'cravos-25-abril': ['#dc2626', '#15803d', '#dc2626', '#facc15'],
+        'santos-populares': ['#ef4444', '#facc15', '#22c55e', '#3b82f6', '#ffffff'],
+        'alfama-fado': ['#881337', '#eab308', '#9f1239', '#fef08a'],
+        'marathon-banners': ['#1d4ed8', '#facc15', '#0284c7']
+      };
+      const cols = palettes[style] || ['#ef4444', '#facc15'];
+      for (const x of xs) {
+        ctx.strokeStyle = isEvening ? 'rgba(203, 213, 225, 0.45)' : 'rgba(51, 65, 85, 0.48)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, 540);
+        ctx.lineTo(x, 678);
+        ctx.stroke();
+        for (let k = 0; k < 7; k += 1) {
+          const fy = 548 + k * 18;
+          ctx.fillStyle = cols[k % cols.length];
+          ctx.beginPath();
+          ctx.moveTo(x, fy);
+          ctx.lineTo(x + 9, fy + 5);
+          ctx.lineTo(x, fy + 10);
+          ctx.closePath();
+          ctx.fill();
+        }
+        if (style === 'cravos-25-abril') {
+          ctx.fillStyle = '#dc2626';
+          ctx.beginPath();
+          ctx.arc(x, 608, 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else if (style === 'summer-sun' || style === 'summer-festival') {
+      for (const [px, py, col] of [
+        [994, 452, '#0284c7'],
+        [1098, 534, '#d97706'],
+        [1030, 982, '#dc2626'],
+        [1465, 982, '#0f766e']
+      ]) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+        ctx.beginPath();
+        ctx.arc(px + 3, py + 4, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(px, py, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff9f0';
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.arc(px, py, 14, 0, Math.PI * 0.5);
+        ctx.lineTo(px, py);
+        ctx.arc(px, py, 14, Math.PI, Math.PI * 1.5);
+        ctx.fill();
+      }
+    } else if (style === 'november-rain') {
+      for (const [cx, cy] of [[988, 538], [1852, 538]]) {
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(cx - 10, cy - 8, 20, 14);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(cx - 6, cy - 5, 12, 6);
+        const rise = (this.animTime * 12) % 14;
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.55)';
+        ctx.beginPath();
+        ctx.arc(cx, cy - 10 - rise, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   drawTransitStop(ctx, stop, isHighlighted, isEvening) {
     const px = stop.platformX;
     const py = stop.platformY;
@@ -3020,6 +3190,20 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(x + 2.5, y - 13 + bob, 2, 2);
     }
 
+    // Rain umbrella canopy carried by locals on rainy Atlantic days
+    if (opts.hasUmbrella) {
+      const uCols = ['#1d4ed8', '#b91c1c', '#0f766e', '#ca8a04', '#4338ca'];
+      const uCol = uCols[Math.abs(Math.round(x)) % uCols.length];
+      ctx.fillStyle = uCol;
+      ctx.beginPath();
+      ctx.arc(x, y - 24 + bob, 13, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
     // Crisp player nameplate above head when in multiplayer
     const hatTopY = hatType !== 'none' ? y - 28 + bob : y - 23 + bob;
     if (opts.label) {
@@ -3056,13 +3240,63 @@ export class LisboaCanvasRenderer {
     ctx.restore();
   }
 
-  drawTimeOfDayOverlay(ctx, phase) {
+  drawTimeOfDayOverlay(ctx, phase, monthInfo = getMonthInfo()) {
+    const rain = monthInfo?.rainIntensity || 0;
+    const style = monthInfo?.decorStyle || '';
+
     if (phase.id === 'golden') {
       ctx.fillStyle = 'rgba(235, 136, 48, 0.14)';
       ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
     } else if (phase.id === 'evening') {
       ctx.fillStyle = 'rgba(18, 32, 66, 0.34)';
       ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+    } else if ((monthInfo?.sunBrightness || 1) >= 1.15) {
+      ctx.fillStyle = 'rgba(255, 248, 214, 0.11)';
+      ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+    }
+
+    if (rain >= 0.14) {
+      ctx.save();
+      if (rain >= 0.65) {
+        ctx.fillStyle = 'rgba(71, 95, 120, 0.18)';
+        ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+      }
+      const dropCount = Math.round(30 + rain * 135);
+      ctx.strokeStyle = `rgba(214, 236, 252, ${0.28 + rain * 0.34})`;
+      ctx.lineWidth = rain >= 0.7 ? 1.4 : 1.05;
+      ctx.beginPath();
+      for (let i = 0; i < dropCount; i += 1) {
+        const speed = 360 + (i % 5) * 70 + rain * 200;
+        const rx = ((i * 97.3 + this.animTime * 80) % (this.viewWidth + 60)) - 30;
+        const ry = ((i * 53.7 + this.animTime * speed) % (this.viewHeight + 50)) - 25;
+        const len = 10 + rain * 15;
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - len * 0.22, ry + len);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (style === 'carnaval' || style === 'cravos-25-abril' || style === 'jacaranda-bloom' || style === 'autumn-leaves') {
+      ctx.save();
+      const cols =
+        style === 'carnaval'
+          ? ['#ec4899', '#facc15', '#06b6d4', '#10b981', '#ef4444']
+          : style === 'cravos-25-abril'
+            ? ['#dc2626', '#ef4444', '#b91c1c']
+            : style === 'jacaranda-bloom'
+              ? ['#9b72cf', '#b796e6']
+              : ['#d97706', '#b45309', '#f59e0b'];
+      const count = style === 'carnaval' ? 32 : 20;
+      for (let i = 0; i < count; i += 1) {
+        const px = ((i * 107.1 + this.animTime * 34 + Math.sin(this.animTime * 2 + i) * 16) % (this.viewWidth + 30)) - 15;
+        const py = ((i * 63.9 + this.animTime * 40) % (this.viewHeight + 30)) - 15;
+        ctx.fillStyle = cols[i % cols.length];
+        ctx.beginPath();
+        ctx.ellipse(px, py, 3.4, 1.8, this.animTime * 2 + i, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
   }
 

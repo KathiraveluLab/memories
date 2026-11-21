@@ -1,4 +1,4 @@
-import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, REST_SPOTS } from './data.js';
+import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, REST_SPOTS, getMonthInfo } from './data.js';
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -16,6 +16,7 @@ const EMPTY_PROFILE = {
   cathedralOrgan: 0,
   vinylCrackle: 0,
   riverWater: 0,
+  rainLevel: 0,
   badgeTone: 'idle',
   activeLabel: 'Lisboa Streets'
 };
@@ -30,14 +31,19 @@ export function computeSoundscapeProfile(state) {
     return { ...EMPTY_PROFILE };
   }
 
+  const monthInfo = getMonthInfo(state.month);
+  const outdoorRain = Math.round(clamp(monthInfo.rainIntensity || 0, 0, 1) * 100) / 100;
+  const indoorRain = Math.round(outdoorRain * 0.22 * 100) / 100;
+
   if (state.mode === 'interior' && state.currentVenueId) {
     const venue = VENUES.find((v) => v.id === state.currentVenueId);
-    if (!venue) return { ...EMPTY_PROFILE, activeLabel: 'Indoors' };
+    if (!venue) return { ...EMPTY_PROFILE, rainLevel: indoorRain, activeLabel: 'Indoors' };
 
     if (venue.id === 'tasca-do-fado') {
       return {
         ...EMPTY_PROFILE,
         fadoMusic: 1,
+        rainLevel: indoorRain,
         badgeTone: 'warm',
         activeLabel: 'Fado Music'
       };
@@ -48,6 +54,7 @@ export function computeSoundscapeProfile(state) {
         ...EMPTY_PROFILE,
         grillSizzle: 1,
         fadoMusic: 0.42,
+        rainLevel: indoorRain,
         badgeTone: 'warm',
         activeLabel: 'Charcoal Grill & Fado'
       };
@@ -58,6 +65,7 @@ export function computeSoundscapeProfile(state) {
         ...EMPTY_PROFILE,
         bakeryFire: venue.id === 'casa-da-rosa' ? 1 : 0.78,
         folkGuitar: venue.id === 'arcadas-chiado' ? 0.32 : 0,
+        rainLevel: indoorRain,
         badgeTone: 'warm',
         activeLabel: venue.id === 'casa-da-rosa' ? 'Bakery Wood Oven' : 'Pastry Oven & Tea Salon'
       };
@@ -68,6 +76,7 @@ export function computeSoundscapeProfile(state) {
         ...EMPTY_PROFILE,
         cafeSteam: venue.id === 'cafe-do-poeta' ? 1 : 0.72,
         folkGuitar: 0.3,
+        rainLevel: indoorRain,
         badgeTone: 'warm',
         activeLabel: venue.id === 'cafe-do-poeta' ? 'Espresso Steam & Cafe' : 'Kiosk Cafe & Espresso'
       };
@@ -77,6 +86,7 @@ export function computeSoundscapeProfile(state) {
       return {
         ...EMPTY_PROFILE,
         cathedralOrgan: 1,
+        rainLevel: indoorRain,
         badgeTone: 'warm',
         activeLabel: 'Se Cathedral Organ'
       };
@@ -87,6 +97,7 @@ export function computeSoundscapeProfile(state) {
         ...EMPTY_PROFILE,
         fadoMusic: 0.85,
         vinylCrackle: 0.9,
+        rainLevel: indoorRain,
         badgeTone: 'warm',
         activeLabel: 'Fado Vinyl & Crackle'
       };
@@ -97,6 +108,7 @@ export function computeSoundscapeProfile(state) {
         ...EMPTY_PROFILE,
         folkGuitar: 0.78,
         bakeryFire: 0.3,
+        rainLevel: indoorRain,
         badgeTone: 'warm',
         activeLabel: 'Tile Kiln & Folk Guitar'
       };
@@ -105,6 +117,7 @@ export function computeSoundscapeProfile(state) {
     return {
       ...EMPTY_PROFILE,
       folkGuitar: 0.78,
+      rainLevel: indoorRain,
       badgeTone: 'warm',
       activeLabel: 'Portuguese Folk Guitar'
     };
@@ -134,6 +147,7 @@ export function computeSoundscapeProfile(state) {
       riverWater: isSailing ? 1 : isSouthBank ? 0.65 : 0.86,
       ferryEngine: isSailing ? 1 : isSouthBank ? 0.16 : 0.42,
       folkGuitar: !isSailing && isSouthBank ? 0.48 : 0,
+      rainLevel: outdoorRain,
       badgeTone: isSailing || !isSouthBank ? 'water' : 'warm',
       activeLabel: isSailing ? 'Tagus Ferry Crossing' : portLabel
     };
@@ -152,6 +166,7 @@ export function computeSoundscapeProfile(state) {
       metroRumble: isTram ? 0.42 : 0.48,
       metroRiding: isTram,
       riverWater,
+      rainLevel: Math.round(outdoorRain * 0.4 * 100) / 100,
       badgeTone: riverWater >= 0.35 ? 'water' : 'metro',
       activeLabel: isTram ? 'Tram 28E Rail Hum' : 'Carris Bus Coach'
     };
@@ -173,13 +188,16 @@ export function computeSoundscapeProfile(state) {
     ...EMPTY_PROFILE,
     folkGuitar: miradouroGuitar,
     riverWater,
-    badgeTone: riverWater >= 0.12 ? 'water' : miradouroGuitar >= 0.35 ? 'warm' : 'idle',
+    rainLevel: outdoorRain,
+    badgeTone: riverWater >= 0.12 || outdoorRain >= 0.45 ? 'water' : miradouroGuitar >= 0.35 ? 'warm' : 'idle',
     activeLabel:
       riverWater >= 0.12
         ? 'Tagus Riverfront'
         : state.miradouroEncore || miradouroGuitar >= 0.45
           ? 'Miradouro Street Musician'
-          : 'Lisboa Streets'
+          : outdoorRain >= 0.45
+            ? 'Lisboa Atlantic Rain'
+            : 'Lisboa Streets'
   };
 }
 
@@ -272,6 +290,7 @@ export class LisboaSoundEngine {
     this.organBus = null;
     this.vinylBus = null;
     this.riverBus = null;
+    this.rainBus = null;
     this.sfxBus = null;
     this.noiseBuffer = null;
 
@@ -478,6 +497,7 @@ export class LisboaSoundEngine {
     this.organBus = this.createBus(ctx, 0);
     this.vinylBus = this.createBus(ctx, 0);
     this.riverBus = this.createBus(ctx, 0);
+    this.rainBus = this.createBus(ctx, 0);
     this.sfxBus = this.createBus(ctx, 0.65);
 
     this.noiseBuffer = this.buildNoiseBuffer(ctx, 3.5);
@@ -489,6 +509,7 @@ export class LisboaSoundEngine {
     this.setupFerryEngineBed(ctx);
     this.setupVinylBed(ctx);
     this.setupRiverWaterBed(ctx);
+    this.setupRainBed(ctx);
     this.startSchedulers();
   }
 
@@ -794,6 +815,42 @@ export class LisboaSoundEngine {
     shimmerFilter.connect(shimmerGain);
     shimmerGain.connect(this.riverBus);
     shimmerSrc.start();
+  }
+
+  setupRainBed(ctx) {
+    // Authentic Atlantic rainfall patter across Lisbon limestone & terracotta roofs
+    const patterSrc = ctx.createBufferSource();
+    patterSrc.buffer = this.noiseBuffer;
+    patterSrc.loop = true;
+
+    const patterFilter = ctx.createBiquadFilter();
+    patterFilter.type = 'bandpass';
+    patterFilter.frequency.value = 1850;
+    patterFilter.Q.value = 0.75;
+
+    const patterGain = ctx.createGain();
+    patterGain.gain.value = 0.36;
+
+    patterSrc.connect(patterFilter);
+    patterFilter.connect(patterGain);
+    patterGain.connect(this.rainBus);
+    patterSrc.start();
+
+    const gustSrc = ctx.createBufferSource();
+    gustSrc.buffer = this.noiseBuffer;
+    gustSrc.loop = true;
+
+    const gustFilter = ctx.createBiquadFilter();
+    gustFilter.type = 'lowpass';
+    gustFilter.frequency.value = 520;
+
+    const gustGain = ctx.createGain();
+    gustGain.gain.value = 0.28;
+
+    gustSrc.connect(gustFilter);
+    gustFilter.connect(gustGain);
+    gustGain.connect(this.rainBus);
+    gustSrc.start();
   }
 
   startSchedulers() {
@@ -1207,6 +1264,9 @@ export class LisboaSoundEngine {
     ramp(this.organBus.gain, this.profile.cathedralOrgan * 0.72, 0.42);
     ramp(this.vinylBus.gain, this.profile.vinylCrackle * 0.55, 0.25);
     ramp(this.riverBus.gain, this.profile.riverWater * 0.52, 0.35);
+    if (this.rainBus) {
+      ramp(this.rainBus.gain, (this.profile.rainLevel || 0) * 0.52, 0.35);
+    }
   }
 
   update(state) {

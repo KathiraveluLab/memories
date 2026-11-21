@@ -5,7 +5,8 @@ import {
   FERRY_DESTINATIONS,
   METRO_STATIONS,
   VENUES,
-  getOutfitById
+  getOutfitById,
+  getMonthInfo
 } from './data.js';
 import { getDayPhase, INTERIOR_STATIONS } from './engine.js';
 
@@ -1200,8 +1201,11 @@ export class LisboaScenes3DRenderer {
     this.lastHitTargets = [];
     const f = state.ferry;
     const phase = getDayPhase(state.minutesOfDay);
+    const monthInfo = getMonthInfo(state.month);
     const isEvening = phase.id === 'evening';
     const isGolden = phase.id === 'golden';
+    const isHeavyRain = (monthInfo.rainIntensity || 0) >= 0.7;
+    const isBrightSummer = (monthInfo.sunBrightness || 1) >= 1.15;
 
     // A) 3D Forward Bow-Deck View Sailing Across the Tagus River!
     if (f.phase === 'sailing') {
@@ -1212,15 +1216,23 @@ export class LisboaScenes3DRenderer {
       const toDest = FERRY_DESTINATIONS.find((d) => d.id === f.toPortId);
       const toLabel = f.toPortId === FERRY_TERMINAL.id ? 'Cais do Sodre (Lisboa)' : (toDest?.name || 'South Bank');
 
-      // Sky gradient
+      // Sky gradient (responsive to selected Lisboa month weather)
       const sky = ctx.createLinearGradient(0, 0, 0, hy);
       if (isEvening) {
         sky.addColorStop(0, '#0a1630');
         sky.addColorStop(1, '#263d66');
+      } else if (isHeavyRain) {
+        sky.addColorStop(0, '#3e4f63');
+        sky.addColorStop(0.58, '#6c7e92');
+        sky.addColorStop(1, '#a5b3c2');
       } else if (isGolden) {
         sky.addColorStop(0, '#36588f');
         sky.addColorStop(0.55, '#db8556');
         sky.addColorStop(1, '#fde68a');
+      } else if (isBrightSummer) {
+        sky.addColorStop(0, '#0d56b5');
+        sky.addColorStop(0.62, '#3ca3ec');
+        sky.addColorStop(1, '#e0f6ff');
       } else {
         sky.addColorStop(0, '#2563eb');
         sky.addColorStop(0.65, '#7dd3fc');

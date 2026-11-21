@@ -16,6 +16,10 @@ import {
   REST_SPOTS,
   TRANSIT_LINES,
   AMBIENT_NPCS,
+  SEASONAL_CROWD_NPCS,
+  LISBOA_MONTHS,
+  DEFAULT_MONTH,
+  getMonthInfo,
   PLAYER_OUTFITS,
   MULTIPLAYER_SPAWN_POINTS,
   getAllTransitStops,
@@ -202,8 +206,8 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
     }
   }
 
-  // All ambient Lisbon locals patrol strictly on sidewalks (never in the middle of streets)
-  for (const npc of AMBIENT_NPCS) {
+  // All ambient Lisbon locals and seasonal crowds patrol strictly on sidewalks (never in the middle of streets)
+  for (const npc of [...AMBIENT_NPCS, ...SEASONAL_CROWD_NPCS]) {
     assert.equal(isPointInVehicleLane(npc.x, npc.y), false, `NPC ${npc.id} spawns in vehicle lane`);
     assert.equal(isPointOnSidewalk(npc.x, npc.y), true, `NPC ${npc.id} must spawn on a sidewalk`);
     assert.ok(npc.speed <= 24, `Expected calm strolling NPC speed <= 24 px/s for ${npc.id}, got ${npc.speed}`);
@@ -217,6 +221,15 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
       assert.equal(isPointOnSidewalk(px, py), true, `NPC ${npc.id} patrol leaves sidewalk at (${px},${py})`);
     }
   }
+
+  // Verify 12-month Lisboa climate & cultural calendar integrity
+  assert.equal(LISBOA_MONTHS.length, 12);
+  assert.equal(getMonthInfo(12).decorStyle, 'christmas-lights');
+  assert.equal(getMonthInfo(2).decorStyle, 'carnaval');
+  assert.equal(getMonthInfo(4).decorStyle, 'cravos-25-abril');
+  assert.equal(getMonthInfo(6).decorStyle, 'santos-populares');
+  assert.ok(getMonthInfo(7).sunBrightness >= 1.2 && getMonthInfo(7).crowdExtra >= 5);
+  assert.ok(getMonthInfo(11).rainIntensity >= 0.85);
 });
 
 test('AC-01: initial state, continuous sidewalk walking, collision safety, and neighborhood transitions', () => {
@@ -1083,6 +1096,25 @@ test('renderer smoke test: renders overworld phases, Metro stations, yielding ve
     engine.exitVenue();
   }
 
+  // Render Street View 3D & 2.5D Overhead across key Lisboa seasonal months (Dec Christmas lights, Feb Carnaval, Apr 25 de Abril, Jul Summer crowds, Nov Atlantic rain)
+  for (const m of [12, 2, 4, 6, 7, 11, DEFAULT_MONTH]) {
+    engine.setMonth(m);
+    assert.equal(engine.getState().month, m);
+    engine.setViewMode('street3d');
+    renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+    engine.setViewMode('overhead');
+    renderer.render(engine.getState(), engine.getNearbyInteraction(), 0.016);
+  }
+  engine.setViewMode('street3d');
+
+  // Verify July summer crowds expand safely beyond winter/November quiet streets
+  engine.setMonth(11);
+  const novCount = engine.getState().npcs.length;
+  engine.setMonth(7);
+  const julCount = engine.getState().npcs.length;
+  assert.ok(julCount > novCount, `Expected more summer crowds in July (${julCount}) than rainy November (${novCount})`);
+  engine.setMonth(DEFAULT_MONTH);
+
   assert.ok(drawCalls > 600, `Expected substantial canvas draw calls, got ${drawCalls}`);
 });
 
@@ -1347,6 +1379,16 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   assert.equal(sound.masterGain.gain.value, 0);
   assert.equal(sound.toggleMute(), false);
   assert.ok(sound.masterGain.gain.value > 0.5);
+
+  // Verify November rainy weather activates Lisboa Atlantic Rain soundscape outdoors
+  engine.setMonth(11);
+  engine.setPlayerPosition(1180, 544);
+  const novRainProfile = computeSoundscapeProfile(state);
+  assert.ok(novRainProfile.rainLevel >= 0.85, `Expected strong Atlantic rainLevel in November, got ${novRainProfile.rainLevel}`);
+  assert.equal(novRainProfile.activeLabel, 'Lisboa Atlantic Rain');
+  sound.update(state);
+  assert.ok(sound.rainBus.gain.value > 0.35);
+  engine.setMonth(DEFAULT_MONTH);
 
   sound.dispose();
   assert.equal(closed, true);

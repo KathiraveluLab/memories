@@ -12,7 +12,10 @@ import {
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
   REST_SPOTS,
-  AMBIENT_NPCS
+  AMBIENT_NPCS,
+  SEASONAL_CROWD_NPCS,
+  DEFAULT_MONTH,
+  getMonthInfo
 } from './src/data.js';
 import { isPointOnSidewalk } from './src/engine.js';
 
@@ -124,6 +127,7 @@ export function createMultiplayerServer({
   let transitTimer = null;
 
   const worldClock = {
+    month: DEFAULT_MONTH,
     day: 1,
     minutesOfDay: ((Math.floor(initialMinutesOfDay) % 1440) + 1440) % 1440,
     msPerGameMinute: Math.max(50, Number(clockMsPerMinute) || 2400),
@@ -292,8 +296,8 @@ export function createMultiplayerServer({
     return ferry.hornSignal;
   }
 
-  // Authoritative server-owned Ambient Lisboa Villagers patrolling strictly on sidewalks
-  const sharedNpcs = AMBIENT_NPCS.map((npc) => ({
+  // Authoritative server-owned Ambient Lisboa Villagers & Seasonal Crowds patrolling strictly on sidewalks
+  const createServerNpc = (npc) => ({
     ...npc,
     homeX: npc.x,
     homeY: npc.y,
@@ -301,7 +305,18 @@ export function createMultiplayerServer({
     walkPhase: 0,
     isMoving: true,
     avoidSide: 0
-  }));
+  });
+  let sharedNpcs = [
+    ...AMBIENT_NPCS,
+    ...SEASONAL_CROWD_NPCS.slice(0, Math.max(0, getMonthInfo(worldClock.month).crowdExtra || 0))
+  ].map(createServerNpc);
+
+  function syncServerCrowdForMonth(monthNum) {
+    const info = getMonthInfo(monthNum);
+    const extras = SEASONAL_CROWD_NPCS.slice(0, Math.max(0, info.crowdExtra || 0));
+    const existingById = new Map(sharedNpcs.map((n) => [n.id, n]));
+    sharedNpcs = [...AMBIENT_NPCS, ...extras].map((def) => existingById.get(def.id) || createServerNpc(def));
+  }
 
   function getServerSidewalkSpanY(x, refY) {
     const base = Math.round(refY);
@@ -741,6 +756,7 @@ export function createMultiplayerServer({
       }
     }
     return {
+      month: worldClock.month,
       day: worldClock.day,
       minutesOfDay: worldClock.minutesOfDay,
       msPerGameMinute: worldClock.msPerGameMinute,
@@ -1114,6 +1130,21 @@ export function createMultiplayerServer({
           broadcastPlayers('clock-morning');
           sendJson(res, 200, { ok: true, clock });
           return;
+        }
+        if (body.action === 'set-month' || (Number.isFinite(body.month) && !Number.isFinite(body.minutesOfDay))) {
+          const info = getMonthInfo(body.month);
+          worldClock.month = info.month;
+          syncServerCrowdForMonth(info.month);
+          const clock = getWorldClockSnapshot();
+          broadcastPlayers('month');
+          broadcastTransit('month');
+          sendJson(res, 200, { ok: true, month: info.month, clock, transit: getTransitSnapshot() });
+          return;
+        }
+        if (Number.isFinite(body.month)) {
+          const info = getMonthInfo(body.month);
+          worldClock.month = info.month;
+          syncServerCrowdForMonth(info.month);
         }
         if (Number.isFinite(body.minutesOfDay)) {
           worldClock.minutesOfDay = ((Math.floor(body.minutesOfDay) % 1440) + 1440) % 1440;

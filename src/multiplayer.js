@@ -268,6 +268,28 @@ export class LanMultiplayerClient {
     return null;
   }
 
+  async setGlobalMonth(month) {
+    if (this.status !== 'connected' || !this.playerId) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-month', month })
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.clock) {
+        this.onClockSync(data.clock);
+      }
+      if (data?.transit) {
+        this.onTransitSync(data.transit);
+      }
+      return data?.clock || null;
+    } catch {
+      return null;
+    }
+  }
+
   async postTransitAction(payload) {
     if (this.status !== 'connected' || !this.playerId) return null;
     try {

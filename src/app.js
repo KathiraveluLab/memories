@@ -7,6 +7,8 @@ import {
   VENUES,
   REST_SPOTS,
   PLAYER_OUTFITS,
+  LISBOA_MONTHS,
+  getMonthInfo,
   getOutfitById,
   getAllTransitStops,
   getAllMemoryCatalog
@@ -146,9 +148,13 @@ const dom = {
   fullnessBar: document.getElementById('hud-fullness-bar'),
   clock: document.getElementById('hud-clock'),
   phase: document.getElementById('hud-phase'),
+  monthSelect: document.getElementById('hud-month-select'),
+  weatherPill: document.getElementById('hud-weather-pill'),
+  monthEvent: document.getElementById('hud-month-event'),
   memories: document.getElementById('hud-memories'),
   sceneTitle: document.getElementById('scene-title'),
   sceneSubtitle: document.getElementById('scene-subtitle'),
+  liveSeasonStatus: document.getElementById('live-season-status'),
   liveAudioStatus: document.getElementById('live-audio-status'),
   liveLanStatus: document.getElementById('live-lan-status'),
   liveTramStatus: document.getElementById('live-tram-status'),
@@ -1190,6 +1196,37 @@ function refreshUi(force = false) {
     : `Day ${state.day} - ${formatClock(state.minutesOfDay)}`;
   dom.phase.textContent = phase.label;
   dom.phase.className = `phase-pill phase-${phase.id}`;
+
+  const monthInfo = getMonthInfo(state.month);
+  if (dom.monthSelect && Number(dom.monthSelect.value) !== monthInfo.month) {
+    dom.monthSelect.value = String(monthInfo.month);
+  }
+  if (dom.weatherPill) {
+    dom.weatherPill.textContent = `${monthInfo.avgHighC}C - ${monthInfo.weatherLabel}`;
+    const weatherClass =
+      monthInfo.rainIntensity >= 0.45
+        ? 'weather-rainy'
+        : monthInfo.decorStyle === 'christmas-lights' || monthInfo.decorStyle === 'carnaval' || monthInfo.decorStyle === 'cravos-25-abril' || monthInfo.decorStyle === 'santos-populares'
+          ? 'weather-festive'
+          : monthInfo.sunBrightness >= 1.1
+            ? 'weather-sunny'
+            : 'weather-mild';
+    dom.weatherPill.className = `weather-pill ${weatherClass}`;
+  }
+  if (dom.monthEvent) {
+    dom.monthEvent.textContent = monthInfo.eventTitle;
+  }
+  if (dom.liveSeasonStatus) {
+    dom.liveSeasonStatus.textContent = `[${monthInfo.shortName.toUpperCase()} ${monthInfo.avgHighC}C] ${monthInfo.eventTag}`;
+    const toneClass =
+      monthInfo.rainIntensity >= 0.45
+        ? 'rainy'
+        : monthInfo.decorStyle === 'christmas-lights' || monthInfo.decorStyle === 'carnaval' || monthInfo.decorStyle === 'cravos-25-abril' || monthInfo.decorStyle === 'santos-populares'
+          ? 'festive'
+          : '';
+    dom.liveSeasonStatus.className = `badge badge-season${toneClass ? ` ${toneClass}` : ''}`;
+  }
+
   dom.memories.textContent = `${state.memories.length} / ${state.totalMemoriesPossible}`;
 
   const venue = engine.getCurrentVenue();
@@ -2034,6 +2071,23 @@ if (dom.mpOutfitSelect) {
     setStatusBanner(`Changed cloth style to ${outfit.name}.`);
     lastLanSignature = '';
     renderMultiplayerPanel(engine.getState());
+  });
+}
+
+if (dom.monthSelect) {
+  dom.monthSelect.innerHTML = LISBOA_MONTHS.map(
+    (m) => `<option value="${m.month}">${escapeHtml(m.name)} (${escapeHtml(m.ptName)})</option>`
+  ).join('');
+  dom.monthSelect.value = String(engine.getState().month);
+  dom.monthSelect.addEventListener('change', () => {
+    const selectedMonth = Number(dom.monthSelect.value);
+    const info = engine.setMonth(selectedMonth);
+    if (mpStatusInfo.status === 'connected') {
+      mpClient.setGlobalMonth(info.month);
+    }
+    soundEngine.update(engine.getState());
+    lastUiSignature = '';
+    refreshUi(true);
   });
 }
 

@@ -170,6 +170,67 @@ h1, h2, h3, h4, p {
   border: 1px solid rgba(253, 230, 138, 0.4);
 }
 
+.metric-month {
+  min-width: 215px;
+}
+
+.hud-month-select {
+  background: rgba(15, 23, 42, 0.55);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hud-month-select option {
+  background: #12345e;
+  color: #ffffff;
+}
+
+.weather-pill {
+  font-size: 0.64rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 99px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.weather-sunny {
+  background: #fef08a;
+  color: #854d0e;
+}
+
+.weather-rainy {
+  background: #bae6fd;
+  color: #0c4a6e;
+}
+
+.weather-festive {
+  background: #fecdd3;
+  color: #9f1239;
+}
+
+.weather-mild {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.month-event-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.65rem;
+  color: #fde68a;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+
 .hud-actions {
   display: flex;
   gap: 8px;
@@ -256,6 +317,24 @@ h1, h2, h3, h4, p {
   background: #dbeafe;
   color: #1e40af;
   border: 1px solid #3b82f6;
+}
+
+.badge-season {
+  background: #fef3c7;
+  color: #78350f;
+  border: 1px solid #d97706;
+}
+
+.badge-season.rainy {
+  background: #e0f2fe;
+  color: #0c4a6e;
+  border: 1px solid #0284c7;
+}
+
+.badge-season.festive {
+  background: #ffe4e6;
+  color: #9f1239;
+  border: 1px solid #e11d48;
 }
 
 .badge-audio {
