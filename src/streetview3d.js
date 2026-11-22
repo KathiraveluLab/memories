@@ -14,12 +14,17 @@ import {
   FUNICULAR_LINES,
   BAIRRO_ALTO_PARTY_REVELERS,
   isBairroAltoPartyTime,
-  getTerrainElevation,
+  getTerrainElevation as getRawTerrainElevation,
   getAllTransitStops,
   getOutfitById,
   getMonthInfo
 } from './data.js';
 import { getDayPhase, computeFunicularCarPose } from './engine.js';
+
+const ELEV_3D_SCALE = 0.34;
+function getTerrainElevation(wx, wy) {
+  return getRawTerrainElevation(wx, wy) * ELEV_3D_SCALE;
+}
 
 const ALL_STOPS = getAllTransitStops();
 
@@ -31,7 +36,7 @@ const EYE_HEIGHT = 34;
 const STREET_TREES = [
   { x: 482, y: 125, c: '#7a58ab', highlight: '#b093dc' },
   { x: 545, y: 125, c: '#7a58ab', highlight: '#b093dc' },
-  { x: 890, y: 492, c: '#3f7d52', highlight: '#65a676' },
+  { x: 908, y: 492, c: '#3f7d52', highlight: '#65a676' },
   { x: 1010, y: 492, c: '#3f7d52', highlight: '#65a676' },
   { x: 2178, y: 492, c: '#487f57', highlight: '#73ad82' },
   // Sunlit Tagus Riverside Promenade trees (Olive, Stone Pine & Jacarandas along Ribeira das Naus)
@@ -46,13 +51,13 @@ const STREET_TREES = [
 ];
 
 const STREET_LAMPS = [
-  { x: 472, y: 542 },
+  { x: 468, y: 542 },
   { x: 780, y: 542 },
   { x: 1042, y: 542 },
   { x: 1344, y: 542 },
   { x: 1656, y: 542 },
   { x: 1960, y: 542 },
-  { x: 520, y: 678 },
+  { x: 468, y: 678 },
   { x: 950, y: 678 },
   { x: 1460, y: 678 },
   { x: 1910, y: 678 },
@@ -175,80 +180,197 @@ function clipSegmentNearZ(a, b) {
   return aIn ? [a, mid] : [mid, b];
 }
 
-function isBehindInManhattanView(a, b, camX, camY) {
-  // Returns true if axis-aligned box `a` is strictly farther from camera than `b` along X or Y
-  if (camX <= b.x0 && b.x1 <= a.x0) return true;
-  if (camX >= b.x1 && a.x1 <= b.x0) return true;
-  if (camY <= b.y0 && b.y1 <= a.y0) return true;
-  if (camY >= b.y1 && a.y1 <= b.y0) return true;
-  return false;
+function rayBoxEntryDistance(camX, camY, rdx, rdy, box) {
+  let tMin = -Infinity;
+  let tMax = Infinity;
+
+  if (Math.abs(rdx) < 1e-7) {
+    if (camX < box.x0 || camX > box.x1) return null;
+  } else {
+    const tx1 = (box.x0 - camX) / rdx;
+    const tx2 = (box.x1 - camX) / rdx;
+    tMin = Math.max(tMin, Math.min(tx1, tx2));
+    tMax = Math.min(tMax, Math.max(tx1, tx2));
+  }
+
+  if (Math.abs(rdy) < 1e-7) {
+    if (camY < box.y0 || camY > box.y1) return null;
+  } else {
+    const ty1 = (box.y0 - camY) / rdy;
+    const ty2 = (box.y1 - camY) / rdy;
+    tMin = Math.max(tMin, Math.min(ty1, ty2));
+    tMax = Math.min(tMax, Math.max(ty1, ty2));
+  }
+
+  if (tMax < Math.max(0.1, tMin)) return null;
+  return { tEnter: Math.max(0, tMin), tExit: tMax };
+}
+
+function getBoxViewOrdering(a, b, camX, camY) {
+  // Overhead string-light arches sort cleanly by distance without creating 2D ground footprint dependencies
+  if (
+    a.kind === 'decor-arch' ||
+    a.kind === 'bairro-party-arch' ||
+    b.kind === 'decor-arch' ||
+    b.kind === 'bairro-party-arch'
+  ) {
+    return 0;
+  }
+
+  // 1. Separating Axis (Newell's Separating Plane) between 2D footprints `a` and `b`
+  const aWestOfB = a.x1 <= b.x0 + 1;
+  const bWestOfA = b.x1 <= a.x0 + 1;
+  const aNorthOfB = a.y1 <= b.y0 + 1;
+  const bNorthOfA = b.y1 <= a.y0 + 1;
+
+  let ordX = 0;
+  if (aWestOfB) {
+    if (camX >= b.x0) ordX = 1; // a is behind b
+    else if (camX <= a.x1) ordX = -1; // b is behind a
+  } else if (bWestOfA) {
+    if (camX >= a.x0) ordX = -1; // b is behind a
+    else if (camX <= b.x1) ordX = 1; // a is behind b
+  }
+
+  let ordY = 0;
+  if (aNorthOfB) {
+    if (camY >= b.y0) ordY = 1; // a is behind b
+    else if (camY <= a.y1) ordY = -1; // b is behind a
+  } else if (bNorthOfA) {
+    if (camY >= a.y0) ordY = -1; // b is behind a
+    else if (camY <= b.y1) ordY = 1; // a is behind b
+  }
+
+  // If separated on both X and Y in opposing camera directions, their view cones are in disjoint quadrants
+  if (ordX !== 0 && ordY !== 0 && ordX !== ordY) return 0;
+  const sepOrder = ordX !== 0 ? ordX : ordY;
+  if (sepOrder === 0) return 0;
+
+  // 2. Check if any sight ray from (camX, camY) intersects both 3D-padded footprints (accounting for roofs/awnings/shoulders)
+  const padA = a.kind === 'venue' ? 6 : 4;
+  const padB = b.kind === 'venue' ? 6 : 4;
+  const boxA = { x0: a.x0 - padA, y0: a.y0 - padA, x1: a.x1 + padA, y1: a.y1 + padA };
+  const boxB = { x0: b.x0 - padB, y0: b.y0 - padB, x1: b.x1 + padB, y1: b.y1 + padB };
+
+  const axM = (boxA.x0 + boxA.x1) * 0.5;
+  const ayM = (boxA.y0 + boxA.y1) * 0.5;
+  const bxM = (boxB.x0 + boxB.x1) * 0.5;
+  const byM = (boxB.y0 + boxB.y1) * 0.5;
+  const samplePts = [
+    [axM, ayM],
+    [boxA.x0, boxA.y0],
+    [boxA.x1, boxA.y0],
+    [boxA.x1, boxA.y1],
+    [boxA.x0, boxA.y1],
+    [axM, boxA.y0],
+    [axM, boxA.y1],
+    [boxA.x0, ayM],
+    [boxA.x1, ayM],
+    [bxM, byM],
+    [boxB.x0, boxB.y0],
+    [boxB.x1, boxB.y0],
+    [boxB.x1, boxB.y1],
+    [boxB.x0, boxB.y1],
+    [bxM, boxB.y0],
+    [bxM, boxB.y1],
+    [boxB.x0, byM],
+    [boxB.x1, byM]
+  ];
+
+  for (let k = 0; k < samplePts.length; k += 1) {
+    const dx = samplePts[k][0] - camX;
+    const dy = samplePts[k][1] - camY;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-3) continue;
+    const rdx = dx / len;
+    const rdy = dy / len;
+    const hitA = rayBoxEntryDistance(camX, camY, rdx, rdy, boxA);
+    if (!hitA) continue;
+    const hitB = rayBoxEntryDistance(camX, camY, rdx, rdy, boxB);
+    if (!hitB) continue;
+    return sepOrder;
+  }
+
+  return 0;
 }
 
 function sortOccludersBackToFront(items, camX, camY) {
   const n = items.length;
   if (n <= 1) return items;
 
-  const dist2 = items.map((it) => {
+  // Use closest point on the 2D box to the camera (plus minor centroid tie-breaker) so wide 220px buildings
+  // never sort behind small actors/vehicles that are actually farther than the building's near wall!
+  const nearDist2 = items.map((it) => {
+    const nx = clamp(camX, it.x0, it.x1);
+    const ny = clamp(camY, it.y0, it.y1);
     const mx = (it.x0 + it.x1) * 0.5;
     const my = (it.y0 + it.y1) * 0.5;
-    return (mx - camX) * (mx - camX) + (my - camY) * (my - camY);
+    const dNear = (nx - camX) * (nx - camX) + (ny - camY) * (ny - camY);
+    const dMid = (mx - camX) * (mx - camX) + (my - camY) * (my - camY);
+    return dNear + dMid * 0.02;
   });
 
-  const adj = Array.from({ length: n }, () => []);
-  const indeg = new Int32Array(n);
-
+  const rawAdj = Array.from({ length: n }, () => []);
   for (let i = 0; i < n; i += 1) {
     for (let j = i + 1; j < n; j += 1) {
-      const aBehindB = isBehindInManhattanView(items[i], items[j], camX, camY);
-      const bBehindA = isBehindInManhattanView(items[j], items[i], camX, camY);
-      if (aBehindB && !bBehindA) {
-        adj[i].push(j);
-        indeg[j] += 1;
-      } else if (bBehindA && !aBehindB) {
-        adj[j].push(i);
-        indeg[i] += 1;
+      const cmp = getBoxViewOrdering(items[i], items[j], camX, camY);
+      if (cmp > 0) {
+        rawAdj[i].push(j);
+      } else if (cmp < 0) {
+        rawAdj[j].push(i);
       }
     }
   }
 
-  const ready = [];
-  for (let i = 0; i < n; i += 1) {
-    if (indeg[i] === 0) ready.push(i);
+  // Guarantee a strict cycle-free DAG via DFS in decreasing distance order before computing indegrees
+  const adj = Array.from({ length: n }, () => []);
+  const indeg = new Int32Array(n);
+  const visitState = new Uint8Array(n); // 0 = unvisited, 1 = on stack, 2 = done
+  const orderByFar = Array.from({ length: n }, (_, i) => i).sort((a, b) => nearDist2[b] - nearDist2[a]);
+
+  const dfs = (u) => {
+    visitState[u] = 1;
+    const neighbors = rawAdj[u].slice().sort((a, b) => nearDist2[b] - nearDist2[a]);
+    for (const v of neighbors) {
+      if (visitState[v] === 1) continue; // Drop back-edge so graph is 100% acyclic
+      adj[u].push(v);
+      indeg[v] += 1;
+      if (visitState[v] === 0) dfs(v);
+    }
+    visitState[u] = 2;
+  };
+
+  for (const startNode of orderByFar) {
+    if (visitState[startNode] === 0) dfs(startNode);
   }
 
   const ordered = [];
   const emitted = new Uint8Array(n);
 
-  while (ready.length > 0) {
-    // Among ready items, emit farthest first for natural back-to-front painter's order
-    let bestIdx = 0;
-    let bestD = dist2[ready[0]];
-    for (let k = 1; k < ready.length; k += 1) {
-      const d = dist2[ready[k]];
-      if (d > bestD) {
+  while (ordered.length < n) {
+    let bestIdx = -1;
+    let bestIndeg = Infinity;
+    let bestD = -Infinity;
+    for (let i = 0; i < n; i += 1) {
+      if (emitted[i]) continue;
+      const deg = indeg[i];
+      const d = nearDist2[i];
+      if (deg < bestIndeg || (deg === bestIndeg && d > bestD)) {
+        bestIndeg = deg;
         bestD = d;
-        bestIdx = k;
+        bestIdx = i;
       }
     }
-    const u = ready.splice(bestIdx, 1)[0];
-    if (emitted[u]) continue;
-    emitted[u] = 1;
-    ordered.push(items[u]);
-    for (const v of adj[u]) {
-      indeg[v] -= 1;
-      if (indeg[v] === 0) ready.push(v);
+    if (bestIdx < 0) break;
+    emitted[bestIdx] = 1;
+    ordered.push(items[bestIdx]);
+    for (const v of adj[bestIdx]) {
+      if (!emitted[v] && indeg[v] > 0) {
+        indeg[v] -= 1;
+      }
     }
   }
 
-  // Fallback for any rare overlapping edge (e.g., moving actor brushing a footprint corner)
-  if (ordered.length < n) {
-    const rem = [];
-    for (let i = 0; i < n; i += 1) {
-      if (!emitted[i]) rem.push(i);
-    }
-    rem.sort((a, b) => dist2[b] - dist2[a]);
-    for (const idx of rem) ordered.push(items[idx]);
-  }
   return ordered;
 }
 
@@ -667,6 +789,9 @@ export class LisboaStreetView3DRenderer {
     // 3. Google Street View hover ground chevron & walk target ring on cobblestones
     this.drawGroundIndicators(ctx, cam, state, animTime);
 
+    // 3b. Overhead Tram 28E & Funicular catenary wires (drawn before 3D buildings so buildings naturally occlude background wires!)
+    this.drawOverheadTramWire(ctx, cam, isEvening);
+
     // 4. Collect all visible 3D buildings, landmarks, vehicles, trees, lamps, benches, stops, locals & LAN peers
     const occluders = this.collectOccluders(cam, state, nearbyInteraction, monthInfo);
     const sorted = sortOccludersBackToFront(occluders, cam.camX, cam.camY);
@@ -709,9 +834,6 @@ export class LisboaStreetView3DRenderer {
         this.drawPerson3D(ctx, cam, item.person, isEvening, monthInfo, animTime);
       }
     }
-
-    // 6. Overhead Tram 28E electric catenary wire spanning above Rua do Loreto / Largo do Chiado
-    this.drawOverheadTramWire(ctx, cam, isEvening);
 
     // 7. Weather atmosphere overlay (Atlantic rain streaks, summer sunbeams, drifting blossoms/confetti/autumn leaves)
     this.drawWeatherAtmosphere3D(ctx, cam, monthInfo, phase, animTime);
@@ -1719,16 +1841,18 @@ export class LisboaStreetView3DRenderer {
 
     // Historic Lisbon Cable Funiculars (Elevador da Bica & Elevador da Gloria: twin counterbalancing yellow cars + lower/upper stations!)
     for (const fun of state.funiculars || []) {
+      const inCorridorView = Math.abs(cam.camX - fun.trackX) <= 135;
       for (let carIndex = 0; carIndex < 2; carIndex += 1) {
+        if (!inCorridorView) continue;
         if (state.ridingFunicularId === fun.id && (state.ridingFunicularCarIndex || 0) === carIndex) continue;
         const pose = computeFunicularCarPose(fun, carIndex);
         if (!inRange(pose.x - 24, pose.y - 36, pose.x + 24, pose.y + 36)) continue;
         list.push({
           kind: 'funicular-car',
-          x0: pose.x - 15,
-          y0: pose.y - 30,
-          x1: pose.x + 15,
-          y1: pose.y + 30,
+          x0: pose.x - 11,
+          y0: pose.y - 22,
+          x1: pose.x + 11,
+          y1: pose.y + 22,
           funicular: fun,
           carIndex,
           pose
@@ -2057,14 +2181,15 @@ export class LisboaStreetView3DRenderer {
     const roofBase = venue.roofColor || '#b84a32';
     const trimCol = venue.accentColor || venue.awningColor || '#1b4d89';
 
-    // Anchor every building cleanly to the sloped Lisboa hillside terrain with a deep stone retaining skirt
+    // Anchor every building cleanly to the sloped Lisboa hillside terrain
     const zSW = getTerrainElevation(x0, y1);
     const zSE = getTerrainElevation(x1, y1);
     const zNW = getTerrainElevation(x0, y0);
     const zNE = getTerrainElevation(x1, y0);
     const doorZ = getTerrainElevation(venue.doorX, venue.doorY);
     const minCornerZ = Math.min(zSW, zSE, zNW, zNE);
-    const baseZ = doorZ;
+    const maxCornerZ = Math.max(zSW, zSE, zNW, zNE);
+    const baseZ = Math.max(doorZ, (zSW + zSE + zNW + zNE) * 0.25 + 2, maxCornerZ - 6);
     const skirtZ = Math.min(minCornerZ - 6, baseZ - 4);
     const topZ = baseZ + wallH;
     const dist = Math.hypot(clamp(cam.camX, x0, x1) - cam.camX, clamp(cam.camY, y0, y1) - cam.camY);
@@ -2100,11 +2225,13 @@ export class LisboaStreetView3DRenderer {
         const [ax, ay] = f.a;
         const [bx, by] = f.b;
         const shade = 0.8 + 0.2 * Math.sin((f.i / sides) * Math.PI * 2 + 0.7);
-        // Stone plinth base down to hillside skirt
+        const gzA = getTerrainElevation(ax, ay) - 1.5;
+        const gzB = getTerrainElevation(bx, by) - 1.5;
+        // Stone plinth base hugging the exact ground elevation at each kiosk corner
         this.drawPoly3D(
           ctx,
           cam,
-          [[ax, ay, skirtZ], [bx, by, skirtZ], [bx, by, baseZ + 6], [ax, ay, baseZ + 6]],
+          [[ax, ay, gzA], [bx, by, gzB], [bx, by, baseZ + 6], [ax, ay, baseZ + 6]],
           shadeColor('#d8d0c0', shade, isEvening),
           '#57534e',
           1.0
@@ -2113,7 +2240,7 @@ export class LisboaStreetView3DRenderer {
         const lowerP = this.drawPoly3D(
           ctx,
           cam,
-          [[ax, ay, baseZ + 6], [bx, by, baseZ + 6], [bx, by, baseZ + 26], [ax, ay, baseZ + 26]],
+          [[ax, ay, Math.min(gzA + 4, baseZ + 6)], [bx, by, Math.min(gzB + 4, baseZ + 6)], [bx, by, baseZ + 26], [ax, ay, baseZ + 26]],
           shadeColor('#1e5c4c', shade, isEvening),
           highlighted ? '#facc15' : '#0f362c',
           highlighted ? 2.2 : 1.1
@@ -2409,28 +2536,35 @@ export class LisboaStreetView3DRenderer {
     for (const face of faces) {
       const [ax, ay] = face.a;
       const [bx, by] = face.b;
-      const lerpWall = (u, relZ) => [ax + (bx - ax) * u, ay + (by - ay) * u, baseZ + relZ];
-      const lerpAbs = (u, absZ) => [ax + (bx - ax) * u, ay + (by - ay) * u, absZ];
+      // Sample exact terrain elevation along this wall face so the building facade hugs the sloped cobblestone street directly!
+      const gzA = getTerrainElevation(ax, ay) - 1.2;
+      const gzB = getTerrainElevation(bx, by) - 1.2;
+      const groundAt = (u) => gzA + (gzB - gzA) * u;
+      const lerpWall = (u, relZ) => {
+        const gz = groundAt(u);
+        const t = relZ / Math.max(1, wallH);
+        return [ax + (bx - ax) * u, ay + (by - ay) * u, gz + (topZ - gz) * t];
+      };
+      const lerpGround = (u, offsetZ = 0) => lerpWall(u, offsetZ);
       const wallFill = shadeColor(baseWall, face.shade, isEvening);
       const wallOutline = highlighted ? '#f59e0b' : shadeColor('#57534e', face.shade, isEvening);
 
-      // Sloped hillside stone retaining skirt under baseZ so buildings never float on Bairro Alto / Alfama hills
-      if (baseZ > skirtZ + 0.5) {
-        this.drawPoly3D(
-          ctx,
-          cam,
-          [lerpAbs(0, skirtZ), lerpAbs(1, skirtZ), lerpAbs(1, baseZ + 1), lerpAbs(0, baseZ + 1)],
-          shadeColor('#aba294', face.shade * 0.92, isEvening),
-          shadeColor('#57534e', face.shade, isEvening),
-          0.9
-        );
-      }
-
+      // Full-height building wall extending all the way down to the exact sloped sidewalk ground line (never floating!)
       const wallQuad = [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, wallH), lerpWall(0, wallH)];
       const screenPoly = this.drawPoly3D(ctx, cam, wallQuad, wallFill, wallOutline, highlighted ? 2.4 : 1.1);
       if (screenPoly) {
         this.lastHitTargets.push({ kind: 'venue', id: venue.id, venue, poly: screenPoly });
       }
+
+      // Authentic low Portuguese Lioz granite curb plinth (soco de cantaria, 6 units high) hugging the sloped sidewalk
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 6.5), lerpWall(0, 6.5)],
+        shadeColor('#b8afa0', face.shade * 0.94, isEvening),
+        shadeColor('#57534e', face.shade, isEvening),
+        0.9
+      );
 
       // Pre-1755 Medieval Alfama Cantilevered Overhanging Upper Story (Ressalto Medieval) on Taberna da Sardinha!
       if (style === 'alfama-taberna') {
@@ -2449,11 +2583,14 @@ export class LisboaStreetView3DRenderer {
             : face.side === 'north' ? [ox0, oy0]
               : face.side === 'west' ? [ox0, oy1]
                 : [ox1, oy0];
-        const ov = (u, relZ) => [
-          ovA[0] + (ovB[0] - ovA[0]) * u,
-          ovA[1] + (ovB[1] - ovA[1]) * u,
-          baseZ + relZ
-        ];
+        const ov = (u, relZ) => {
+          const p = lerpWall(u, relZ);
+          return [
+            ovA[0] + (ovB[0] - ovA[0]) * u,
+            ovA[1] + (ovB[1] - ovA[1]) * u,
+            p[2]
+          ];
+        };
         // Dark timber corbel brackets (cachorros) supporting overhanging 2nd story
         if (dist < 680) {
           for (const cu of [0.1, 0.26, 0.42, 0.58, 0.74, 0.9]) {
@@ -2482,25 +2619,24 @@ export class LisboaStreetView3DRenderer {
         }
       }
 
-      // Ground-floor treatment tailored per architectural style!
+      // Ground-floor treatment tailored per architectural style (hugging the sloped ground line lerpGround!)
       if (style === 'brasileira') {
         // Iconic 1905 Dark Mahogany & Hammered Brass Art Nouveau Storefront (Cafe A Brasileira)
-        this.drawPoly3D(ctx, cam, [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 40), lerpWall(0, 40)], shadeColor('#3c2214', face.shade, isEvening), '#d4af37', 1.4);
+        this.drawPoly3D(ctx, cam, [lerpGround(0, 0), lerpGround(1, 0), lerpWall(1, 40), lerpWall(0, 40)], shadeColor('#3c2214', face.shade, isEvening), '#d4af37', 1.4);
         this.drawPoly3D(ctx, cam, [lerpWall(0.02, 34), lerpWall(0.98, 34), lerpWall(0.98, 39.5), lerpWall(0.02, 39.5)], '#141414', '#eab308', 1.2);
       } else if (style === 'bohemian-shop') {
-        // Bairro Alto Bohemian Street-Art Color-Block Mural Plinth
-        this.drawPoly3D(ctx, cam, [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 37), lerpWall(0, 37)], shadeColor('#e2dacb', face.shade, isEvening));
+        // Bairro Alto Bohemian Street-Art Color-Block Mural Bands hugging the sidewalk
         if (dist < 640) {
           const muralCols = ['#1d4ed8', '#eab308', '#e11d48', '#0d9488'];
           for (let mi = 0; mi < 4; mi += 1) {
             const mu0 = 0.04 + mi * 0.23;
-            this.drawPoly3D(ctx, cam, [lerpWall(mu0, 2), lerpWall(mu0 + 0.21, 2), lerpWall(mu0 + 0.21, 14), lerpWall(mu0, 14)], shadeColor(muralCols[mi], face.shade * 0.9, isEvening));
+            this.drawPoly3D(ctx, cam, [lerpGround(mu0, 6.5), lerpGround(mu0 + 0.21, 6.5), lerpGround(mu0 + 0.21, 18.5), lerpGround(mu0, 18.5)], shadeColor(muralCols[mi], face.shade * 0.9, isEvening));
           }
         }
       } else if (style === 'bairro-bar') {
         // Iconic Bairro Alto Nightlife Bar Facade: dark slate club plinth, glowing magenta-gold neon trim & warm string lanterns!
         const barPartyLit = isEvening || isGolden;
-        this.drawPoly3D(ctx, cam, [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 39), lerpWall(0, 39)], shadeColor('#1f1229', face.shade, isEvening), barPartyLit ? '#e879f9' : '#6b21a8', 1.5);
+        this.drawPoly3D(ctx, cam, [lerpGround(0, 0), lerpGround(1, 0), lerpWall(1, 39), lerpWall(0, 39)], shadeColor('#1f1229', face.shade, isEvening), barPartyLit ? '#e879f9' : '#6b21a8', 1.5);
         // Neon party accent stripe above ground floor
         this.drawPoly3D(ctx, cam, [lerpWall(0.03, 35.5), lerpWall(0.97, 35.5), lerpWall(0.97, 38.5), lerpWall(0.03, 38.5)], barPartyLit ? '#ec4899' : '#9d174d', '#fde047', 1.0);
         // Glowing 2nd-floor balcony party string bulbs along Bar da Noite
@@ -2531,21 +2667,15 @@ export class LisboaStreetView3DRenderer {
           }
         }
       } else if (style === 'mercearia') {
-        // Old-world emerald-green painted wooden grocer ground-floor shopfront
-        this.drawPoly3D(ctx, cam, [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 36), lerpWall(0, 36)], shadeColor('#155e4c', face.shade, isEvening), '#0d3b30', 1.1);
+        // Old-world emerald-green painted wooden grocer ground-floor shopfront hugging the sidewalk
+        this.drawPoly3D(ctx, cam, [lerpGround(0, 0), lerpGround(1, 0), lerpWall(1, 36), lerpWall(0, 36)], shadeColor('#155e4c', face.shade, isEvening), '#0d3b30', 1.1);
       } else if (style === 'azulejo-atelier') {
-        // Rustic half-height cobalt glazed tile wainscoting on ground floor
-        this.drawPoly3D(ctx, cam, [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 36), lerpWall(0, 36)], shadeColor('#dbeafe', face.shade, isEvening), '#1d4ed8', 1.0);
+        // Rustic half-height cobalt glazed tile wainscoting on ground floor hugging the sidewalk
+        this.drawPoly3D(ctx, cam, [lerpGround(0, 0), lerpGround(1, 0), lerpWall(1, 36), lerpWall(0, 36)], shadeColor('#dbeafe', face.shade, isEvening), '#1d4ed8', 1.0);
         this.drawPoly3D(ctx, cam, [lerpWall(0, 32), lerpWall(1, 32), lerpWall(1, 36.5), lerpWall(0, 36.5)], shadeColor('#1d4ed8', face.shade, isEvening));
       } else {
-        // Rusticated Lioz Limestone Ashlar Plinth
-        this.drawPoly3D(ctx, cam, [lerpWall(0, 0), lerpWall(1, 0), lerpWall(1, 37), lerpWall(0, 37)], shadeColor(isCathedral ? '#d7cfc0' : '#e2dacb', face.shade * 0.96, isEvening));
-        if (dist < 620) {
-          const stoneJoint = shadeColor('#a3998a', face.shade, isEvening);
-          for (const mz of [9, 18, 27]) {
-            this.drawLine3D(ctx, cam, lerpWall(0.01, mz), lerpWall(0.99, mz), stoneJoint, 0.85);
-          }
-        }
+        // Subtle horizontal Lioz stone molding band separating ground story from upper floors while preserving the building's true wall color all the way to the sidewalk!
+        this.drawPoly3D(ctx, cam, [lerpWall(0, 34), lerpWall(1, 34), lerpWall(1, 37.5), lerpWall(0, 37.5)], shadeColor('#e2dacb', face.shade * 0.96, isEvening), shadeColor('#78716c', face.shade, isEvening), 0.8);
       }
 
       // Projecting belt-course molding
@@ -2709,11 +2839,14 @@ export class LisboaStreetView3DRenderer {
         const floorLevels = style === 'pensao' ? [45, 75, 105] : [46, 86];
         const winH = style === 'pensao' ? 19 : 22;
         const ovOffset = style === 'alfama-taberna' ? 7.6 : 0;
-        const lwWin = (u, relZ) => [
-          ax + (bx - ax) * u + face.nx * ovOffset,
-          ay + (by - ay) * u + face.ny * ovOffset,
-          baseZ + relZ
-        ];
+        const lwWin = (u, relZ) => {
+          const p = lerpWall(u, relZ);
+          return [
+            p[0] + face.nx * ovOffset,
+            p[1] + face.ny * ovOffset,
+            p[2]
+          ];
+        };
 
         for (const floorZ of floorLevels) {
           if (floorZ + winH + 4 > wallH - 5) continue;
@@ -2760,7 +2893,10 @@ export class LisboaStreetView3DRenderer {
         // Authentic Fluttering Bairro Alto Balcony Laundry Lines (Estendais) on Casa da Rosa!
         if (style === 'casas-rosa' && dist < 620) {
           const lineZ = 82;
-          const outP = (u, relZ) => [ax + (bx - ax) * u + face.nx * 5, ay + (by - ay) * u + face.ny * 5, baseZ + relZ];
+          const outP = (u, relZ) => {
+            const p = lerpWall(u, relZ);
+            return [p[0] + face.nx * 5, p[1] + face.ny * 5, p[2]];
+          };
           this.drawLine3D(ctx, cam, outP(0.12, lineZ), outP(0.88, lineZ), '#475569', 1.1);
           const clothes = [
             { u: 0.22, w: 0.08, h: 12, col: '#f8fafc' },
@@ -2794,7 +2930,7 @@ export class LisboaStreetView3DRenderer {
         );
         const halfDoorU = Math.min(0.12, 16 / Math.max(60, face.len));
 
-        // Flanking ground-floor showcase windows (tailored for Bertrand books, Mercearia tins, Brasileira brass, etc.)
+        // Flanking ground-floor showcase windows anchored to the local ground elevation lerpGround
         if (dist < 760 && !isCathedral && style !== 'arcaded-azulejo') {
           const shopGlow = isEvening ? '#fef08a' : '#fff3d6';
           const frameCol = style === 'brasileira' ? '#d4af37' : shadeColor('#f0e9db', face.shade, isEvening);
@@ -2804,7 +2940,7 @@ export class LisboaStreetView3DRenderer {
             this.drawPoly3D(
               ctx,
               cam,
-              [lerpWall(wu - 0.105, 5), lerpWall(wu + 0.105, 5), lerpWall(wu + 0.105, 28), lerpWall(wu + 0.07, 33.5), lerpWall(wu, 35), lerpWall(wu - 0.07, 33.5), lerpWall(wu - 0.105, 28)],
+              [lerpGround(wu - 0.105, 6), lerpGround(wu + 0.105, 6), lerpGround(wu + 0.105, 27), lerpGround(wu + 0.07, 32), lerpGround(wu, 33.5), lerpGround(wu - 0.07, 32), lerpGround(wu - 0.105, 27)],
               frameCol,
               shadeColor('#57534e', face.shade, isEvening),
               1.1
@@ -2812,30 +2948,30 @@ export class LisboaStreetView3DRenderer {
             this.drawPoly3D(
               ctx,
               cam,
-              [lerpWall(wu - 0.088, 6.5), lerpWall(wu + 0.088, 6.5), lerpWall(wu + 0.088, 26), lerpWall(wu + 0.055, 31.2), lerpWall(wu, 32.6), lerpWall(wu - 0.055, 31.2), lerpWall(wu - 0.088, 26)],
+              [lerpGround(wu - 0.088, 7.5), lerpGround(wu + 0.088, 7.5), lerpGround(wu + 0.088, 25), lerpGround(wu + 0.055, 29.8), lerpGround(wu, 31.2), lerpGround(wu - 0.055, 29.8), lerpGround(wu - 0.088, 25)],
               shopGlow,
               shadeColor('#472d1b', face.shade, isEvening),
               1.3
             );
             // Display shelf accent inside showcase window
             const dispCol = style === 'bertrand' ? '#1d4ed8' : style === 'mercearia' ? '#dc2626' : style === 'bairro-bar' ? '#e879f9' : shadeColor(venue.roofColor || '#9a3412', 0.85, isEvening);
-            this.drawPoly3D(ctx, cam, [lerpWall(wu - 0.075, 11), lerpWall(wu + 0.075, 11), lerpWall(wu + 0.075, 16), lerpWall(wu - 0.075, 16)], dispCol);
+            this.drawPoly3D(ctx, cam, [lerpGround(wu - 0.075, 11.5), lerpGround(wu + 0.075, 11.5), lerpGround(wu + 0.075, 16.5), lerpGround(wu - 0.075, 16.5)], dispCol);
           }
         }
 
-        // Enterable Arched Portal & Carved Timber Door
+        // Enterable Arched Portal & Carved Timber Door anchored flush with the sidewalk at doorU!
         const doorTopZ = isCathedral ? 50 : 31;
         this.drawPoly3D(
           ctx,
           cam,
           [
-            lerpWall(doorU - halfDoorU * 1.18, 0),
-            lerpWall(doorU + halfDoorU * 1.18, 0),
-            lerpWall(doorU + halfDoorU * 1.18, doorTopZ - 3),
-            lerpWall(doorU + halfDoorU * 0.72, doorTopZ + 3),
-            lerpWall(doorU, doorTopZ + 5),
-            lerpWall(doorU - halfDoorU * 0.72, doorTopZ + 3),
-            lerpWall(doorU - halfDoorU * 1.18, doorTopZ - 3)
+            lerpGround(doorU - halfDoorU * 1.18, 0),
+            lerpGround(doorU + halfDoorU * 1.18, 0),
+            lerpGround(doorU + halfDoorU * 1.18, doorTopZ - 3),
+            lerpGround(doorU + halfDoorU * 0.72, doorTopZ + 3),
+            lerpGround(doorU, doorTopZ + 5),
+            lerpGround(doorU - halfDoorU * 0.72, doorTopZ + 3),
+            lerpGround(doorU - halfDoorU * 1.18, doorTopZ - 3)
           ],
           style === 'tasca' ? shadeColor('#14532d', face.shade, isEvening) : shadeColor('#efe8db', face.shade, isEvening),
           shadeColor('#78716c', face.shade, isEvening),
@@ -2844,7 +2980,7 @@ export class LisboaStreetView3DRenderer {
         this.drawPoly3D(
           ctx,
           cam,
-          [lerpWall(doorU - halfDoorU, 0), lerpWall(doorU + halfDoorU, 0), lerpWall(doorU + halfDoorU, doorTopZ - 2), lerpWall(doorU - halfDoorU, doorTopZ - 2)],
+          [lerpGround(doorU - halfDoorU, 0), lerpGround(doorU + halfDoorU, 0), lerpGround(doorU + halfDoorU, doorTopZ - 2), lerpGround(doorU - halfDoorU, doorTopZ - 2)],
           highlighted ? '#d97706' : shadeColor(isCathedral ? '#3d281a' : '#5a351e', face.shade, isEvening),
           highlighted ? '#fef08a' : '#2d1a0f',
           highlighted ? 2.4 : 1.5
@@ -2852,7 +2988,7 @@ export class LisboaStreetView3DRenderer {
         this.drawPoly3D(
           ctx,
           cam,
-          [lerpWall(doorU - halfDoorU * 0.84, doorTopZ - 6), lerpWall(doorU + halfDoorU * 0.84, doorTopZ - 6), lerpWall(doorU + halfDoorU * 0.56, doorTopZ + 0.5), lerpWall(doorU, doorTopZ + 2.5), lerpWall(doorU - halfDoorU * 0.56, doorTopZ + 0.5)],
+          [lerpGround(doorU - halfDoorU * 0.84, doorTopZ - 6), lerpGround(doorU + halfDoorU * 0.84, doorTopZ - 6), lerpGround(doorU + halfDoorU * 0.56, doorTopZ + 0.5), lerpGround(doorU, doorTopZ + 2.5), lerpGround(doorU - halfDoorU * 0.56, doorTopZ + 0.5)],
           isCathedral ? '#1e293b' : '#fef08a',
           '#472d1b',
           1.0
@@ -2886,8 +3022,8 @@ export class LisboaStreetView3DRenderer {
             const su1 = 0.08 + ((s + 1) / stripes) * 0.84;
             const a0 = lerpWall(su0, 35);
             const a1 = lerpWall(su1, 35);
-            const b0 = [a0[0] + face.nx * proj, a0[1] + face.ny * proj, baseZ + 28];
-            const b1 = [a1[0] + face.nx * proj, a1[1] + face.ny * proj, baseZ + 28];
+            const b0 = [a0[0] + face.nx * proj, a0[1] + face.ny * proj, lerpWall(su0, 28)[2]];
+            const b1 = [a1[0] + face.nx * proj, a1[1] + face.ny * proj, lerpWall(su1, 28)[2]];
             const col = (style === 'brasileira' || s % 2 === 0) ? shadeColor(awnBase, face.shade, isEvening) : shadeColor('#fef3c7', face.shade, isEvening);
             this.drawPoly3D(ctx, cam, [a0, a1, b1, b0], col, style === 'brasileira' ? '#d4af37' : 'rgba(30, 41, 59, 0.35)', 0.8);
           }
@@ -3609,8 +3745,16 @@ export class LisboaStreetView3DRenderer {
     const roofColor = isTram ? '#d4d4d8' : '#0f5c46';
     const winColor = isEvening ? '#fef08a' : '#1e3a5f';
 
-    // Contact shadow on street
-    this.drawPoly3D(ctx, cam, [pt(halfL, -halfW, 0.5), pt(halfL, halfW, 0.5), pt(-halfL, halfW, 0.5), pt(-halfL, -halfW, 0.5)], 'rgba(15, 23, 42, 0.34)');
+    // Contact shadow & dark-iron wheel bogie undercarriage skirt on street (never hovering!)
+    const bogie0 = pt(halfL - 2, -halfW + 1.5, 0.4);
+    const bogie1 = pt(halfL - 2, halfW - 1.5, 0.4);
+    const bogie2 = pt(-halfL + 2, halfW - 1.5, 0.4);
+    const bogie3 = pt(-halfL + 2, -halfW + 1.5, 0.4);
+    this.drawPoly3D(ctx, cam, [pt(halfL, -halfW, 0.3), pt(halfL, halfW, 0.3), pt(-halfL, halfW, 0.3), pt(-halfL, -halfW, 0.3)], 'rgba(15, 23, 42, 0.38)');
+    this.drawPoly3D(ctx, cam, [bogie0, bogie1, fr0, fl0], '#1e293b', '#0f172a', 0.9);
+    this.drawPoly3D(ctx, cam, [bogie2, bogie3, bl0, br0], '#1e293b', '#0f172a', 0.9);
+    this.drawPoly3D(ctx, cam, [bogie1, bogie2, br0, fr0], '#1e293b', '#0f172a', 0.9);
+    this.drawPoly3D(ctx, cam, [bogie3, bogie0, fl0, bl0], '#1e293b', '#0f172a', 0.9);
 
     // Collect the 4 side faces + roof and sort by centroid depth
     const faces = [
@@ -3693,44 +3837,53 @@ export class LisboaStreetView3DRenderer {
     // Features authentic stepped wedge iron undercarriage so the yellow wooden passenger cabin stays LEVEL on the steep 14% hill!
     const cx = pose.x;
     const cy = pose.y;
-    const halfL = 29; // North-south along the hillside street
-    const halfW = 12;
+    const halfL = 22; // Compact north-south funicular cabin length along the hillside street
+    const halfW = 10.5;
     const zNorth = getTerrainElevation(cx, cy - halfL); // Uphill end
     const zSouth = getTerrainElevation(cx, cy + halfL); // Downhill end
-    const cabinFloorZ = Math.max(zNorth, zSouth) + 5;
-    const cabinMidZ = cabinFloorZ + 20;
-    const cabinTopZ = cabinFloorZ + 40;
-    const roofPeakZ = cabinTopZ + 6;
+    const cabinFloorZ = Math.max(zNorth, zSouth) + 3.5;
+    const cabinMidZ = cabinFloorZ + 19;
+    const cabinTopZ = cabinFloorZ + 38;
+    const roofPeakZ = cabinTopZ + 5.5;
 
-    // 1. Sloped Dark-Iron Wedged Stepped Chassis Truss hugging the steep Bairro Alto hill!
+    // 1. Sloped Dark-Iron Wedged Stepped Chassis Truss hugging the steep Bairro Alto hill flush to the rails!
     const chassisCol = '#1e293b';
     const chassisTrim = '#475569';
     // Contact shadow along the hillside track
     this.drawPoly3D(
       ctx,
       cam,
-      [[cx - halfW, cy - halfL, zNorth + 0.5], [cx + halfW, cy - halfL, zNorth + 0.5], [cx + halfW, cy + halfL, zSouth + 0.5], [cx - halfW, cy + halfL, zSouth + 0.5]],
-      'rgba(15, 23, 42, 0.36)'
+      [[cx - halfW, cy - halfL, zNorth + 0.3], [cx + halfW, cy - halfL, zNorth + 0.3], [cx + halfW, cy + halfL, zSouth + 0.3], [cx - halfW, cy + halfL, zSouth + 0.3]],
+      'rgba(15, 23, 42, 0.42)'
     );
-    // West & East triangular wedged chassis underframes (taller at downhill south end, snug at uphill north end!)
-    for (const sx of [cx - halfW + 1, cx + halfW - 1]) {
+    // Uphill north & downhill south solid undercarriage skirts flush to the rails
+    this.drawPoly3D(
+      ctx,
+      cam,
+      [[cx - halfW + 0.8, cy - halfL, zNorth + 0.4], [cx + halfW - 0.8, cy - halfL, zNorth + 0.4], [cx + halfW - 0.8, cy - halfL, cabinFloorZ], [cx - halfW + 0.8, cy - halfL, cabinFloorZ]],
+      chassisCol,
+      chassisTrim,
+      1.1
+    );
+    // West & East triangular wedged chassis underframes flush to the rails (taller at downhill south end, snug at uphill north end!)
+    for (const sx of [cx - halfW + 0.8, cx + halfW - 0.8]) {
       this.drawPoly3D(
         ctx,
         cam,
-        [[sx, cy - halfL, zNorth + 2], [sx, cy + halfL, zSouth + 2], [sx, cy + halfL, cabinFloorZ], [sx, cy - halfL, cabinFloorZ]],
+        [[sx, cy - halfL, zNorth + 0.4], [sx, cy + halfL, zSouth + 0.4], [sx, cy + halfL, cabinFloorZ], [sx, cy - halfL, cabinFloorZ]],
         chassisCol,
         chassisTrim,
         1.2
       );
       // Cross-bracing iron struts & wheel axles inside the tilted wedge chassis
-      this.drawLine3D(ctx, cam, [sx, cy - halfL + 6, zNorth + 3], [sx, cy + halfL - 6, cabinFloorZ], '#64748b', 1.4);
-      this.drawLine3D(ctx, cam, [sx, cy + halfL - 6, zSouth + 3], [sx, cy - halfL + 6, cabinFloorZ], '#64748b', 1.4);
+      this.drawLine3D(ctx, cam, [sx, cy - halfL + 4, zNorth + 0.8], [sx, cy + halfL - 4, cabinFloorZ], '#64748b', 1.4);
+      this.drawLine3D(ctx, cam, [sx, cy + halfL - 4, zSouth + 0.8], [sx, cy - halfL + 4, cabinFloorZ], '#64748b', 1.4);
     }
-    // Downhill south undercarriage apron & steel steps
+    // Downhill south undercarriage apron & steel steps flush to the rails
     this.drawPoly3D(
       ctx,
       cam,
-      [[cx - halfW + 1, cy + halfL, zSouth + 2], [cx + halfW - 1, cy + halfL, zSouth + 2], [cx + halfW - 1, cy + halfL, cabinFloorZ], [cx - halfW + 1, cy + halfL, cabinFloorZ]],
+      [[cx - halfW + 0.8, cy + halfL, zSouth + 0.4], [cx + halfW - 0.8, cy + halfL, zSouth + 0.4], [cx + halfW - 0.8, cy + halfL, cabinFloorZ], [cx - halfW + 0.8, cy + halfL, cabinFloorZ]],
       chassisCol,
       chassisTrim,
       1.2
@@ -5059,6 +5212,7 @@ export class LisboaStreetView3DRenderer {
         const inVertRoad =
           (wy >= 248 && wy <= 972 && (
             (wx >= 120 && wx <= 205) ||
+            (wx >= 838 && wx <= 890) ||
             (wx >= 1344 && wx <= 1422) ||
             (wx >= 1685 && wx <= 1775) ||
             (wx >= 2155 && wx <= 2280)
@@ -5067,12 +5221,15 @@ export class LisboaStreetView3DRenderer {
 
         if (inNorthRoad || inTramRoad || inSouthRoad || inVertRoad) {
           const onHorizCurb =
-            (inNorthRoad && (wy < 251 || wy > 319)) ||
-            (inTramRoad && (wy < 580 || wy > 640)) ||
-            (inSouthRoad && (wy < 896 || wy > 969));
+            !inVertRoad && (
+              (inNorthRoad && (wy < 251 || wy > 319)) ||
+              (inTramRoad && (wy < 580 || wy > 640)) ||
+              (inSouthRoad && (wy < 896 || wy > 969))
+            );
           const onVertCurb =
             inVertRoad && !inNorthRoad && !inTramRoad && !inSouthRoad && (
               (wx >= 475 && wx <= 478) || (wx >= 547 && wx <= 550) ||
+              (wx >= 838 && wx <= 841) || (wx >= 887 && wx <= 890) ||
               (wx >= 1344 && wx <= 1347) || (wx >= 1419 && wx <= 1422) ||
               (wx >= 1685 && wx <= 1688) || (wx >= 1772 && wx <= 1775)
             );
@@ -5326,7 +5483,7 @@ export class LisboaStreetView3DRenderer {
     const deg = (((cam.yaw * 180) / Math.PI) % 360 + 360) % 360;
     const dirs = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'];
     const compassLabel = dirs[Math.round(deg / 45) % 8];
-    const elevM = Math.round(getTerrainElevation(state.player.x, state.player.y) * 0.65);
+    const elevM = Math.round(getRawTerrainElevation(state.player.x, state.player.y) * 0.65);
     const line1 = `STREET VIEW 3D  |  ${state.currentNeighborhoodName.toUpperCase()}  |  ELEV ${elevM}m  |  FACING ${compassLabel}`;
     const line2 = `${monthInfo.name.toUpperCase()} (${monthInfo.avgHighC}C, ${monthInfo.weatherLabel})  |  ${monthInfo.eventTag}  |  ${streetName}`;
     ctx.font = '700 11px "Segoe UI", sans-serif';

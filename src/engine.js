@@ -74,7 +74,7 @@ export function computeFunicularCarPose(fun, carIndex = 0) {
 function createInitialFuniculars() {
   return FUNICULAR_LINES.map((line, idx) => ({
     ...line,
-    progress: idx === 0 ? 0.22 : 0.72,
+    progress: idx === 0 ? 0.05 : 0.94,
     dir: idx === 0 ? 1 : -1,
     dwellRemaining: 0
   }));

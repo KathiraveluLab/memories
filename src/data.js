@@ -45,22 +45,22 @@ export const WATERFRONT_Y = 1030;
  */
 export function getTerrainElevation(wx, wy) {
   if (wy >= WATERFRONT_Y - 36) return 0;
-  const clampedY = Math.max(40, Math.min(WATERFRONT_Y - 36, wy));
-  const northT = (WATERFRONT_Y - 36 - clampedY) / (WATERFRONT_Y - 36 - 80); // 0 at waterfront -> 1 at top ridge
-  const wfRamp = Math.max(0, Math.min(1, (WATERFRONT_Y - 56 - clampedY) / 145));
+  const clampedY = Math.max(36, Math.min(WATERFRONT_Y - 36, wy));
+  const northT = (WATERFRONT_Y - 36 - clampedY) / (WATERFRONT_Y - 36 - 36); // Continuous 0 at waterfront -> 1 at top ridge
+  const wfRamp = Math.max(0, Math.min(1, (WATERFRONT_Y - 42 - clampedY) / 220));
   const wfSmooth = wfRamp * wfRamp * (3 - 2 * wfRamp);
 
-  // Bairro Alto steep hilltop plateau (west of Praca Luis de Camoes x < 910)
-  const baT = Math.max(0, Math.min(1, (935 - wx) / 290));
-  const baSmooth = baT * baT * (3 - 2 * baT);
+  // Bairro Alto continuous hillside rise westward from Chiado all the way to the western ridge
+  const baT = Math.max(0, Math.min(1, (980 - wx) / 760));
+  const baSmooth = baT * (1.55 - 0.55 * baT);
 
-  // Alfama eastern hillside climbing toward Portas do Sol & Santa Luzia (x > 1620)
-  const alfT = Math.max(0, Math.min(1, (wx - 1600) / 480));
-  const alfSmooth = alfT * alfT * (3 - 2 * alfT);
+  // Alfama continuous hillside rise eastward toward Portas do Sol & Castelo ridge
+  const alfT = Math.max(0, Math.min(1, (wx - 1580) / 680));
+  const alfSmooth = alfT * (1.45 - 0.45 * alfT);
 
-  const chiadoBaseRise = northT * 20;
-  const bairroAltoLift = baSmooth * wfSmooth * (24 + northT * 46);
-  const alfamaLift = alfSmooth * wfSmooth * (12 + northT * 28);
+  const chiadoBaseRise = northT * 22;
+  const bairroAltoLift = baSmooth * wfSmooth * (18 + northT * 68);
+  const alfamaLift = alfSmooth * wfSmooth * (12 + northT * 36);
   return chiadoBaseRise + bairroAltoLift + alfamaLift;
 }
 
@@ -1972,10 +1972,10 @@ export const FUNICULAR_LINES = [
     rideDurationSec: 5.5,
     travelMinutes: 5,
     trackX: 512,
-    bottomY: 928,
-    topY: 222,
-    passingLoopY: 575,
-    passingHalfOffset: 14,
+    bottomY: 882,
+    topY: 334,
+    passingLoopY: 562,
+    passingHalfOffset: 10,
     bodyColor: '#eab308',
     upperColor: '#fffbeb',
     accentColor: '#92400e',
@@ -2011,29 +2011,29 @@ export const FUNICULAR_LINES = [
     fareEur: 2.1,
     rideDurationSec: 5.5,
     travelMinutes: 5,
-    trackX: 162,
-    bottomY: 890,
-    topY: 256,
-    passingLoopY: 573,
-    passingHalfOffset: 14,
+    trackX: 864,
+    bottomY: 882,
+    topY: 334,
+    passingLoopY: 565,
+    passingHalfOffset: 10,
     bodyColor: '#eab308',
     upperColor: '#fef9c3',
     accentColor: '#b91c1c',
     lowerStation: {
       id: 'gloria-lower',
       name: 'Gloria Lower Station (Calcada da Gloria)',
-      x: 162,
-      y: 878,
-      platformX: 214,
+      x: 864,
+      y: 882,
+      platformX: 832,
       platformY: 882
     },
     upperStation: {
       id: 'gloria-upper',
       name: 'Gloria Upper Station (Sao Pedro de Alcantara)',
-      x: 162,
-      y: 266,
-      platformX: 214,
-      platformY: 228
+      x: 864,
+      y: 248,
+      platformX: 832,
+      platformY: 238
     },
     phrase: {
       pt: 'Vamos subir no Elevador da Gloria ate ao Bairro Alto!',
