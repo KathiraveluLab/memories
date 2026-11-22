@@ -1546,6 +1546,78 @@ export class LisboaCanvasRenderer {
       const cx = struct.x + struct.w / 2;
       const cy = struct.y + struct.h / 2;
 
+      if (struct.monumentType === 'fountain') {
+        // Historic Lisbon Chafariz Water Fountain (Octagonal Lioz limestone basin, shimmering turquoise water, animated ripples & 4 water jets!)
+        ctx.save();
+        // Outer limestone step & octagonal stone basin rim
+        ctx.fillStyle = '#ebe4d6';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 29, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.fillStyle = '#d6cfc2';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 23, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Shimmering aqueduct water basin
+        const waterGrad = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 19);
+        waterGrad.addColorStop(0, '#7dd3fc');
+        waterGrad.addColorStop(0.6, '#0284c7');
+        waterGrad.addColorStop(1, '#0369a1');
+        ctx.fillStyle = waterGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Animated concentric water ripples inside basin
+        const rPhase = (this.animTime * 1.4) % 1;
+        ctx.strokeStyle = `rgba(224, 242, 254, ${0.85 * (1 - rPhase)})`;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6 + rPhase * 11, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Four animated water jets spraying from central sculpted spouts
+        ctx.strokeStyle = '#e0f2fe';
+        ctx.lineWidth = 1.6;
+        for (let i = 0; i < 4; i += 1) {
+          const ang = (i * Math.PI) / 2 + Math.PI / 4;
+          const jetLen = 12 + Math.sin(this.animTime * 6 + i) * 2;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(ang) * 4, cy + Math.sin(ang) * 4);
+          ctx.lineTo(cx + Math.cos(ang) * jetLen, cy + Math.sin(ang) * jetLen);
+          ctx.stroke();
+        }
+
+        // Central carved Lioz limestone obelisk / bowl pedestal
+        ctx.fillStyle = '#f8f5ee';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = '700 8.5px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(struct.shortLabel || struct.label.toUpperCase(), cx, struct.y - 10);
+        ctx.textAlign = 'left';
+        ctx.restore();
+        return;
+      }
+
       ctx.fillStyle = '#f0eadc';
       ctx.beginPath();
       ctx.arc(cx, cy, 32, 0, Math.PI * 2);
@@ -1582,10 +1654,10 @@ export class LisboaCanvasRenderer {
       ctx.arc(cx - 2, cy - 2, 4.5, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.font = '700 9px Georgia, serif';
+      ctx.font = '700 8.8px Georgia, serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#243142';
-      ctx.fillText('LUIS DE CAMOES', cx, struct.y - 11);
+      ctx.fillText(struct.shortLabel || 'LUIS DE CAMOES', cx, struct.y - 11);
       ctx.textAlign = 'left';
       return;
     }
@@ -4688,7 +4760,9 @@ export class LisboaCanvasRenderer {
     const activeAct = state.indoorActivity && state.indoorActivity.venueId === venue.id ? state.indoorActivity : null;
     const seatedMeal = state.seatedDining && state.seatedDining.venueId === venue.id ? state.seatedDining : null;
     if (seatedMeal) {
-      // Wooden dining chair at (562, 252) & glowing freshly served plate on Table 1 at (616, 252)
+      // Wooden dining chair at (562, 252) & EITHER a Drink Glass (for drinks) OR a Freshly Served Plate (for food) on Table 1 at (616, 252)
+      const isGlass = seatedMeal.servingType === 'glass';
+      const idStr = seatedMeal.itemId || '';
       ctx.save();
       ctx.fillStyle = '#7c4724';
       drawRoundedRect(ctx, seatedMeal.seatX - 10, seatedMeal.seatY - 10, 16, 20, 4);
@@ -4697,33 +4771,59 @@ export class LisboaCanvasRenderer {
       ctx.lineWidth = 1.6;
       ctx.stroke();
 
-      // Highlighted served plate with cobalt rim & steam on Dining Table 1
       const px = seatedMeal.plateX || 616;
       const py = seatedMeal.plateY || 252;
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(px, py, 13, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1d4ed8';
-      ctx.lineWidth = 2.2;
-      ctx.stroke();
-      ctx.fillStyle = '#d97706';
-      ctx.beginPath();
-      ctx.arc(px, py, 7.5, 0, Math.PI * 2);
-      ctx.fill();
-      const sShift = Math.sin(this.animTime * 4) * 2.5;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(px - 3, py - 10);
-      ctx.quadraticCurveTo(px - 3 + sShift, py - 18, px - 1, py - 24);
-      ctx.moveTo(px + 4, py - 10);
-      ctx.quadraticCurveTo(px + 4 - sShift, py - 18, px + 2, py - 24);
-      ctx.stroke();
+      if (isGlass) {
+        // Drink Glass on round cork coaster (NO plate!)
+        ctx.fillStyle = '#b45309';
+        ctx.beginPath();
+        ctx.arc(px, py + 2, 9.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
 
-      // Floating dining table badge above Table 1
+        const liqCol =
+          idStr.includes('ginjinha') || idStr.includes('sangria') || idStr.includes('tinto')
+            ? '#be123c'
+            : idStr.includes('imperial')
+              ? '#f59e0b'
+              : '#84cc16';
+        drawRoundedRect(ctx, px - 5.5, py - 9, 11, 14, 2.5);
+        ctx.fillStyle = liqCol;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.fillStyle = '#fffbeb';
+        ctx.fillRect(px - 4.5, py - 8.5, 9, 3);
+      } else {
+        // Highlighted served Porcelain Dinner Plate with cobalt rim, food & steam (NO glass!)
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(px, py, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1d4ed8';
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath();
+        ctx.arc(px, py, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+        const sShift = Math.sin(this.animTime * 4) * 2.5;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(px - 3, py - 10);
+        ctx.quadraticCurveTo(px - 3 + sShift, py - 18, px - 1, py - 24);
+        ctx.moveTo(px + 4, py - 10);
+        ctx.quadraticCurveTo(px + 4 - sShift, py - 18, px + 2, py - 24);
+        ctx.stroke();
+      }
+
+      // Floating table badge above Table 1 distinguishing GLASS vs PLATE
       ctx.font = '700 9.5px "Segoe UI", sans-serif';
-      const label = `DINING: ${seatedMeal.itemName}`;
+      const label = `${isGlass ? 'GLASS' : 'PLATE'}: ${seatedMeal.itemName}`;
       const lw = Math.ceil(ctx.measureText(label).width) + 16;
       drawRoundedRect(ctx, 636 - lw * 0.5, 198, lw, 19, 5);
       ctx.fillStyle = 'rgba(20, 50, 88, 0.94)';

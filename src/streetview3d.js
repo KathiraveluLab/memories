@@ -680,7 +680,7 @@ export class LisboaStreetView3DRenderer {
       } else if (item.kind === 'ferry') {
         this.drawFerryTerminal3D(ctx, cam, item.highlighted, isEvening);
       } else if (item.kind === 'monument') {
-        this.drawCamoesMonument3D(ctx, cam, item.struct, isEvening);
+        this.drawCamoesMonument3D(ctx, cam, item.struct, isEvening, animTime, item.highlighted);
       } else if (item.kind === 'vehicle') {
         this.drawTransitVehicle3D(ctx, cam, item.vehicle, isEvening);
       } else if (item.kind === 'funicular-car') {
@@ -1696,7 +1696,10 @@ export class LisboaStreetView3DRenderer {
         y0: struct.y,
         x1: struct.x + struct.w,
         y1: struct.y + struct.h,
-        struct
+        struct,
+        highlighted:
+          (nearbyInteraction?.type === 'fountain' || nearbyInteraction?.type === 'statue') &&
+          nearbyInteraction.id === struct.id
       });
     }
 
@@ -3285,35 +3288,293 @@ export class LisboaStreetView3DRenderer {
     }
   }
 
-  drawCamoesMonument3D(ctx, cam, struct, isEvening) {
+  drawCamoesMonument3D(ctx, cam, struct, isEvening, animTime = 0, highlighted = false) {
     const cx = struct.x + struct.w * 0.5;
     const cy = struct.y + struct.h * 0.5;
     const gz = getTerrainElevation(cx, cy);
-    // Stepped stone pedestal
-    const r = 18;
-    const pedH = gz + 44;
-    if (cam.camY > cy + r) {
-      this.drawPoly3D(ctx, cam, [[cx - r, cy + r, gz - 2], [cx + r, cy + r, gz - 2], [cx + r * 0.72, cy + r * 0.72, pedH], [cx - r * 0.72, cy + r * 0.72, pedH]], shadeColor('#d6cfc0', 1, isEvening), '#6b6458', 1);
+
+    // A) Historic 3D Lisbon Water Fountain (Chafariz do Carmo 1771 & Chafariz d'El-Rei 1282)
+    if (struct.monumentType === 'fountain') {
+      const sides = 8;
+      const outerR = 23;
+      const innerR = 19;
+      const basinH = gz + 16;
+      const waterZ = gz + 13.5;
+
+      // 1. Octagonal Lioz Limestone Outer Basin Walls (painter-sorted back-to-front facets)
+      const facets = [];
+      for (let i = 0; i < sides; i += 1) {
+        const a0 = (i / sides) * Math.PI * 2 + Math.PI / 8;
+        const a1 = ((i + 1) / sides) * Math.PI * 2 + Math.PI / 8;
+        const x0 = cx + Math.cos(a0) * outerR;
+        const y0 = cy + Math.sin(a0) * outerR;
+        const x1 = cx + Math.cos(a1) * outerR;
+        const y1 = cy + Math.sin(a1) * outerR;
+        const mx = (x0 + x1) * 0.5;
+        const my = (y0 + y1) * 0.5;
+        facets.push({ i, x0, y0, x1, y1, distSq: (mx - cam.camX) ** 2 + (my - cam.camY) ** 2 });
+      }
+      facets.sort((a, b) => b.distSq - a.distSq);
+
+      for (const f of facets) {
+        const shade = 0.8 + 0.2 * Math.sin((f.i / sides) * Math.PI * 2 + 0.6);
+        const poly = this.drawPoly3D(
+          ctx,
+          cam,
+          [[f.x0, f.y0, gz - 2], [f.x1, f.y1, gz - 2], [f.x1, f.y1, basinH], [f.x0, f.y0, basinH]],
+          shadeColor('#e5ddd0', shade, isEvening),
+          highlighted ? '#38bdf8' : '#78716c',
+          highlighted ? 2.2 : 1.1
+        );
+        if (poly) this.lastHitTargets.push({ kind: 'monument', id: struct.id, struct, poly });
+      }
+
+      // 2. Octagonal Stone Coping Rim & Shimmering Turquoise Aqueduct Water Pool
+      const rimPts = [];
+      const waterPts = [];
+      for (let i = 0; i < sides; i += 1) {
+        const a = (i / sides) * Math.PI * 2 + Math.PI / 8;
+        rimPts.push([cx + Math.cos(a) * (outerR + 1.5), cy + Math.sin(a) * (outerR + 1.5), basinH]);
+        waterPts.push([cx + Math.cos(a) * innerR, cy + Math.sin(a) * innerR, waterZ]);
+      }
+      this.drawPoly3D(ctx, cam, rimPts, shadeColor('#f3ede2', 0.96, isEvening), '#64748b', 1.2);
+      this.drawPoly3D(
+        ctx,
+        cam,
+        waterPts,
+        isEvening ? 'rgba(14, 165, 233, 0.78)' : 'rgba(56, 189, 248, 0.85)',
+        '#bae6fd',
+        1.2
+      );
+
+      // Animated concentric water ripple rings on the fountain pool surface
+      for (let rIdx = 0; rIdx < 2; rIdx += 1) {
+        const phase = (animTime * 0.9 + rIdx * 0.5) % 1;
+        const ripR = 4 + phase * 13;
+        const ripPts = [];
+        for (let k = 0; k < 12; k += 1) {
+          const a = (k / 12) * Math.PI * 2;
+          ripPts.push([cx + Math.cos(a) * ripR, cy + Math.sin(a) * ripR, waterZ + 0.4]);
+        }
+        this.drawPoly3D(ctx, cam, ripPts, null, `rgba(240, 249, 255, ${(1 - phase) * 0.75})`, 1.2);
+      }
+
+      // 3. Central Tiered Baroque Limestone Column, Upper Catch-Bowl & Obelisk Finial
+      const colR = 5.5;
+      const bowlZ = gz + 31;
+      const topZ = gz + 49;
+      for (const f of facets) {
+        const a0 = (f.i / sides) * Math.PI * 2 + Math.PI / 8;
+        const a1 = ((f.i + 1) / sides) * Math.PI * 2 + Math.PI / 8;
+        const shade = 0.82 + 0.18 * Math.sin(a0);
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [
+            [cx + Math.cos(a0) * colR, cy + Math.sin(a0) * colR, waterZ],
+            [cx + Math.cos(a1) * colR, cy + Math.sin(a1) * colR, waterZ],
+            [cx + Math.cos(a1) * (colR * 0.8), cy + Math.sin(a1) * (colR * 0.8), bowlZ],
+            [cx + Math.cos(a0) * (colR * 0.8), cy + Math.sin(a0) * (colR * 0.8), bowlZ]
+          ],
+          shadeColor('#ece5d8', shade, isEvening),
+          '#78716c',
+          0.9
+        );
+        // Sculpted upper stone obelisk spire resting directly on the upper catch-bowl
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [
+            [cx + Math.cos(a0) * 4.2, cy + Math.sin(a0) * 4.2, bowlZ],
+            [cx + Math.cos(a1) * 4.2, cy + Math.sin(a1) * 4.2, bowlZ],
+            [cx, cy, topZ]
+          ],
+          shadeColor('#f5f0e6', shade, isEvening),
+          '#78716c',
+          0.8
+        );
+      }
+
+      // Upper sculpted catch-bowl lip at bowlZ
+      const upperBowlPts = [];
+      for (let i = 0; i < 10; i += 1) {
+        const a = (i / 10) * Math.PI * 2;
+        upperBowlPts.push([cx + Math.cos(a) * 10.5, cy + Math.sin(a) * 10.5, bowlZ]);
+      }
+      this.drawPoly3D(ctx, cam, upperBowlPts, shadeColor('#e5ddd0', 0.95, isEvening), '#57534e', 1.2);
+
+      // 4. Four Animated Parabolic Water Jets & Sparkling Droplets arcing from Bronze Dolphin/Mascaron Spouts into the Basin!
+      for (let j = 0; j < 4; j += 1) {
+        const ang = (j * Math.PI) / 2 + Math.PI / 4;
+        const dx = Math.cos(ang);
+        const dy = Math.sin(ang);
+        // Bronze spout nozzle
+        this.drawLine3D(
+          ctx,
+          cam,
+          [cx + dx * 4.5, cy + dy * 4.5, bowlZ - 2],
+          [cx + dx * 8.5, cy + dy * 8.5, bowlZ - 2],
+          '#365347',
+          2.6
+        );
+        // Parabolic water arc segmented into 6 3D line segments
+        let prevPt = [cx + dx * 8.5, cy + dy * 8.5, bowlZ - 2];
+        for (let s = 1; s <= 6; s += 1) {
+          const t = s / 6;
+          const r = 8.5 + t * 7.8;
+          const z = (bowlZ - 2) * (1 - t * t) + waterZ * (t * t) + Math.sin(t * Math.PI) * 4.5;
+          const curPt = [cx + dx * r, cy + dy * r, z];
+          this.drawLine3D(ctx, cam, prevPt, curPt, isEvening ? '#7dd3fc' : '#e0f2fe', 2.0);
+          prevPt = curPt;
+        }
+        // Animated falling water droplet bead along the parabola & white splash foam in basin
+        const dPhase = (animTime * 2.6 + j * 0.25) % 1;
+        const dr = 8.5 + dPhase * 7.8;
+        const dz = (bowlZ - 2) * (1 - dPhase * dPhase) + waterZ * (dPhase * dPhase) + Math.sin(dPhase * Math.PI) * 4.5;
+        const dropPt = this.projectWorldPt(cam, cx + dx * dr, cy + dy * dr, dz);
+        if (dropPt) {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(dropPt.x, dropPt.y, clamp((2.5 * this.focal) / dropPt.cz, 1.5, 4.5), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        const splashPt = this.projectWorldPt(cam, cx + dx * 16.3, cy + dy * 16.3, waterZ + 0.5);
+        if (splashPt) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+          ctx.beginPath();
+          ctx.arc(splashPt.x, splashPt.y, clamp((3.2 * this.focal) / splashPt.cz, 1.8, 5.5), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Floating Heritage Fountain Plaque
+      const labelPt = this.projectWorldPt(cam, cx, cy, topZ + 12);
+      if (labelPt && labelPt.cz < 480) {
+        ctx.save();
+        ctx.font = '700 10px Georgia, serif';
+        const txt = struct.shortLabel || struct.label.toUpperCase();
+        const tw = ctx.measureText(txt).width + 16;
+        drawRoundedRect(ctx, labelPt.x - tw * 0.5, labelPt.y - 10, tw, 19, 4);
+        ctx.fillStyle = 'rgba(12, 74, 110, 0.9)';
+        ctx.fill();
+        ctx.strokeStyle = '#7dd3fc';
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(txt, labelPt.x, labelPt.y + 3);
+        ctx.restore();
+      }
+      return;
     }
-    if (cam.camY < cy - r) {
-      this.drawPoly3D(ctx, cam, [[cx + r, cy - r, gz - 2], [cx - r, cy - r, gz - 2], [cx - r * 0.72, cy - r * 0.72, pedH], [cx + r * 0.72, cy - r * 0.72, pedH]], shadeColor('#d6cfc0', 0.85, isEvening), '#6b6458', 1);
-    }
-    if (cam.camX < cx - r) {
-      this.drawPoly3D(ctx, cam, [[cx - r, cy - r, gz - 2], [cx - r, cy + r, gz - 2], [cx - r * 0.72, cy + r * 0.72, pedH], [cx - r * 0.72, cy - r * 0.72, pedH]], shadeColor('#d6cfc0', 0.92, isEvening), '#6b6458', 1);
-    }
-    if (cam.camX > cx + r) {
-      this.drawPoly3D(ctx, cam, [[cx + r, cy + r, gz - 2], [cx + r, cy - r, gz - 2], [cx + r * 0.72, cy - r * 0.72, pedH], [cx + r * 0.72, cy + r * 0.72, pedH]], shadeColor('#d6cfc0', 0.8, isEvening), '#6b6458', 1);
-    }
-    // Bronze statue of Luis de Camoes atop pedestal
-    const basePt = this.projectWorldPt(cam, cx, cy, pedH);
-    const topPt = this.projectWorldPt(cam, cx, cy, pedH + 34);
+
+    // B) Historic 3D Lisbon Bronze Statue on Multi-Tiered Lioz Limestone Pedestal (Luis de Camoes 1867 & O Poeta Chiado 1925)
+    const r = struct.statueStyle === 'poeta-chiado' ? 14 : 17;
+    const plinthH = gz + 7;
+    const pedH = gz + 24;
+
+    // 1. Stepped Lioz Limestone Base Plinth
+    const drawPedestalTier = (rad0, rad1, z0, z1) => {
+      const faces = [];
+      if (cam.camY > cy + rad1) {
+        faces.push({ pts: [[cx - rad0, cy + rad0, z0], [cx + rad0, cy + rad0, z0], [cx + rad1, cy + rad1, z1], [cx - rad1, cy + rad1, z1]], shade: 1.0 });
+      }
+      if (cam.camY < cy - rad1) {
+        faces.push({ pts: [[cx + rad0, cy - rad0, z0], [cx - rad0, cy - rad0, z0], [cx - rad1, cy - rad1, z1], [cx + rad1, cy - rad1, z1]], shade: 0.85 });
+      }
+      if (cam.camX < cx - rad1) {
+        faces.push({ pts: [[cx - rad0, cy - rad0, z0], [cx - rad0, cy + rad0, z0], [cx - rad1, cy + rad1, z1], [cx - rad1, cy - rad1, z1]], shade: 0.92 });
+      }
+      if (cam.camX > cx + rad1) {
+        faces.push({ pts: [[cx + rad0, cy + rad0, z0], [cx + rad0, cy - rad0, z0], [cx + rad1, cy - rad1, z1], [cx + rad1, cy + rad1, z1]], shade: 0.8 });
+      }
+      for (const f of faces) {
+        const poly = this.drawPoly3D(
+          ctx,
+          cam,
+          f.pts,
+          shadeColor('#ded7c8', f.shade, isEvening),
+          highlighted ? '#fde047' : '#6b6458',
+          highlighted ? 2.0 : 1.0
+        );
+        if (poly) this.lastHitTargets.push({ kind: 'monument', id: struct.id, struct, poly });
+      }
+    };
+
+    drawPedestalTier(r * 1.15, r * 1.02, gz - 2, plinthH);
+    drawPedestalTier(r * 0.82, r * 0.68, plinthH, pedH);
+    // Projecting Corinthian capital cornice cap & top surface
+    drawPedestalTier(r * 0.8, r * 0.84, pedH, pedH + 3);
+    const capR = r * 0.84;
+    this.drawPoly3D(
+      ctx,
+      cam,
+      [[cx - capR, cy - capR, pedH + 3], [cx + capR, cy - capR, pedH + 3], [cx + capR, cy + capR, pedH + 3], [cx - capR, cy + capR, pedH + 3]],
+      shadeColor('#ece5d8', 0.96, isEvening),
+      '#6b6458',
+      1.0
+    );
+
+    // 2. Sculpted Verdigris-Patina Bronze Statue Figure atop Pedestal (cloak, torso, head, laurel/hat & sword/scroll)
+    const basePt = this.projectWorldPt(cam, cx, cy, pedH + 3);
+    const topPt = this.projectWorldPt(cam, cx, cy, pedH + 29);
     if (basePt && topPt) {
-      const sh = Math.max(6, basePt.y - topPt.y);
-      ctx.fillStyle = '#364941';
-      ctx.fillRect(topPt.x - sh * 0.16, topPt.y + sh * 0.2, sh * 0.32, sh * 0.8);
+      const sh = Math.max(8, basePt.y - topPt.y);
+      ctx.save();
+      // Bronze plinth plate
+      ctx.fillStyle = '#293d34';
+      ctx.fillRect(basePt.x - sh * 0.28, basePt.y - sh * 0.08, sh * 0.56, sh * 0.08);
+      // Flowing Renaissance bronze cape/cloak & standing legs
+      ctx.fillStyle = '#365347';
       ctx.beginPath();
-      ctx.arc(topPt.x, topPt.y + sh * 0.14, sh * 0.14, 0, Math.PI * 2);
+      ctx.moveTo(basePt.x - sh * 0.24, basePt.y - sh * 0.06);
+      ctx.lineTo(topPt.x - sh * 0.19, topPt.y + sh * 0.24);
+      ctx.lineTo(topPt.x + sh * 0.19, topPt.y + sh * 0.24);
+      ctx.lineTo(basePt.x + sh * 0.22, basePt.y - sh * 0.06);
+      ctx.closePath();
       ctx.fill();
+      // Sunlit verdigris bronze chest highlight
+      ctx.fillStyle = '#52796a';
+      ctx.fillRect(topPt.x - sh * 0.12, topPt.y + sh * 0.26, sh * 0.24, sh * 0.44);
+      // Sculpted bronze head & laurel wreath / poet cap
+      ctx.fillStyle = '#3f5e50';
+      ctx.beginPath();
+      ctx.arc(topPt.x, topPt.y + sh * 0.14, sh * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+      // Outstretched right arm holding sword (Camoes) or theatrical scroll (Poeta Chiado)
+      ctx.strokeStyle = '#52796a';
+      ctx.lineWidth = Math.max(2, sh * 0.09);
+      ctx.beginPath();
+      ctx.moveTo(topPt.x + sh * 0.12, topPt.y + sh * 0.32);
+      ctx.lineTo(topPt.x + sh * 0.34, topPt.y + sh * 0.16);
+      ctx.stroke();
+      // Gilded bronze sword blade or scroll held high
+      ctx.strokeStyle = struct.statueStyle === 'poeta-chiado' ? '#fef3c7' : '#d4af37';
+      ctx.lineWidth = Math.max(1.5, sh * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(topPt.x + sh * 0.34, topPt.y + sh * 0.22);
+      ctx.lineTo(topPt.x + sh * 0.42, topPt.y - sh * 0.06);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Floating Heritage Statue Plaque
+    const labelPt = this.projectWorldPt(cam, cx, cy, pedH + 35);
+    if (labelPt && labelPt.cz < 480) {
+      ctx.save();
+      ctx.font = '700 10px Georgia, serif';
+      const txt = struct.shortLabel || struct.label.toUpperCase();
+      const tw = ctx.measureText(txt).width + 16;
+      drawRoundedRect(ctx, labelPt.x - tw * 0.5, labelPt.y - 10, tw, 19, 4);
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = '#6ee7b7';
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(txt, labelPt.x, labelPt.y + 3);
+      ctx.restore();
     }
   }
 

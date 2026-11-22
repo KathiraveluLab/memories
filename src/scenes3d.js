@@ -928,63 +928,102 @@ export class LisboaScenes3DRenderer {
             lineWidth: isActiveDiningTable ? 2.4 : 1.2
           });
           if (isActiveDiningTable && seatedMeal) {
-            // Freshly served porcelain dinner plate, dish, drink glass, cutlery & rising steam right in front of the seated player!
             const p = this.projectWorldPt(cam, 616, ty + 27, 25.5);
             if (p) {
               const pr = clamp((13 * this.focal) / p.cz, 6, 30);
-              ctx.save();
-              // Folded linen napkin & silver cutlery
-              ctx.fillStyle = '#fef3c7';
-              ctx.fillRect(p.x - pr * 1.45, p.y - pr * 0.45, pr * 0.35, pr * 0.9);
-              ctx.strokeStyle = '#cbd5e1';
-              ctx.lineWidth = Math.max(1.5, pr * 0.1);
-              ctx.beginPath();
-              ctx.moveTo(p.x - pr * 1.25, p.y - pr * 0.38);
-              ctx.lineTo(p.x - pr * 1.25, p.y + pr * 0.38);
-              ctx.moveTo(p.x + pr * 1.25, p.y - pr * 0.38);
-              ctx.lineTo(p.x + pr * 1.25, p.y + pr * 0.38);
-              ctx.stroke();
-              // Glazed white porcelain dinner plate with cobalt-blue rim
-              ctx.fillStyle = '#ffffff';
-              ctx.beginPath();
-              ctx.ellipse(p.x, p.y, pr, pr * 0.62, 0, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.strokeStyle = '#1d4ed8';
-              ctx.lineWidth = Math.max(1.4, pr * 0.12);
-              ctx.stroke();
-              // Served dish tailored to ordered item
+              const isGlass = seatedMeal.servingType === 'glass';
               const idStr = seatedMeal.itemId || '';
-              const dishCol =
-                idStr.includes('caldo') ? '#4d7c0f'
-                  : idStr.includes('sardinha') ? '#94a3b8'
-                    : idStr.includes('ginjinha') || idStr.includes('sangria') ? '#be123c'
+              ctx.save();
+              if (isGlass) {
+                // DRINK ORDER: Rendered strictly as a chilled / warm Drink Glass on a coaster (NO dinner plate, NO fork/knife!)
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath();
+                ctx.ellipse(p.x, p.y + pr * 0.18, pr * 0.62, pr * 0.34, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#fde047';
+                ctx.lineWidth = 1.3;
+                ctx.stroke();
+
+                const liqCol =
+                  idStr.includes('ginjinha') || idStr.includes('sangria') || idStr.includes('tinto')
+                    ? '#be123c'
+                    : idStr.includes('imperial')
+                      ? '#f59e0b'
+                      : idStr.includes('caipirinha') || idStr.includes('verde') || idStr.includes('limonada')
+                        ? '#84cc16'
+                        : '#a16207';
+
+                // Tall translucent glass body filled with beverage
+                const gw = pr * 0.44;
+                const gh = pr * 1.15;
+                drawRoundedRect(ctx, p.x - gw, p.y - gh, gw * 2, gh + pr * 0.12, 3);
+                ctx.fillStyle = liqCol;
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = Math.max(1.4, pr * 0.1);
+                ctx.stroke();
+
+                // Frothy beer head, lime wheel, or warm cream top
+                if (idStr.includes('imperial') || idStr.includes('galao')) {
+                  ctx.fillStyle = '#fffbeb';
+                  ctx.fillRect(p.x - gw, p.y - gh, gw * 2, gh * 0.25);
+                } else if (idStr.includes('caipirinha') || idStr.includes('limonada') || idStr.includes('sangria')) {
+                  ctx.fillStyle = '#fde047';
+                  ctx.beginPath();
+                  ctx.arc(p.x + gw * 0.85, p.y - gh, pr * 0.24, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+                // Glass specular highlight
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+                ctx.lineWidth = Math.max(1.2, pr * 0.08);
+                ctx.beginPath();
+                ctx.moveTo(p.x - gw * 0.55, p.y - gh * 0.82);
+                ctx.lineTo(p.x - gw * 0.55, p.y - pr * 0.05);
+                ctx.stroke();
+              } else {
+                // FOOD ORDER: Rendered strictly as a Porcelain Dinner Plate with dish, folded napkin & cutlery (NO drink glass!)
+                ctx.fillStyle = '#fef3c7';
+                ctx.fillRect(p.x - pr * 1.45, p.y - pr * 0.45, pr * 0.35, pr * 0.9);
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = Math.max(1.5, pr * 0.1);
+                ctx.beginPath();
+                ctx.moveTo(p.x - pr * 1.25, p.y - pr * 0.38);
+                ctx.lineTo(p.x - pr * 1.25, p.y + pr * 0.38);
+                ctx.moveTo(p.x + pr * 1.25, p.y - pr * 0.38);
+                ctx.lineTo(p.x + pr * 1.25, p.y + pr * 0.38);
+                ctx.stroke();
+                // Glazed white porcelain dinner plate with cobalt-blue rim
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(p.x, p.y, pr, pr * 0.62, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#1d4ed8';
+                ctx.lineWidth = Math.max(1.4, pr * 0.12);
+                ctx.stroke();
+                // Served food dish tailored to ordered item
+                const dishCol =
+                  idStr.includes('caldo') ? '#4d7c0f'
+                    : idStr.includes('sardinha') ? '#94a3b8'
                       : '#d97706';
-              ctx.fillStyle = dishCol;
-              ctx.beginPath();
-              ctx.ellipse(p.x, p.y, pr * 0.65, pr * 0.38, 0, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.fillStyle = '#fef08a';
-              ctx.beginPath();
-              ctx.arc(p.x + pr * 0.18, p.y - pr * 0.08, pr * 0.2, 0, Math.PI * 2);
-              ctx.fill();
-              // Companion drink cup / glass beside plate
-              ctx.fillStyle = isBar ? '#f59e0b' : '#78350f';
-              ctx.beginPath();
-              ctx.arc(p.x + pr * 0.92, p.y - pr * 0.56, pr * 0.28, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.strokeStyle = '#ffffff';
-              ctx.lineWidth = 1.2;
-              ctx.stroke();
-              // Animated rising steam wisps above hot plate
-              ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
-              ctx.lineWidth = 1.5;
-              const drift = Math.sin(animTime * 4.2) * 4;
-              ctx.beginPath();
-              ctx.moveTo(p.x - pr * 0.25, p.y - pr * 0.3);
-              ctx.quadraticCurveTo(p.x - pr * 0.25 + drift, p.y - pr * 0.9, p.x - pr * 0.1, p.y - pr * 1.45);
-              ctx.moveTo(p.x + pr * 0.22, p.y - pr * 0.3);
-              ctx.quadraticCurveTo(p.x + pr * 0.22 - drift, p.y - pr * 0.95, p.x + pr * 0.3, p.y - pr * 1.5);
-              ctx.stroke();
+                ctx.fillStyle = dishCol;
+                ctx.beginPath();
+                ctx.ellipse(p.x, p.y, pr * 0.65, pr * 0.38, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.arc(p.x + pr * 0.18, p.y - pr * 0.08, pr * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                // Animated rising steam wisps above hot food plate
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+                ctx.lineWidth = 1.5;
+                const drift = Math.sin(animTime * 4.2) * 4;
+                ctx.beginPath();
+                ctx.moveTo(p.x - pr * 0.25, p.y - pr * 0.3);
+                ctx.quadraticCurveTo(p.x - pr * 0.25 + drift, p.y - pr * 0.9, p.x - pr * 0.1, p.y - pr * 1.45);
+                ctx.moveTo(p.x + pr * 0.22, p.y - pr * 0.3);
+                ctx.quadraticCurveTo(p.x + pr * 0.22 - drift, p.y - pr * 0.95, p.x + pr * 0.3, p.y - pr * 1.5);
+                ctx.stroke();
+              }
               ctx.restore();
             }
           } else if (layout === 'restaurant' || layout === 'cafe' || layout === 'bakery') {
@@ -1151,9 +1190,11 @@ export class LisboaScenes3DRenderer {
     const h = this.viewHeight;
     const bottomClearance = nearbyInteraction ? 76 : 12;
 
-    // 1. Seated at Dining Table with Plated Dish in Foreground!
+    // 1. Seated at Dining Table with EITHER a Drink Glass (for drinks) OR a Plated Dish (for food)!
     if (seatedMeal) {
       ctx.save();
+      const isGlass = seatedMeal.servingType === 'glass';
+      const idStr = seatedMeal.itemId || '';
       const trayW = 390;
       const trayH = 112;
       const trayX = Math.round(w * 0.5 - trayW * 0.5);
@@ -1168,144 +1209,249 @@ export class LisboaScenes3DRenderer {
       ctx.stroke();
 
       drawRoundedRect(ctx, trayX + 12, trayY + 28, trayW - 24, trayH - 36, 8);
-      ctx.fillStyle = venue.interiorTheme?.layout === 'restaurant' ? '#991b1b' : '#1e3a5f';
+      ctx.fillStyle =
+        venue.interiorTheme?.layout === 'bar'
+          ? '#3b0764'
+          : venue.interiorTheme?.layout === 'restaurant'
+            ? '#991b1b'
+            : '#1e3a5f';
       ctx.fill();
       ctx.strokeStyle = 'rgba(254, 243, 199, 0.55)';
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      // Header pill on dining table mat
+      // Header pill on dining table mat (strictly distinguishes GLASS vs PLATE)
       ctx.fillStyle = '#fde047';
       ctx.font = '700 11px Georgia, serif';
       ctx.textAlign = 'center';
-      ctx.fillText(`SEATED AT DINING TABLE  -  ${seatedMeal.itemName.toUpperCase()}`, w * 0.5, trayY + 19);
+      ctx.fillText(
+        `${isGlass ? 'SEATED WITH A GLASS' : 'SEATED WITH A PLATE'}  -  ${seatedMeal.itemName.toUpperCase()}`,
+        w * 0.5,
+        trayY + 19
+      );
 
-      // Left fork & folded napkin
-      const px = w * 0.5 - 28;
-      const py = trayY + 68;
-      ctx.fillStyle = '#fef3c7';
-      drawRoundedRect(ctx, px - 86, py - 24, 22, 48, 3);
-      ctx.fill();
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.moveTo(px - 75, py - 18);
-      ctx.lineTo(px - 75, py + 18);
-      ctx.moveTo(px + 68, py - 18);
-      ctx.lineTo(px + 68, py + 18);
-      ctx.stroke();
+      if (isGlass) {
+        // DRINK ORDER FOREGROUND: Crystal Glass on a Portuguese Cork/Azulejo Coaster (NO plate, NO fork/knife!)
+        const gx = w * 0.5 - 16;
+        const gy = trayY + 72;
 
-      // Glazed Portuguese porcelain dinner plate with hand-painted cobalt rim
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.ellipse(px, py, 54, 31, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1d4ed8';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.strokeStyle = '#93c5fd';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.ellipse(px, py, 43, 23, 0, 0, Math.PI * 2);
-      ctx.stroke();
+        // Small cocktail napkin to the left
+        ctx.fillStyle = '#fef3c7';
+        drawRoundedRect(ctx, gx - 78, gy - 14, 28, 28, 4);
+        ctx.fill();
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-      // Dish-specific food geometry on the plate
-      const idStr = seatedMeal.itemId || '';
-      if (idStr.includes('caldo')) {
-        // Terracotta Caldo Verde soup bowl with green kale & red chourico slice
-        ctx.fillStyle = '#9a3412';
+        // Cork & cobalt azulejo drink coaster beneath the glass
+        ctx.fillStyle = '#b45309';
         ctx.beginPath();
-        ctx.ellipse(px - 6, py, 27, 17, 0, 0, Math.PI * 2);
+        ctx.ellipse(gx, gy + 16, 38, 13, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#4d7c0f';
-        ctx.beginPath();
-        ctx.ellipse(px - 6, py, 22, 13, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#dc2626';
-        ctx.beginPath();
-        ctx.arc(px - 5, py, 5.5, 0, Math.PI * 2);
-        ctx.fill();
-        // Broa corn bread slice on side of plate
-        ctx.fillStyle = '#d97706';
-        ctx.beginPath();
-        ctx.ellipse(px + 26, py + 4, 12, 7, 0.3, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (idStr.includes('sardinha')) {
-        // Three charcoal-grilled silver sardines with roasted peppers & lemon wedge
-        for (const sy of [-9, 0, 9]) {
-          ctx.fillStyle = '#94a3b8';
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        if (idStr.includes('tinto') || idStr.includes('sangria') || idStr.includes('verde')) {
+          // Stemmed crystal wine / sangria goblet
+          const wineCol = idStr.includes('verde') ? '#bef264' : '#9f1239';
+          // Foot & stem
+          ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
           ctx.beginPath();
-          ctx.ellipse(px - 4, py + sy, 23, 4.2, 0, 0, Math.PI * 2);
+          ctx.ellipse(gx, gy + 14, 18, 5.5, 0, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = '#334155';
-          ctx.fillRect(px - 10, py + sy - 3, 2.2, 6);
-          ctx.fillRect(px + 2, py + sy - 3, 2.2, 6);
-        }
-        ctx.fillStyle = '#facc15';
-        ctx.beginPath();
-        ctx.arc(px + 28, py + 5, 6.5, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (idStr.includes('bacalhau')) {
-        // Golden Bacalhau a Bras / Pasteis de Bacalhau with black olives & parsley
-        ctx.fillStyle = '#eab308';
-        ctx.beginPath();
-        ctx.ellipse(px, py, 31, 16, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#1e293b';
-        for (const ox of [-12, 2, 14]) {
+          ctx.fillRect(gx - 2.5, gy - 4, 5, 18);
+          // Crystal bowl & liquid
+          ctx.fillStyle = wineCol;
           ctx.beginPath();
-          ctx.arc(px + ox, py, 3.2, 0, Math.PI * 2);
+          ctx.arc(gx, gy - 16, 21, 0, Math.PI);
+          ctx.closePath();
           ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.arc(gx, gy - 16, 22, -0.15 * Math.PI, 1.15 * Math.PI);
+          ctx.closePath();
+          ctx.stroke();
+          if (idStr.includes('sangria')) {
+            // Floating orange wheel & berries
+            ctx.fillStyle = '#f97316';
+            ctx.beginPath();
+            ctx.arc(gx + 8, gy - 14, 6, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (idStr.includes('imperial')) {
+          // Tall frosted Lisbon Imperial draft beer pilsner glass with rising bubbles & creamy foam head
+          drawRoundedRect(ctx, gx - 18, gy - 36, 36, 50, 5);
+          ctx.fillStyle = '#f59e0b';
+          ctx.fill();
+          // Creamy foam head
+          drawRoundedRect(ctx, gx - 19, gy - 38, 38, 13, 4);
+          ctx.fillStyle = '#fffbeb';
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.2;
+          drawRoundedRect(ctx, gx - 18, gy - 36, 36, 50, 5);
+          ctx.stroke();
+          // Rising carbonation bubbles
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+          for (const [bx, by] of [[-7, -8], [4, -15], [-2, -22], [8, -5]]) {
+            ctx.beginPath();
+            ctx.arc(gx + bx, gy + by, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (idStr.includes('ginjinha')) {
+          // Dark chocolate shot cup brimming with ruby Ginjinha cherry liqueur & whole sour cherry
+          drawRoundedRect(ctx, gx - 16, gy - 24, 32, 36, 4);
+          ctx.fillStyle = '#451a03';
+          ctx.fill();
+          ctx.strokeStyle = '#fde047';
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+          ctx.fillStyle = '#be123c';
+          ctx.beginPath();
+          ctx.ellipse(gx, gy - 22, 14, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#881337';
+          ctx.beginPath();
+          ctx.arc(gx + 3, gy - 23, 5, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Chilled Caipirinha / Limonada / Galao / Tea tall crystal tumbler glass
+          const isWarm = idStr.includes('galao') || idStr.includes('cha');
+          drawRoundedRect(ctx, gx - 18, gy - 34, 36, 48, 5);
+          ctx.fillStyle = isWarm ? '#d97706' : '#84cc16';
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.2;
+          ctx.stroke();
+          if (isWarm) {
+            ctx.fillStyle = '#fffbeb';
+            ctx.fillRect(gx - 16, gy - 32, 32, 10);
+          } else {
+            // Translucent ice cubes & fresh lime/lemon wheel on rim
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.fillRect(gx - 10, gy - 20, 9, 9);
+            ctx.fillRect(gx + 2, gy - 12, 9, 9);
+            ctx.fillStyle = '#fde047';
+            ctx.beginPath();
+            ctx.arc(gx + 17, gy - 32, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#15803d';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
         }
-        ctx.fillStyle = '#16a34a';
-        ctx.fillRect(px - 4, py - 8, 8, 4);
+
+        // Glass specular reflection bar
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(gx - 11, gy - 26);
+        ctx.lineTo(gx - 11, gy + 4);
+        ctx.stroke();
       } else {
-        // Golden blistered Pasteis de Nata / Tosta / Pastry on porcelain plate
-        for (const ox of [-14, 12]) {
-          ctx.fillStyle = '#b45309';
+        // FOOD ORDER FOREGROUND: Glazed Porcelain Dinner Plate, Dish, Napkin & Fork/Knife (NO drink glass!)
+        const px = w * 0.5 - 16;
+        const py = trayY + 68;
+        ctx.fillStyle = '#fef3c7';
+        drawRoundedRect(ctx, px - 86, py - 24, 22, 48, 3);
+        ctx.fill();
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(px - 75, py - 18);
+        ctx.lineTo(px - 75, py + 18);
+        ctx.moveTo(px + 68, py - 18);
+        ctx.lineTo(px + 68, py + 18);
+        ctx.stroke();
+
+        // Glazed Portuguese porcelain dinner plate with hand-painted cobalt rim
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(px, py, 54, 31, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1d4ed8';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.strokeStyle = '#93c5fd';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 43, 23, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Dish-specific food geometry on the plate
+        if (idStr.includes('caldo')) {
+          ctx.fillStyle = '#9a3412';
           ctx.beginPath();
-          ctx.arc(px + ox, py, 12, 0, Math.PI * 2);
+          ctx.ellipse(px - 6, py, 27, 17, 0, 0, Math.PI * 2);
           ctx.fill();
+          ctx.fillStyle = '#4d7c0f';
+          ctx.beginPath();
+          ctx.ellipse(px - 6, py, 22, 13, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#dc2626';
+          ctx.beginPath();
+          ctx.arc(px - 5, py, 5.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#d97706';
+          ctx.beginPath();
+          ctx.ellipse(px + 26, py + 4, 12, 7, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (idStr.includes('sardinha')) {
+          for (const sy of [-9, 0, 9]) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.ellipse(px - 4, py + sy, 23, 4.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(px - 10, py + sy - 3, 2.2, 6);
+            ctx.fillRect(px + 2, py + sy - 3, 2.2, 6);
+          }
           ctx.fillStyle = '#facc15';
           ctx.beginPath();
-          ctx.arc(px + ox, py, 8.5, 0, Math.PI * 2);
+          ctx.arc(px + 28, py + 5, 6.5, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = '#78350f';
+        } else if (idStr.includes('bacalhau')) {
+          ctx.fillStyle = '#eab308';
           ctx.beginPath();
-          ctx.arc(px + ox - 2, py - 1, 3.2, 0, Math.PI * 2);
+          ctx.ellipse(px, py, 31, 16, 0, 0, Math.PI * 2);
           ctx.fill();
+          ctx.fillStyle = '#1e293b';
+          for (const ox of [-12, 2, 14]) {
+            ctx.beginPath();
+            ctx.arc(px + ox, py, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = '#16a34a';
+          ctx.fillRect(px - 4, py - 8, 8, 4);
+        } else {
+          for (const ox of [-14, 12]) {
+            ctx.fillStyle = '#b45309';
+            ctx.beginPath();
+            ctx.arc(px + ox, py, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.arc(px + ox, py, 8.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#78350f';
+            ctx.beginPath();
+            ctx.arc(px + ox - 2, py - 1, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
-      }
 
-      // Companion Drink Glass / Bica Espresso Cup on saucer to the right
-      const cupX = px + 114;
-      const cupY = py + 2;
-      ctx.fillStyle = '#f8fafc';
-      ctx.beginPath();
-      ctx.ellipse(cupX, cupY + 4, 20, 12, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle =
-        idStr.includes('ginjinha') || idStr.includes('sangria')
-          ? '#be123c'
-          : idStr.includes('imperial')
-            ? '#f59e0b'
-            : '#3b1806';
-      ctx.beginPath();
-      ctx.arc(cupX, cupY, 11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Animated rising steam wisps above plate and cup
-      const sShift = Math.sin(animTime * 4.2) * 5;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
-      ctx.lineWidth = 1.8;
-      for (const sx of [px - 14, px + 10, cupX]) {
-        ctx.beginPath();
-        ctx.moveTo(sx, py - 12);
-        ctx.quadraticCurveTo(sx + sShift, py - 26, sx - sShift * 0.5, py - 38);
-        ctx.stroke();
+        // Animated rising steam wisps above hot plated food
+        const sShift = Math.sin(animTime * 4.2) * 5;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+        ctx.lineWidth = 1.8;
+        for (const sx of [px - 14, px + 10]) {
+          ctx.beginPath();
+          ctx.moveTo(sx, py - 12);
+          ctx.quadraticCurveTo(sx + sShift, py - 26, sx - sShift * 0.5, py - 38);
+          ctx.stroke();
+        }
       }
 
       // Vitals boost badge on right edge of placemat

@@ -387,6 +387,12 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.equal(state.player.facing, 'right');
   assert.equal(isInteriorPositionValid(state.player.x, state.player.y), true);
   assert.equal(state.indoorActivity?.type, 'dining');
+  assert.equal(state.seatedDining.servingType, 'plate', 'Ordering food (Bica & Pastel de Nata) must serve a plate');
+
+  // Ordering a drink (Galao Quente em Copo Alto) in the cafe serves a GLASS, not a plate!
+  const galaoRes = engine.purchaseVenueItem('item-galao-bolo');
+  assert.equal(galaoRes.ok, true);
+  assert.equal(state.seatedDining?.servingType, 'glass', 'Ordering a drink must serve a glass');
 
   // Verify talking to proprietor and inspecting venue display also produce visible indoor outcomes
   const talkRes = engine.talkToProprietor();
@@ -461,6 +467,45 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
     assert.ok(st.undergroundTheme?.artist, `Metro station ${st.id} must specify its Portuguese azulejo/mural artist`);
     assert.ok(st.undergroundTheme?.muralStyle, `Metro station ${st.id} must specify its muralStyle`);
   }
+
+  // Verify critical Drink -> Glass vs Food -> Plate distinction in both Bar and Restaurant
+  assert.equal(engine.enterVenue('bar-bairro-alto').ok, true);
+  const barDrinkRes = engine.purchaseVenueItem('item-imperial');
+  assert.equal(barDrinkRes.ok, true);
+  assert.equal(state.seatedDining?.servingType, 'glass', 'Ordering a drink in Bar da Noite must give a glass');
+  assert.ok(state.statusMessage.includes('Received a glass of'), `Expected glass status message, got: ${state.statusMessage}`);
+  assert.equal(engine.exitVenue().ok, true);
+
+  assert.equal(engine.enterVenue('tasca-do-fado').ok, true);
+  const restFoodRes = engine.purchaseVenueItem('item-caldo-verde');
+  assert.equal(restFoodRes.ok, true);
+  assert.equal(state.seatedDining?.servingType, 'plate', 'Ordering food in Tasca do Fado restaurant must give a plate');
+  assert.ok(state.statusMessage.includes('Received a plate of'), `Expected plate status message, got: ${state.statusMessage}`);
+  const restDrinkRes = engine.purchaseVenueItem('item-vinho-tinto-dao');
+  assert.equal(restDrinkRes.ok, true);
+  assert.equal(state.seatedDining?.servingType, 'glass', 'Ordering a wine drink in Tasca do Fado restaurant must give a glass');
+  assert.ok(state.statusMessage.includes('Received a glass of'), `Expected glass status message, got: ${state.statusMessage}`);
+  assert.equal(engine.exitVenue().ok, true);
+
+  // Verify accurately placed Lisbon Statues and Chafariz Water Fountains in DECORATIVE_STRUCTURES
+  const statues = DECORATIVE_STRUCTURES.filter((s) => s.monumentType === 'statue');
+  const fountains = DECORATIVE_STRUCTURES.filter((s) => s.monumentType === 'fountain');
+  assert.ok(statues.length >= 2, 'Expected at least 2 historic Lisbon bronze statues (Camoes & Poeta Chiado)');
+  assert.ok(fountains.length >= 2, 'Expected at least 2 historic Lisbon water fountains (Chafariz do Carmo & Chafariz d\'El-Rei)');
+  for (const struct of DECORATIVE_STRUCTURES) {
+    const cx = struct.x + struct.w * 0.5;
+    const cy = struct.y + struct.h * 0.5;
+    assert.equal(isPointInVehicleLane(cx, cy), false, `Monument ${struct.id} must not sit in a vehicle lane`);
+  }
+  state.energy = 60;
+  const fountRes = engine.interactWithMonument('fountain-chafariz-carmo');
+  assert.equal(fountRes.ok, true);
+  assert.equal(fountRes.monumentType, 'fountain');
+  assert.equal(state.energy, 68);
+  const statRes = engine.interactWithMonument('statue-poeta-chiado');
+  assert.equal(statRes.ok, true);
+  assert.equal(statRes.monumentType, 'statue');
+  assert.equal(state.energy, 73);
 });
 
 test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, Transtejo ferries, and 26-memory completion', () => {

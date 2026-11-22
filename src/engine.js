@@ -173,6 +173,23 @@ export function getTransitLineById(lineId) {
   return TRANSIT_LINE_MAP.get(lineId) || null;
 }
 
+export function getItemServingType(item) {
+  if (!item) return 'plate';
+  if (item.servingType === 'glass' || item.servingType === 'plate') {
+    return item.servingType;
+  }
+  if (item.kind === 'drink') return 'glass';
+  const idAndName = `${item.id || ''} ${item.name || ''}`.toLowerCase();
+  if (
+    /\b(ginjinha|imperial|caipirinha|sangria|limonada|vinho|copo|cerveja|galao|sumo|cocktail|drink)\b/.test(
+      idAndName
+    )
+  ) {
+    return 'glass';
+  }
+  return 'plate';
+}
+
 function circleIntersectsRect(cx, cy, radius, rect) {
   const nearestX = clamp(cx, rect.x, rect.x + rect.w);
   const nearestY = clamp(cy, rect.y, rect.y + rect.h);
@@ -3406,6 +3423,28 @@ export class MemoriesGameEngine {
       }
     }
 
+    // Historic Lisbon Bronze Statues & Chafariz Water Fountains
+    for (const struct of DECORATIVE_STRUCTURES) {
+      const cx = struct.x + struct.w * 0.5;
+      const cy = struct.y + struct.h * 0.5;
+      const d = distance(px, py, cx, cy);
+      if (d <= 56 && d < bestDist) {
+        bestDist = d;
+        const isFountain = struct.monumentType === 'fountain';
+        best = {
+          type: isFountain ? 'fountain' : 'statue',
+          id: struct.id,
+          struct,
+          label: isFountain
+            ? `Refresh at ${struct.label} (+8 Energy, Free)`
+            : `Admire ${struct.label} (+5 Energy)`,
+          sublabel: isFountain
+            ? `${struct.sculptor || 'Historic Lisbon Chafariz'} - Press [E] to splash cool aqueduct water`
+            : `${struct.sculptor || 'Historic Lisbon Monument'} - Press [E] to read the bronze pedestal plaque`
+        };
+      }
+    }
+
     return best;
   }
 
@@ -3480,6 +3519,9 @@ export class MemoriesGameEngine {
     }
     if (nearby.type === 'castanha-cart') {
       return this.buyCastanhaCone(nearby.id);
+    }
+    if (nearby.type === 'fountain' || nearby.type === 'statue') {
+      return this.interactWithMonument(nearby.id);
     }
     if (nearby.type === 'counter') {
       return this.talkToProprietor();
@@ -4192,18 +4234,22 @@ export class MemoriesGameEngine {
 
     let unlockedMilestone = false;
 
-    if (item.kind === 'food') {
+    if (item.kind === 'food' || item.kind === 'drink') {
+      const servingType = getItemServingType(item);
+      const isGlass = servingType === 'glass';
+      const glassStyle = item.glassStyle || (isGlass ? 'drink' : null);
       this.state.needsMealToRecoverSpeed = false;
       this.state.stats.mealsEaten += 1;
       if (!this.state.tastedFoods.some((f) => f.id === item.id)) {
         this.state.tastedFoods.push({
           id: item.id,
           name: item.name,
+          servingType,
           venueName: venue.name,
           day: this.state.day
         });
       }
-      // Receive a freshly served plate and walk over to sit at the venue dining table!
+      // Receive a glass (for drinks) or a plate (for food) and walk over to sit at the venue dining table!
       const seatX = 562;
       const seatY = 252;
       this.state.player.x = seatX;
@@ -4216,6 +4262,8 @@ export class MemoriesGameEngine {
       this.state.cameraPitch = -0.08;
       this.state.seatedDining = {
         active: true,
+        servingType,
+        glassStyle,
         itemId: item.id,
         itemName: item.name,
         costEur: item.costEur,
@@ -4232,6 +4280,8 @@ export class MemoriesGameEngine {
       };
       this.state.indoorActivity = {
         type: 'dining',
+        servingType,
+        glassStyle,
         itemId: item.id,
         itemName: item.name,
         costEur: item.costEur,
@@ -4242,12 +4292,18 @@ export class MemoriesGameEngine {
         proprietor: venue.proprietor,
         timer: 14.0
       };
-      this.advanceMinutes(18);
+      this.advanceMinutes(isGlass ? 12 : 18);
       unlockedMilestone = unlockMemory(this.state, MILESTONE_MEMORIES.taste);
-      const purchaseMsg = `Received a plated serving of ${item.name} and sat at the dining table in ${venue.name} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
+      const purchaseMsg = isGlass
+        ? `Received a glass of ${item.name} and sat at the table in ${venue.name} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`
+        : `Received a plate of ${item.name} and sat at the dining table in ${venue.name} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
       this.triggerSharedToast({ itemName: item.name, preserveIndoorActivity: true });
       this.state.statusMessage = purchaseMsg;
-      recordLog(this.state, 'dining', `Tasted ${item.name} seated at the dining table in ${venue.name} (-${item.costEur.toFixed(2)} EUR).`);
+      recordLog(
+        this.state,
+        'dining',
+        `Ordered ${item.name} (${isGlass ? 'served in a glass' : 'served on a plate'}) at ${venue.name} (-${item.costEur.toFixed(2)} EUR).`
+      );
     } else {
       this.state.seatedDining = null;
       this.state.player.x = 380;
@@ -4637,6 +4693,33 @@ export class MemoriesGameEngine {
         : 'Stood up from the riverside bench.';
     }
     return { ok: true, seated: false, prevBench, state: this.state };
+  }
+
+  interactWithMonument(monumentId) {
+    const struct = DECORATIVE_STRUCTURES.find((s) => s.id === monumentId);
+    if (!struct) {
+      return { ok: false, error: `Unknown Lisbon monument: ${monumentId}` };
+    }
+    const isFountain = struct.monumentType === 'fountain';
+    const energyBoost = isFountain ? 8 : 5;
+    this.state.energy = clamp(this.state.energy + energyBoost, 0, 100);
+    this.computeWalkSpeedMultiplier();
+    this.triggerEmote(isFountain ? 'Agua fresca!' : 'Que monumento!', 3.4);
+    this.state.statusMessage = isFountain
+      ? `Refreshed at ${struct.label} (${struct.sculptor || 'Lisboa'}): ${struct.note} (+${energyBoost} Energy)`
+      : `Admired ${struct.label} (${struct.sculptor || 'Lisboa'}): ${struct.note} (+${energyBoost} Energy)`;
+    recordLog(
+      this.state,
+      isFountain ? 'fountain' : 'statue',
+      `${isFountain ? 'Refreshed with cool aqueduct water at' : 'Admired bronze statue'} ${struct.label}.`
+    );
+    return {
+      ok: true,
+      monumentType: struct.monumentType || 'statue',
+      struct,
+      energyBoost,
+      state: this.state
+    };
   }
 
   updateFuniculars(dt) {

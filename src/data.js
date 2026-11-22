@@ -108,6 +108,7 @@ export const DECORATIVE_STRUCTURES = [
     id: 'monument-camoes',
     neighborhood: 'chiado',
     label: 'Estatua de Luis de Camoes',
+    shortLabel: 'LUIS DE CAMOES (1867)',
     x: 924,
     y: 410,
     w: 52,
@@ -115,7 +116,65 @@ export const DECORATIVE_STRUCTURES = [
     wallColor: '#c5bca9',
     roofColor: '#68736b',
     trimColor: '#4c544e',
-    style: 'monument'
+    style: 'monument',
+    monumentType: 'statue',
+    statueStyle: 'camoes',
+    sculptor: 'Victor Bastos (1867)',
+    note: 'Monumental 4-meter bronze statue of Portugal epic poet Luis Vaz de Camoes holding Os Lusiadas atop an octagonal Lioz limestone pedestal surrounded by eight historical scholars in Praca Luis de Camoes.'
+  },
+  {
+    id: 'statue-poeta-chiado',
+    neighborhood: 'chiado',
+    label: 'Estatua do Poeta Chiado (Antonio Ribeiro)',
+    shortLabel: 'O POETA CHIADO (1925)',
+    x: 1361,
+    y: 742,
+    w: 44,
+    h: 44,
+    wallColor: '#cfc6b4',
+    roofColor: '#4d6b5d',
+    trimColor: '#374f45',
+    style: 'monument',
+    monumentType: 'statue',
+    statueStyle: 'poeta-chiado',
+    sculptor: 'Costa Mota (1925)',
+    note: 'Expressive 1925 bronze statue of the 16th-century satirical poet Antonio Ribeiro ("O Chiado"), poised atop a carved Lioz limestone column with his theatrical cape and verse scroll at Largo do Chiado.'
+  },
+  {
+    id: 'fountain-chafariz-carmo',
+    neighborhood: 'chiado',
+    label: 'Chafariz do Carmo (1771 Water Fountain)',
+    shortLabel: 'CHAFARIZ DO CARMO (1771)',
+    x: 1360,
+    y: 382,
+    w: 46,
+    h: 46,
+    wallColor: '#e5ddd0',
+    roofColor: '#0284c7',
+    trimColor: '#64748b',
+    style: 'monument',
+    monumentType: 'fountain',
+    fountainStyle: 'carmo-baroque',
+    sculptor: 'Aguas Livres Aqueduct (1771)',
+    note: 'Historic 1771 Baroque Lioz limestone water fountain in Largo do Carmo fed by the underground Galeria do Loreto aqueduct, featuring an octagonal basin and four sculpted dolphin spouts.'
+  },
+  {
+    id: 'fountain-chafariz-el-rei',
+    neighborhood: 'alfama',
+    label: 'Chafariz d\'El-Rei (1282 Alfama Water Fountain)',
+    shortLabel: 'CHAFARIZ D\'EL-REI (1282)',
+    x: 1706,
+    y: 742,
+    w: 48,
+    h: 48,
+    wallColor: '#e7dfd1',
+    roofColor: '#0369a1',
+    trimColor: '#1d4ed8',
+    style: 'monument',
+    monumentType: 'fountain',
+    fountainStyle: 'alfama-medieval',
+    sculptor: 'Dom Dinis Era (1282)',
+    note: 'Lisbon oldest public water fountain at the base of Alfama along Cais de Santarem, channeling natural hillside spring water through bronze mascaron spouts beneath a crenellated marble parapet.'
   }
 ];
 
@@ -621,6 +680,8 @@ export const VENUES = [
         id: 'item-ginjinha',
         name: 'Ginjinha em Copo de Chocolate',
         kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'ginjinha',
         costEur: 2.5,
         fullnessDelta: 12,
         energyDelta: 22,
@@ -630,28 +691,34 @@ export const VENUES = [
         id: 'item-imperial',
         name: 'Imperial Fresquinha & Tremocos',
         kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'imperial',
         costEur: 3.0,
         fullnessDelta: 16,
         energyDelta: 20,
-        description: 'Crisp ice-cold Lisbon draft beer paired with salty yellow lupini beans.'
+        description: 'Crisp ice-cold Lisbon draft beer poured in a tall pilsner glass.'
       },
       {
         id: 'item-caipirinha',
         name: 'Caipirinha do Bairro Alto',
         kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'caipirinha',
         costEur: 6.0,
         fullnessDelta: 14,
         energyDelta: 28,
-        description: 'Fresh muddled lime, cane sugar, and crushed ice mixed for the Bairro Alto street party.'
+        description: 'Fresh muddled lime, cane sugar, and crushed ice mixed in a chilled cocktail glass.'
       },
       {
         id: 'item-sangria-petiscos',
-        name: 'Sangria de Frutos & Petiscos',
+        name: 'Sangria de Frutos Tintos',
         kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'sangria',
         costEur: 8.5,
         fullnessDelta: 34,
         energyDelta: 32,
-        description: 'Chilled spiced berry sangria served with marinated olives, cured cheese, and warm toasted bread.'
+        description: 'Chilled spiced berry and citrus red sangria served in a crystal goblet.'
       }
     ]
   },
@@ -704,19 +771,22 @@ export const VENUES = [
         id: 'item-limonada',
         name: 'Limonada da Casa',
         kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'limonada',
         costEur: 3.0,
         fullnessDelta: 15,
         energyDelta: 18,
-        description: 'Freshly squeezed lemon and mint served over ice.'
+        description: 'Freshly squeezed lemon and mint served over ice in a tall glass.'
       },
       {
         id: 'item-tosta-mista',
         name: 'Tosta Mista',
         kind: 'food',
+        servingType: 'plate',
         costEur: 4.5,
         fullnessDelta: 30,
         energyDelta: 14,
-        description: 'Crisp grilled cheese and ham sandwich on country bread.'
+        description: 'Crisp grilled cheese and ham sandwich served on a porcelain plate.'
       }
     ]
   },
@@ -863,10 +933,22 @@ export const VENUES = [
         id: 'item-arroz-doce',
         name: 'Arroz Doce com Canela',
         kind: 'food',
+        servingType: 'plate',
         costEur: 4.0,
         fullnessDelta: 22,
         energyDelta: 18,
         description: 'Creamy lemon-scented Portuguese rice pudding dusted with lattice cinnamon.'
+      },
+      {
+        id: 'item-vinho-tinto-dao',
+        name: 'Copo de Vinho Tinto do Dao',
+        kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'wine-red',
+        costEur: 3.5,
+        fullnessDelta: 10,
+        energyDelta: 20,
+        description: 'Ruby glass of full-bodied Dao red wine poured at the Fado tavern table.'
       }
     ]
   },
@@ -1266,24 +1348,28 @@ export const VENUES = [
         id: 'item-bica-nata',
         name: 'Bica & Pastel de Nata',
         kind: 'food',
+        servingType: 'plate',
         costEur: 3.5,
         fullnessDelta: 22,
         energyDelta: 30,
-        description: 'Classic Lisbon espresso paired with a blistered warm custard tart.'
+        description: 'Blistered warm custard tart served on a porcelain plate.'
       },
       {
         id: 'item-galao-bolo',
-        name: 'Galao & Bolo de Arroz',
+        name: 'Galao Quente em Copo Alto',
         kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'galao',
         costEur: 5.0,
         fullnessDelta: 32,
         energyDelta: 25,
-        description: 'Tall glass of milky coffee with a lemon-scented Portuguese rice muffin.'
+        description: 'Classic tall glass of silky Portuguese espresso and steamed milk.'
       },
       {
         id: 'item-brasileira-tosta',
         name: 'Tosta Mista na Chapa',
         kind: 'food',
+        servingType: 'plate',
         costEur: 5.5,
         fullnessDelta: 36,
         energyDelta: 20,
@@ -1642,10 +1728,22 @@ export const VENUES = [
         id: 'item-salada-broa',
         name: 'Salada de Tomate & Broa',
         kind: 'food',
+        servingType: 'plate',
         costEur: 5.5,
         fullnessDelta: 28,
         energyDelta: 20,
         description: 'Sun-ripened tomato and oregano salad dressed in Alentejo olive oil with corn bread.'
+      },
+      {
+        id: 'item-vinho-verde-copo',
+        name: 'Copo de Vinho Verde Fresco',
+        kind: 'food',
+        servingType: 'glass',
+        glassStyle: 'vinho-verde',
+        costEur: 3.5,
+        fullnessDelta: 10,
+        energyDelta: 22,
+        description: 'Chilled glass of crisp, lightly effervescent Minho Vinho Verde white wine.'
       }
     ]
   },
