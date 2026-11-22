@@ -500,6 +500,8 @@ export function createInitialState() {
     elevationMeters: Math.round(getTerrainElevation(950, 544) * 0.65),
     seatedBenchId: null,
     seatedBench: null,
+    seatedDining: null,
+    indoorActivity: null,
     holdingConeTimer: 0,
     vehicles: createInitialVehicles(),
     funiculars: createInitialFuniculars(),
@@ -1807,6 +1809,17 @@ export class MemoriesGameEngine {
           return { kind: 'npc', name: npc.name, npc };
         }
       }
+      for (const jog of this.state.joggers || []) {
+        if (jog.id === ignoreNpcId) continue;
+        const nextDist = distance(x, y, jog.x, jog.y);
+        if (nextDist < PERSON_SEPARATION_DIST) {
+          if (Number.isFinite(fromX) && Number.isFinite(fromY)) {
+            const curDist = distance(fromX, fromY, jog.x, jog.y);
+            if (nextDist > curDist + 0.05) continue;
+          }
+          return { kind: 'jogger', name: jog.name, npc: jog };
+        }
+      }
     }
     for (const rp of this.state.remotePlayers) {
       if (!this.isRemotePlayerInSameScene(rp)) continue;
@@ -2015,6 +2028,10 @@ export class MemoriesGameEngine {
       for (const other of this.state.npcs) {
         if (other.id === npc.id) continue;
         list.push({ x: other.x, y: other.y });
+      }
+      for (const jog of this.state.joggers || []) {
+        if (jog.id === npc.id) continue;
+        list.push({ x: jog.x, y: jog.y });
       }
       return list;
     };
@@ -2261,25 +2278,162 @@ export class MemoriesGameEngine {
       return;
     }
 
+    const passClearance = 17.0; // Polite shoulder-to-shoulder passing clearance around every pedestrian
+    const preferredGap = 24.0; // Comfortable lateral berth when curving around people on the promenade
+    const lookahead = 68.0; // Early lookahead so joggers curve smoothly well before reaching a person
+
+    const getObstaclesForJogger = (jog) => {
+      const list = [];
+      if (this.state.mode === 'overworld' && !this.state.ridingVehicleId && !this.state.ridingFunicularId) {
+        list.push({ x: this.state.player.x, y: this.state.player.y, kind: 'player' });
+      }
+      for (const rp of this.state.remotePlayers || []) {
+        if (rp.mode === 'overworld' && !rp.ridingVehicleId) {
+          list.push({ x: rp.x, y: rp.y, kind: 'remote-player' });
+        }
+      }
+      for (const npc of this.state.npcs || []) {
+        list.push({ x: npc.x, y: npc.y, kind: 'npc' });
+      }
+      for (const other of joggers) {
+        if (other.id === jog.id) continue;
+        list.push({ x: other.x, y: other.y, kind: 'jogger' });
+      }
+      return list;
+    };
+
+    const getPromenadeSpanY = (x, refY) => {
+      const base = Math.round(refY);
+      let minY = base;
+      let maxY = base;
+      while (minY > base - 45 && isPointOnSidewalk(x, minY - 1)) minY -= 1;
+      while (maxY < base + 45 && isPointOnSidewalk(x, maxY + 1)) maxY += 1;
+      return {
+        minY: Math.max(973, minY + 1),
+        maxY: Math.min(1012, maxY - 1)
+      };
+    };
+
+    const isJoggerCandidateClear = (jog, cx, cy, obstacles, minSep) => {
+      if (!isPointOnSidewalk(cx, cy)) return false;
+      if (this.isBlockedByVehicle(cx, cy, PLAYER_RADIUS)) return false;
+      for (const p of obstacles) {
+        const nextDist = distance(cx, cy, p.x, p.y);
+        if (nextDist < minSep) {
+          const curDist = distance(jog.x, jog.y, p.x, p.y);
+          // Anti-deadlock: if already closer than minSep, allow any step that increases separation
+          if (curDist < minSep && nextDist > curDist + 0.05) continue;
+          return false;
+        }
+      }
+      return true;
+    };
+
     for (const jog of joggers) {
       const step = jog.speed * dt;
+      const obstacles = getObstaclesForJogger(jog);
+
       if (jog.x >= jog.max && jog.dir > 0) jog.dir = -1;
       else if (jog.x <= jog.min && jog.dir < 0) jog.dir = 1;
-      const nextX = clamp(jog.x + step * jog.dir, jog.min, jog.max);
-      // Politely curve slightly around player if directly ahead on promenade
-      const dPlayer =
-        this.state.mode === 'overworld' && !this.state.ridingVehicleId
-          ? Math.hypot(nextX - this.state.player.x, jog.y - this.state.player.y)
-          : 999;
-      if (dPlayer < 24) {
-        const dodgeY = this.state.player.y > 992 ? 980 : 1002;
-        jog.y += clamp(dodgeY - jog.y, -step * 0.9, step * 0.9);
-      } else {
-        jog.y += clamp(jog.homeY - jog.y, -step * 0.6, step * 0.6);
+
+      // Find the closest person ahead or beside the jogger along their running direction
+      let blocker = null;
+      let bestAlong = Infinity;
+      for (const p of obstacles) {
+        const along = (p.x - jog.x) * jog.dir;
+        const lat = Math.abs(p.y - jog.y);
+        if (along > -20 && along < lookahead && lat < preferredGap) {
+          if (along < bestAlong) {
+            bestAlong = along;
+            blocker = p;
+          }
+        }
       }
-      jog.x = nextX;
-      jog.isMoving = true;
-      jog.walkPhase = (jog.walkPhase + dt * 11.5) % (Math.PI * 2);
+
+      if (blocker) {
+        const curSpan = getPromenadeSpanY(jog.x, jog.y);
+        const passSpan = getPromenadeSpanY(clamp(blocker.x, jog.min, jog.max), jog.y);
+        const sideMinY = Math.max(curSpan.minY, passSpan.minY);
+        const sideMaxY = Math.min(curSpan.maxY, passSpan.maxY);
+        const useMinY = sideMaxY - sideMinY >= passClearance ? sideMinY : curSpan.minY;
+        const useMaxY = sideMaxY - sideMinY >= passClearance ? sideMaxY : curSpan.maxY;
+
+        const spaceNorth = blocker.y - useMinY;
+        const spaceSouth = useMaxY - blocker.y;
+
+        if (!jog.avoidSide) {
+          jog.avoidSide = spaceSouth >= spaceNorth ? 1 : -1;
+        } else if (jog.avoidSide === 1 && spaceSouth < passClearance && spaceNorth >= passClearance) {
+          jog.avoidSide = -1;
+        } else if (jog.avoidSide === -1 && spaceNorth < passClearance && spaceSouth >= passClearance) {
+          jog.avoidSide = 1;
+        }
+
+        const desiredY =
+          jog.avoidSide > 0
+            ? Math.min(useMaxY, blocker.y + preferredGap)
+            : Math.max(useMinY, blocker.y - preferredGap);
+
+        const dyNeeded = desiredY - jog.y;
+        const latMove = Math.sign(dyNeeded) * Math.min(Math.abs(dyNeeded), Math.max(step * 1.75, 2.8));
+        const nextY = clamp(jog.y + latMove, useMinY, useMaxY);
+        const fullLateralY = clamp(
+          jog.y + Math.sign(dyNeeded || jog.avoidSide) * Math.max(step * 2.1, 3.4),
+          useMinY,
+          useMaxY
+        );
+        const nextX = clamp(jog.x + step * jog.dir, jog.min, jog.max);
+        const halfX = clamp(jog.x + step * 0.55 * jog.dir, jog.min, jog.max);
+
+        const candidates = [
+          { x: nextX, y: nextY },
+          { x: halfX, y: nextY },
+          { x: halfX, y: fullLateralY },
+          { x: jog.x, y: nextY },
+          { x: jog.x, y: fullLateralY },
+          { x: nextX, y: jog.y }
+        ];
+
+        let moved = false;
+        for (const c of candidates) {
+          if (isJoggerCandidateClear(jog, c.x, c.y, obstacles, passClearance)) {
+            jog.x = c.x;
+            jog.y = c.y;
+            jog.isMoving = true;
+            jog.walkPhase = (jog.walkPhase + dt * 11.5) % (Math.PI * 2);
+            moved = true;
+            break;
+          }
+        }
+        if (!moved) {
+          // Wait politely in place if momentarily boxed in rather than running through a person
+          jog.isMoving = false;
+        }
+        continue;
+      }
+
+      // Path ahead is clear: reset avoidSide, continue running, and ease smoothly back toward homeY
+      jog.avoidSide = 0;
+      const targetX = clamp(jog.x + step * jog.dir, jog.min, jog.max);
+      let targetY = jog.y;
+      const homeDy = jog.homeY - jog.y;
+      if (Math.abs(homeDy) > 0.4) {
+        const driftY = jog.y + clamp(homeDy, -step * 0.75, step * 0.75);
+        if (isJoggerCandidateClear(jog, targetX, driftY, obstacles, preferredGap)) {
+          targetY = driftY;
+        }
+      }
+
+      if (isJoggerCandidateClear(jog, targetX, targetY, obstacles, passClearance)) {
+        jog.x = targetX;
+        jog.y = targetY;
+        jog.isMoving = true;
+        jog.walkPhase = (jog.walkPhase + dt * 11.5) % (Math.PI * 2);
+        if (jog.x >= jog.max) jog.dir = -1;
+        else if (jog.x <= jog.min) jog.dir = 1;
+      } else {
+        jog.isMoving = false;
+      }
     }
   }
 
@@ -2803,6 +2957,20 @@ export class MemoriesGameEngine {
       this.state.sharedPostcard.timer = Math.max(0, this.state.sharedPostcard.timer - dt);
       if (this.state.sharedPostcard.timer === 0) {
         this.state.sharedPostcard = null;
+      }
+    }
+
+    if (this.state.indoorActivity && this.state.indoorActivity.timer > 0) {
+      this.state.indoorActivity.timer = Math.max(0, this.state.indoorActivity.timer - dt);
+      if (this.state.indoorActivity.timer === 0) {
+        this.state.indoorActivity = null;
+      }
+    }
+
+    if (this.state.mode === 'interior' && this.state.seatedDining) {
+      const sd = this.state.seatedDining;
+      if (distance(this.state.player.x, this.state.player.y, sd.seatX, sd.seatY) > 28) {
+        this.state.seatedDining = null;
       }
     }
 
@@ -3885,6 +4053,8 @@ export class MemoriesGameEngine {
     this.state.activeMetroStationId = null;
     this.state.mode = 'interior';
     this.state.currentVenueId = venue.id;
+    this.state.seatedDining = null;
+    this.state.indoorActivity = null;
     this.state.player.overworldX = venue.spawnOutside.x;
     this.state.player.overworldY = venue.spawnOutside.y;
     this.state.player.x = 380;
@@ -3926,6 +4096,8 @@ export class MemoriesGameEngine {
     const venue = this.getCurrentVenue();
     this.state.mode = 'overworld';
     this.state.currentVenueId = null;
+    this.state.seatedDining = null;
+    this.state.indoorActivity = null;
     this.doorEntryCooldown = 0.55;
     if (venue) {
       this.state.player.x = venue.spawnOutside.x;
@@ -3954,8 +4126,23 @@ export class MemoriesGameEngine {
     }
     const newPhrase = recordPhrase(this.state, venue.phrase, venue.name);
     const newMemory = unlockMemory(this.state, venue.memory);
+    this.state.player.facing = 'up';
+    this.state.cameraYaw = -Math.PI * 0.5;
+    this.state.cameraPitch = 0.02;
+    this.state.indoorActivity = {
+      type: 'dialogue',
+      venueId: venue.id,
+      venueName: venue.name,
+      proprietor: venue.proprietor,
+      role: venue.proprietorRole,
+      greeting: venue.greeting,
+      phrasePt: venue.phrase.pt,
+      phraseEn: venue.phrase.en,
+      timer: 10.0
+    };
+    this.triggerEmote('Bom dia!', 3.6);
     this.state.statusMessage = `${venue.proprietor} (${venue.name}): "${venue.greeting}"`;
-    return { ok: true, venue, newPhrase, newMemory, state: this.state };
+    return { ok: true, venue, newPhrase, newMemory, indoorActivity: this.state.indoorActivity, state: this.state };
   }
 
   inspectVenueDisplay() {
@@ -3963,8 +4150,25 @@ export class MemoriesGameEngine {
     if (!venue) {
       return { ok: false, error: 'Enter a venue to inspect its display.' };
     }
+    this.state.seatedDining = null;
+    this.state.player.x = INTERIOR_STATIONS.display.x;
+    this.state.player.y = INTERIOR_STATIONS.display.y;
+    this.state.player.facing = 'left';
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+    this.state.cameraYaw = Math.PI;
+    this.state.cameraPitch = -0.02;
+    this.state.indoorActivity = {
+      type: 'inspect',
+      venueId: venue.id,
+      venueName: venue.name,
+      title: `${venue.name} Cultural Exhibit`,
+      note: venue.displayNote,
+      timer: 10.0
+    };
     this.state.statusMessage = `${venue.name}: ${venue.displayNote}`;
-    return { ok: true, venue, note: venue.displayNote, state: this.state };
+    return { ok: true, venue, note: venue.displayNote, indoorActivity: this.state.indoorActivity, state: this.state };
   }
 
   purchaseVenueItem(itemId) {
@@ -3999,13 +4203,61 @@ export class MemoriesGameEngine {
           day: this.state.day
         });
       }
+      // Receive a freshly served plate and walk over to sit at the venue dining table!
+      const seatX = 562;
+      const seatY = 252;
+      this.state.player.x = seatX;
+      this.state.player.y = seatY;
+      this.state.player.facing = 'right';
+      this.state.player.walkTarget = null;
+      this.state.player.walkQueue = [];
+      this.state.player.isMoving = false;
+      this.state.cameraYaw = 0;
+      this.state.cameraPitch = -0.08;
+      this.state.seatedDining = {
+        active: true,
+        itemId: item.id,
+        itemName: item.name,
+        costEur: item.costEur,
+        fullnessDelta: item.fullnessDelta || 0,
+        energyDelta: item.energyDelta || 0,
+        venueId: venue.id,
+        venueName: venue.name,
+        seatX,
+        seatY,
+        tableX: 636,
+        tableY: 252,
+        plateX: 616,
+        plateY: 252
+      };
+      this.state.indoorActivity = {
+        type: 'dining',
+        itemId: item.id,
+        itemName: item.name,
+        costEur: item.costEur,
+        fullnessDelta: item.fullnessDelta || 0,
+        energyDelta: item.energyDelta || 0,
+        venueId: venue.id,
+        venueName: venue.name,
+        proprietor: venue.proprietor,
+        timer: 14.0
+      };
       this.advanceMinutes(18);
       unlockedMilestone = unlockMemory(this.state, MILESTONE_MEMORIES.taste);
-      const purchaseMsg = `Enjoyed ${item.name} at ${venue.name} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
-      this.triggerSharedToast({ itemName: item.name });
+      const purchaseMsg = `Received a plated serving of ${item.name} and sat at the dining table in ${venue.name} (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
+      this.triggerSharedToast({ itemName: item.name, preserveIndoorActivity: true });
       this.state.statusMessage = purchaseMsg;
-      recordLog(this.state, 'dining', `Tasted ${item.name} at ${venue.name} (-${item.costEur.toFixed(2)} EUR).`);
+      recordLog(this.state, 'dining', `Tasted ${item.name} seated at the dining table in ${venue.name} (-${item.costEur.toFixed(2)} EUR).`);
     } else {
+      this.state.seatedDining = null;
+      this.state.player.x = 380;
+      this.state.player.y = 246;
+      this.state.player.facing = 'up';
+      this.state.player.walkTarget = null;
+      this.state.player.walkQueue = [];
+      this.state.player.isMoving = false;
+      this.state.cameraYaw = -Math.PI * 0.5;
+      this.state.cameraPitch = -0.02;
       this.state.stats.souvenirsBought += 1;
       this.state.satchel.push({
         id: item.id,
@@ -4015,9 +4267,19 @@ export class MemoriesGameEngine {
         costEur: item.costEur,
         day: this.state.day
       });
+      this.state.indoorActivity = {
+        type: 'souvenir',
+        itemId: item.id,
+        itemName: item.name,
+        costEur: item.costEur,
+        venueId: venue.id,
+        venueName: venue.name,
+        proprietor: venue.proprietor,
+        timer: 12.0
+      };
       this.advanceMinutes(10);
       unlockedMilestone = unlockMemory(this.state, MILESTONE_MEMORIES.keepsake);
-      this.state.statusMessage = `Added ${item.name} to your satchel from ${venue.name} (-${item.costEur.toFixed(2)} EUR).`;
+      this.state.statusMessage = `Wrapped ${item.name} at the counter and added it to your satchel from ${venue.name} (-${item.costEur.toFixed(2)} EUR).`;
       recordLog(this.state, 'shop', `Bought ${item.name} at ${venue.name} (-${item.costEur.toFixed(2)} EUR).`);
     }
 
@@ -4534,7 +4796,7 @@ export class MemoriesGameEngine {
     return { ok: true, spot, encore: this.state.miradouroEncore, state: this.state };
   }
 
-  triggerSharedToast({ itemName = '', customText = '' } = {}) {
+  triggerSharedToast({ itemName = '', customText = '', preserveIndoorActivity = false } = {}) {
     const loc = this.getCurrentLocationInfo();
     const speaker = this.state.player.name || 'Traveler';
     const cleanItem = String(itemName || '').trim();
@@ -4556,6 +4818,17 @@ export class MemoriesGameEngine {
       text,
       timer: 4.5
     };
+    if (this.state.mode === 'interior' && !preserveIndoorActivity) {
+      this.state.indoorActivity = {
+        type: 'toast',
+        venueId: this.state.currentVenueId,
+        venueName: loc.locationName,
+        speakerName: speaker,
+        itemName: cleanItem || this.state.seatedDining?.itemName || 'Lisboa',
+        text,
+        timer: 8.0
+      };
+    }
     this.state.statusMessage = text;
     if (this.globalTransitSynced) {
       this.emitTransitIntent({
@@ -4593,6 +4866,17 @@ export class MemoriesGameEngine {
       text: `Se de Lisboa (1147) Bell Towers toll ${tolls} ${tolls === 1 ? 'chime' : 'chimes'} for ${clockLabel} across Lisboa`,
       timer: 4.8
     };
+    if (this.state.mode === 'interior' && this.state.currentVenueId === 'se-de-lisboa') {
+      this.state.indoorActivity = {
+        type: 'cathedral-bell',
+        venueId: 'se-de-lisboa',
+        venueName: 'Se de Lisboa',
+        clockLabel,
+        tolls,
+        text: this.state.cathedralChime.text,
+        timer: 8.0
+      };
+    }
     if (updateStatus) {
       this.state.statusMessage = this.state.cathedralChime.text;
     }

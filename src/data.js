@@ -500,7 +500,13 @@ export const METRO_STATIONS = [
       tileAccent: '#1b4d89',
       platformFloor: '#d4cec2',
       trim: '#1e3a5f',
-      artLabel: 'ALVARO SIZA LIMESTONE VAULT - DEEP ESCALATORS'
+      artLabel: 'ALVARO SIZA LIMESTONE VAULT - DEEP ESCALATORS',
+      architect: 'Alvaro Siza Vieira (1998)',
+      artist: 'Angelo de Sousa',
+      muralStyle: 'siza-limestone-gold',
+      nextTrainDest: 'Santa Apolonia',
+      oppositeDest: 'Reboleira',
+      transferLine: 'Linha Verde (Cais do Sodre - Telheiras)'
     },
     note: 'Deep transfer station right beside Cafe A Brasileira on Largo do Chiado, serving both Chiado and nearby hilltop Bairro Alto.'
   },
@@ -523,7 +529,12 @@ export const METRO_STATIONS = [
       tileAccent: '#14669c',
       platformFloor: '#cfd8df',
       trim: '#0f4c75',
-      artLabel: 'TAGUS RIVER BLUE GLAZED TILE GALLERY'
+      artLabel: 'TRANSPARENCIA II - TAGUS BLUE GLAZED TILE GALLERY',
+      architect: 'Artur Rosa (2007)',
+      artist: 'Joao Rodrigues Vieira (Transparencia II)',
+      muralStyle: 'transparencia-blue-glass',
+      nextTrainDest: 'Santa Apolonia',
+      oppositeDest: 'Reboleira'
     },
     note: 'Tagus riverside Blue Line station at the edge of Baixa and lower Alfama.'
   },
@@ -546,7 +557,12 @@ export const METRO_STATIONS = [
       tileAccent: '#1d568a',
       platformFloor: '#d8d0c3',
       trim: '#16406b',
-      artLabel: 'ALFAMA WATERFRONT & RAIL TERMINUS VAULT'
+      artLabel: 'HOMENAGEM AOS FERROVIARIOS - VIUVA LAMEGO AZULEJOS',
+      architect: 'Leopoldo de Almeida Rosa (2007)',
+      artist: 'Jose Santa Barbara (Homenagem aos Ferroviarios)',
+      muralStyle: 'ferroviarios-railway-tiles',
+      nextTrainDest: 'Reboleira (via Baixa-Chiado)',
+      oppositeDest: 'Terminus'
     },
     note: 'Eastern Blue Line terminus along the Alfama riverfront, framing the steep hillside below Portas do Sol.'
   }

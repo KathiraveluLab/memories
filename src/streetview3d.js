@@ -3103,25 +3103,40 @@ export class LisboaStreetView3DRenderer {
       1.4
     );
 
-    // Tall Lisbon Metro crimson "M" totem pole
+    // Tall Lisbon Metro Red Diamond "M" street totem pole with Linha Azul / Linha Verde badges
     const mx = (x0 + x1) * 0.5;
     const my = y1 + 4;
-    this.drawLine3D(ctx, cam, [mx, my, gz], [mx, my, gz + 68], '#334155', 3);
-    const pt = this.projectWorldPt(cam, mx, my, gz + 72);
+    this.drawLine3D(ctx, cam, [mx, my, gz], [mx, my, gz + 70], '#334155', 3.2);
+    const pt = this.projectWorldPt(cam, mx, my, gz + 76);
     if (pt) {
-      const r = clamp((13 * this.focal) / pt.cz, 5, 22);
+      const r = clamp((13 * this.focal) / pt.cz, 6, 22);
+      ctx.save();
       ctx.fillStyle = '#c81e32';
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+      ctx.moveTo(pt.x, pt.y - r);
+      ctx.lineTo(pt.x + r, pt.y);
+      ctx.lineTo(pt.x, pt.y + r);
+      ctx.lineTo(pt.x - r, pt.y);
+      ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.font = `800 ${Math.max(8, Math.round(r * 1.15))}px "Segoe UI", sans-serif`;
+      ctx.font = `800 ${Math.max(8, Math.round(r * 1.05))}px "Segoe UI", sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('M', pt.x, pt.y + r * 0.38);
-      ctx.textAlign = 'left';
+      ctx.fillText('M', pt.x, pt.y + r * 0.36);
+
+      // Station line collar below the diamond totem
+      if (r >= 8) {
+        drawRoundedRect(ctx, pt.x - r * 1.4, pt.y + r + 2, r * 2.8, Math.max(9, r * 0.65), 3);
+        ctx.fillStyle = '#1d4ed8';
+        ctx.fill();
+        ctx.strokeStyle = station.lines?.includes('Linha Verde') ? '#22c55e' : '#ffffff';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+      ctx.restore();
     }
   }
 

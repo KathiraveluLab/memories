@@ -702,6 +702,8 @@ export class LisboaScenes3DRenderer {
     const items = [];
 
     // Uniformed Proprietor & Cashier standing behind the counter
+    const activeAct = state.indoorActivity && state.indoorActivity.venueId === venue.id ? state.indoorActivity : null;
+    const seatedMeal = state.seatedDining && state.seatedDining.venueId === venue.id ? state.seatedDining : null;
     items.push({
       dist: Math.hypot(345 - cam.camX, 114 - cam.camY),
       draw: () => this.drawPersonSprite3D(ctx, cam, {
@@ -712,6 +714,17 @@ export class LisboaScenes3DRenderer {
         apron: layout === 'bakery' || layout === 'restaurant' || layout === 'cafe',
         chefHat: layout === 'bakery' || layout === 'restaurant',
         behindCounter: true,
+        waveArm: activeAct?.type === 'dialogue' || activeAct?.type === 'souvenir' || activeAct?.type === 'toast',
+        emoteText:
+          activeAct?.type === 'dialogue'
+            ? `"${venue.phrase?.pt || venue.greeting}"`
+            : activeAct?.type === 'souvenir'
+              ? `Wrapped: ${activeAct.itemName}!`
+              : activeAct?.type === 'dining'
+                ? `Bom apetite!`
+                : activeAct?.type === 'toast'
+                  ? 'Saude!'
+                  : '',
         label: `${venue.proprietor} (${venue.proprietorRole})`
       })
     });
@@ -725,6 +738,7 @@ export class LisboaScenes3DRenderer {
           secondaryColor: '#fef3c7',
           apron: true,
           behindCounter: true,
+          waveArm: activeAct?.type === 'souvenir' || activeAct?.type === 'toast',
           label: `${venue.cashierName} (${venue.cashierRole || 'Cashier'})`
         })
       });
@@ -735,7 +749,10 @@ export class LisboaScenes3DRenderer {
       dist: Math.hypot(380 - cam.camX, 154 - cam.camY),
       draw: () => {
         const counterH = 22;
-        const counterStroke = nearbyInteraction?.type === 'counter' ? '#facc15' : '#3b2414';
+        const counterStroke =
+          activeAct?.type === 'dialogue' || activeAct?.type === 'souvenir' || nearbyInteraction?.type === 'counter'
+            ? '#facc15'
+            : '#3b2414';
         this.drawBox3D(
           ctx,
           cam,
@@ -745,7 +762,7 @@ export class LisboaScenes3DRenderer {
           178,
           0,
           counterH,
-          { front: theme.counter, back: theme.counter, side: theme.counter, top: isCathedral ? '#f8fafc' : '#e7dcc8', stroke: counterStroke, lineWidth: nearbyInteraction?.type === 'counter' ? 2.4 : 1.3 },
+          { front: theme.counter, back: theme.counter, side: theme.counter, top: isCathedral ? '#f8fafc' : '#e7dcc8', stroke: counterStroke, lineWidth: nearbyInteraction?.type === 'counter' || activeAct?.type === 'souvenir' ? 2.4 : 1.3 },
           { kind: 'counter' }
         );
         // Vintage Brass Cash Register on far right end of counter (unobstructed beside cashier)
@@ -785,6 +802,36 @@ export class LisboaScenes3DRenderer {
             }
           }
         }
+
+        // Visible 3D Souvenir Package wrapped with crimson-and-gold ribbon on the counter when purchased!
+        if (activeAct?.type === 'souvenir') {
+          this.drawBox3D(ctx, cam, 370, 152, 390, 166, counterH, counterH + 8, {
+            front: '#f59e0b',
+            side: '#d97706',
+            top: '#fef3c7',
+            stroke: '#dc2626',
+            lineWidth: 1.8
+          });
+          this.drawLine3D(ctx, cam, [380, 152, counterH + 8.2], [380, 166, counterH + 8.2], '#dc2626', 2.4);
+          this.drawLine3D(ctx, cam, [370, 159, counterH + 8.2], [390, 159, counterH + 8.2], '#dc2626', 2.4);
+          const gPt = this.projectWorldPt(cam, 380, 159, counterH + 15);
+          if (gPt) {
+            ctx.save();
+            ctx.font = '700 10px "Segoe UI", sans-serif';
+            const txt = `WRAPPED FOR SATCHEL: ${activeAct.itemName}`;
+            const tw = ctx.measureText(txt).width + 16;
+            drawRoundedRect(ctx, gPt.x - tw * 0.5, gPt.y - 11, tw, 20, 5);
+            ctx.fillStyle = 'rgba(20, 50, 88, 0.94)';
+            ctx.fill();
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+            ctx.fillStyle = '#fef08a';
+            ctx.textAlign = 'center';
+            ctx.fillText(txt, gPt.x, gPt.y + 3);
+            ctx.restore();
+          }
+        }
       }
     });
 
@@ -792,7 +839,8 @@ export class LisboaScenes3DRenderer {
     items.push({
       dist: Math.hypot(98 - cam.camX, 263 - cam.camY),
       draw: () => {
-        const dispStroke = nearbyInteraction?.type === 'display' ? '#facc15' : '#472d1b';
+        const isInspecting = activeAct?.type === 'inspect';
+        const dispStroke = isInspecting || nearbyInteraction?.type === 'display' ? '#facc15' : '#472d1b';
         this.drawBox3D(
           ctx,
           cam,
@@ -802,7 +850,7 @@ export class LisboaScenes3DRenderer {
           322,
           0,
           24,
-          { front: theme.counter, side: theme.counter, top: '#e7dcc8', stroke: dispStroke, lineWidth: nearbyInteraction?.type === 'display' ? 2.4 : 1.3 },
+          { front: theme.counter, side: theme.counter, top: '#e7dcc8', stroke: dispStroke, lineWidth: isInspecting || nearbyInteraction?.type === 'display' ? 2.6 : 1.3 },
           { kind: 'display' }
         );
         // Glass vitrine showcase top with colorful goods inside (breads/pastries/tiles/books/vinyls)
@@ -815,7 +863,7 @@ export class LisboaScenes3DRenderer {
           316,
           24,
           40,
-          { front: '#e0f2fe', side: '#bae6fd', top: '#f0f9ff', stroke: '#64748b', lineWidth: 1 }
+          { front: isInspecting ? '#fef08a' : '#e0f2fe', side: '#bae6fd', top: '#f0f9ff', stroke: isInspecting ? '#f59e0b' : '#64748b', lineWidth: isInspecting ? 2 : 1 }
         );
         const goodsColor =
           layout === 'bakery' ? '#d97706'
@@ -826,23 +874,120 @@ export class LisboaScenes3DRenderer {
         for (const gy of [228, 263, 298]) {
           this.drawBox3D(ctx, cam, 82, gy - 10, 116, gy + 10, 24.5, 32, { front: goodsColor, side: goodsColor, top: shadeColor(goodsColor, 1.15) });
         }
+        if (isInspecting) {
+          const sp = this.projectWorldPt(cam, 98, 263, 56);
+          if (sp) {
+            ctx.save();
+            const rad = clamp((28 * this.focal) / sp.cz, 16, 65);
+            const g = ctx.createRadialGradient(sp.x, sp.y, 2, sp.x, sp.y, rad);
+            g.addColorStop(0, 'rgba(253, 224, 71, 0.55)');
+            g.addColorStop(1, 'rgba(253, 224, 71, 0)');
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, rad, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
       }
     });
 
     // Right-Side 3D Dining Tables / Bistro Tables / Cathedral Pews (matches SOLID_INTERIOR_RECTS[1..2])
     for (const ty of [225, 325]) {
+      const isActiveDiningTable = Boolean(seatedMeal && ty === 225);
+      // Wooden dining chairs beside each table
+      items.push({
+        dist: Math.hypot(566 - cam.camX, ty + 27 - cam.camY),
+        draw: () => {
+          this.drawBox3D(ctx, cam, 556, ty + 15, 576, ty + 39, 0, 13, {
+            front: '#6b4226',
+            side: '#4e2f1a',
+            top: isActiveDiningTable ? '#f59e0b' : '#8b5a34',
+            stroke: isActiveDiningTable ? '#fde047' : '#3b2414',
+            lineWidth: isActiveDiningTable ? 1.8 : 1
+          });
+          this.drawBox3D(ctx, cam, 555, ty + 15, 559, ty + 39, 13, 27, {
+            front: '#6b4226',
+            side: '#4e2f1a',
+            top: '#8b5a34',
+            stroke: '#3b2414',
+            lineWidth: 1
+          });
+        }
+      });
+
       items.push({
         dist: Math.hypot(636 - cam.camX, ty + 27 - cam.camY),
         draw: () => {
-          const topCol = layout === 'restaurant' ? '#dc2626' : isCathedral ? '#6b4628' : '#e7dcc8';
+          const topCol = layout === 'restaurant' ? '#dc2626' : isCathedral ? '#6b4628' : isBar ? '#3b1c4a' : '#e7dcc8';
           this.drawBox3D(ctx, cam, 590, ty, 682, ty + 54, 0, isCathedral ? 18 : 24, {
             front: '#5c3a21',
             side: '#472d1b',
             top: topCol,
-            stroke: '#3b2414',
-            lineWidth: 1.2
+            stroke: isActiveDiningTable ? '#fde047' : '#3b2414',
+            lineWidth: isActiveDiningTable ? 2.4 : 1.2
           });
-          if (layout === 'restaurant' || layout === 'cafe' || layout === 'bakery') {
+          if (isActiveDiningTable && seatedMeal) {
+            // Freshly served porcelain dinner plate, dish, drink glass, cutlery & rising steam right in front of the seated player!
+            const p = this.projectWorldPt(cam, 616, ty + 27, 25.5);
+            if (p) {
+              const pr = clamp((13 * this.focal) / p.cz, 6, 30);
+              ctx.save();
+              // Folded linen napkin & silver cutlery
+              ctx.fillStyle = '#fef3c7';
+              ctx.fillRect(p.x - pr * 1.45, p.y - pr * 0.45, pr * 0.35, pr * 0.9);
+              ctx.strokeStyle = '#cbd5e1';
+              ctx.lineWidth = Math.max(1.5, pr * 0.1);
+              ctx.beginPath();
+              ctx.moveTo(p.x - pr * 1.25, p.y - pr * 0.38);
+              ctx.lineTo(p.x - pr * 1.25, p.y + pr * 0.38);
+              ctx.moveTo(p.x + pr * 1.25, p.y - pr * 0.38);
+              ctx.lineTo(p.x + pr * 1.25, p.y + pr * 0.38);
+              ctx.stroke();
+              // Glazed white porcelain dinner plate with cobalt-blue rim
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.ellipse(p.x, p.y, pr, pr * 0.62, 0, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#1d4ed8';
+              ctx.lineWidth = Math.max(1.4, pr * 0.12);
+              ctx.stroke();
+              // Served dish tailored to ordered item
+              const idStr = seatedMeal.itemId || '';
+              const dishCol =
+                idStr.includes('caldo') ? '#4d7c0f'
+                  : idStr.includes('sardinha') ? '#94a3b8'
+                    : idStr.includes('ginjinha') || idStr.includes('sangria') ? '#be123c'
+                      : '#d97706';
+              ctx.fillStyle = dishCol;
+              ctx.beginPath();
+              ctx.ellipse(p.x, p.y, pr * 0.65, pr * 0.38, 0, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#fef08a';
+              ctx.beginPath();
+              ctx.arc(p.x + pr * 0.18, p.y - pr * 0.08, pr * 0.2, 0, Math.PI * 2);
+              ctx.fill();
+              // Companion drink cup / glass beside plate
+              ctx.fillStyle = isBar ? '#f59e0b' : '#78350f';
+              ctx.beginPath();
+              ctx.arc(p.x + pr * 0.92, p.y - pr * 0.56, pr * 0.28, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.2;
+              ctx.stroke();
+              // Animated rising steam wisps above hot plate
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+              ctx.lineWidth = 1.5;
+              const drift = Math.sin(animTime * 4.2) * 4;
+              ctx.beginPath();
+              ctx.moveTo(p.x - pr * 0.25, p.y - pr * 0.3);
+              ctx.quadraticCurveTo(p.x - pr * 0.25 + drift, p.y - pr * 0.9, p.x - pr * 0.1, p.y - pr * 1.45);
+              ctx.moveTo(p.x + pr * 0.22, p.y - pr * 0.3);
+              ctx.quadraticCurveTo(p.x + pr * 0.22 - drift, p.y - pr * 0.95, p.x + pr * 0.3, p.y - pr * 1.5);
+              ctx.stroke();
+              ctx.restore();
+            }
+          } else if (layout === 'restaurant' || layout === 'cafe' || layout === 'bakery') {
             // Plated Portuguese dishes / porcelain cups on the table!
             for (const px of [614, 658]) {
               const p = this.projectWorldPt(cam, px, ty + 27, 25.5);
@@ -967,6 +1112,9 @@ export class LisboaScenes3DRenderer {
       }
     }
 
+    // 6b. Foreground 3D Visible Outcome Overlays (Seated Dining Plate & Table View, Wrapped Souvenir, Proprietor Dialogue, Display Spotlight Card, Toast, Cathedral Chime)
+    this.drawIndoorActionOutcome3D(ctx, state, venue, activeAct, seatedMeal, nearbyInteraction, animTime);
+
     // 7. Top-left Room HUD & Top-right Room Mini-Map
     const peersInRoom = (state.remotePlayers || []).filter((r) => r.mode === 'interior' && r.currentVenueId === state.currentVenueId);
     const activeRoomToast =
@@ -977,9 +1125,11 @@ export class LisboaScenes3DRenderer {
       ctx,
       cam,
       `3D INTERIOR  -  ${venue.name}`,
-      activeRoomToast
-        ? `${(activeRoomToast.speakerName || 'COMPANION').toUpperCase()} TOAST: "${activeRoomToast.text}"`
-        : `${venue.memory.neighborhood}  |  Walk/Click Counter, Display, or Exit`,
+      seatedMeal
+        ? `SEATED AT DINING TABLE: Enjoying ${seatedMeal.itemName} (+${seatedMeal.fullnessDelta} Fullness, +${seatedMeal.energyDelta} Energy)`
+        : activeRoomToast
+          ? `${(activeRoomToast.speakerName || 'COMPANION').toUpperCase()} TOAST: "${activeRoomToast.text}"`
+          : `${venue.memory.neighborhood}  |  Walk/Click Counter, Display, or Exit`,
       {
         floorRect: { x: xMin, y: yMin, w: xMax - xMin, h: yMax - yMin },
         floorColor: 'rgba(235, 224, 200, 0.24)',
@@ -989,10 +1139,297 @@ export class LisboaScenes3DRenderer {
         pois: [
           { x: INTERIOR_STATIONS.counter.x, y: INTERIOR_STATIONS.counter.y, color: '#facc15' },
           { x: INTERIOR_STATIONS.display.x, y: INTERIOR_STATIONS.display.y, color: '#38bdf8' },
+          { x: 616, y: 252, color: '#f97316' },
           { x: INTERIOR_STATIONS.exitMat.x, y: INTERIOR_STATIONS.exitMat.y, color: '#34d399' }
         ]
       }
     );
+  }
+
+  drawIndoorActionOutcome3D(ctx, state, venue, activeAct, seatedMeal, nearbyInteraction = null, animTime = 0) {
+    const w = this.viewWidth;
+    const h = this.viewHeight;
+    const bottomClearance = nearbyInteraction ? 76 : 12;
+
+    // 1. Seated at Dining Table with Plated Dish in Foreground!
+    if (seatedMeal) {
+      ctx.save();
+      const trayW = 390;
+      const trayH = 112;
+      const trayX = Math.round(w * 0.5 - trayW * 0.5);
+      const trayY = h - trayH - bottomClearance;
+
+      // Warm oak dining table edge & woven Portuguese linen placemat
+      drawRoundedRect(ctx, trayX, trayY, trayW, trayH, 12);
+      ctx.fillStyle = 'rgba(58, 34, 18, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+
+      drawRoundedRect(ctx, trayX + 12, trayY + 28, trayW - 24, trayH - 36, 8);
+      ctx.fillStyle = venue.interiorTheme?.layout === 'restaurant' ? '#991b1b' : '#1e3a5f';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(254, 243, 199, 0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Header pill on dining table mat
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 11px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`SEATED AT DINING TABLE  -  ${seatedMeal.itemName.toUpperCase()}`, w * 0.5, trayY + 19);
+
+      // Left fork & folded napkin
+      const px = w * 0.5 - 28;
+      const py = trayY + 68;
+      ctx.fillStyle = '#fef3c7';
+      drawRoundedRect(ctx, px - 86, py - 24, 22, 48, 3);
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(px - 75, py - 18);
+      ctx.lineTo(px - 75, py + 18);
+      ctx.moveTo(px + 68, py - 18);
+      ctx.lineTo(px + 68, py + 18);
+      ctx.stroke();
+
+      // Glazed Portuguese porcelain dinner plate with hand-painted cobalt rim
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(px, py, 54, 31, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1d4ed8';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.strokeStyle = '#93c5fd';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(px, py, 43, 23, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Dish-specific food geometry on the plate
+      const idStr = seatedMeal.itemId || '';
+      if (idStr.includes('caldo')) {
+        // Terracotta Caldo Verde soup bowl with green kale & red chourico slice
+        ctx.fillStyle = '#9a3412';
+        ctx.beginPath();
+        ctx.ellipse(px - 6, py, 27, 17, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#4d7c0f';
+        ctx.beginPath();
+        ctx.ellipse(px - 6, py, 22, 13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(px - 5, py, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Broa corn bread slice on side of plate
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath();
+        ctx.ellipse(px + 26, py + 4, 12, 7, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (idStr.includes('sardinha')) {
+        // Three charcoal-grilled silver sardines with roasted peppers & lemon wedge
+        for (const sy of [-9, 0, 9]) {
+          ctx.fillStyle = '#94a3b8';
+          ctx.beginPath();
+          ctx.ellipse(px - 4, py + sy, 23, 4.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#334155';
+          ctx.fillRect(px - 10, py + sy - 3, 2.2, 6);
+          ctx.fillRect(px + 2, py + sy - 3, 2.2, 6);
+        }
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(px + 28, py + 5, 6.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (idStr.includes('bacalhau')) {
+        // Golden Bacalhau a Bras / Pasteis de Bacalhau with black olives & parsley
+        ctx.fillStyle = '#eab308';
+        ctx.beginPath();
+        ctx.ellipse(px, py, 31, 16, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1e293b';
+        for (const ox of [-12, 2, 14]) {
+          ctx.beginPath();
+          ctx.arc(px + ox, py, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(px - 4, py - 8, 8, 4);
+      } else {
+        // Golden blistered Pasteis de Nata / Tosta / Pastry on porcelain plate
+        for (const ox of [-14, 12]) {
+          ctx.fillStyle = '#b45309';
+          ctx.beginPath();
+          ctx.arc(px + ox, py, 12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#facc15';
+          ctx.beginPath();
+          ctx.arc(px + ox, py, 8.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#78350f';
+          ctx.beginPath();
+          ctx.arc(px + ox - 2, py - 1, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Companion Drink Glass / Bica Espresso Cup on saucer to the right
+      const cupX = px + 114;
+      const cupY = py + 2;
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.ellipse(cupX, cupY + 4, 20, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle =
+        idStr.includes('ginjinha') || idStr.includes('sangria')
+          ? '#be123c'
+          : idStr.includes('imperial')
+            ? '#f59e0b'
+            : '#3b1806';
+      ctx.beginPath();
+      ctx.arc(cupX, cupY, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Animated rising steam wisps above plate and cup
+      const sShift = Math.sin(animTime * 4.2) * 5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.lineWidth = 1.8;
+      for (const sx of [px - 14, px + 10, cupX]) {
+        ctx.beginPath();
+        ctx.moveTo(sx, py - 12);
+        ctx.quadraticCurveTo(sx + sShift, py - 26, sx - sShift * 0.5, py - 38);
+        ctx.stroke();
+      }
+
+      // Vitals boost badge on right edge of placemat
+      ctx.fillStyle = '#86efac';
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(`+${seatedMeal.fullnessDelta} Fullness  |  +${seatedMeal.energyDelta} Energy`, trayX + trayW - 18, trayY + trayH - 12);
+      ctx.textAlign = 'left';
+      ctx.restore();
+      return;
+    }
+
+    if (!activeAct) return;
+
+    // 2. Visible Outcome Cards for Inspect Display, Souvenir Purchase, Proprietor Dialogue, Toast & Cathedral Bell
+    ctx.save();
+    const cardW = 470;
+    const cardH = 78;
+    const cardX = Math.round(w * 0.5 - cardW * 0.5);
+    const cardY = h - cardH - bottomClearance;
+
+    drawRoundedRect(ctx, cardX, cardY, cardW, cardH, 10);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.93)';
+    ctx.fill();
+    ctx.strokeStyle =
+      activeAct.type === 'inspect' ? '#38bdf8'
+        : activeAct.type === 'souvenir' ? '#f59e0b'
+          : activeAct.type === 'cathedral-bell' ? '#eab308'
+            : '#fde047';
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    // Left icon medallion inside card
+    const icX = cardX + 38;
+    const icY = cardY + cardH * 0.5;
+    ctx.fillStyle =
+      activeAct.type === 'inspect' ? '#0284c7'
+        : activeAct.type === 'souvenir' ? '#d97706'
+          : activeAct.type === 'cathedral-bell' ? '#ca8a04'
+            : '#1d4ed8';
+    ctx.beginPath();
+    ctx.arc(icX, icY, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    if (activeAct.type === 'souvenir') {
+      // Gift box icon with ribbon
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(icX - 11, icY - 9, 22, 18);
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(icX, icY - 9);
+      ctx.lineTo(icX, icY + 9);
+      ctx.moveTo(icX - 11, icY);
+      ctx.lineTo(icX + 11, icY);
+      ctx.stroke();
+    } else if (activeAct.type === 'inspect') {
+      // Magnifying lens over azulejo tile icon
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(icX - 2, icY - 2, 8, 0, Math.PI * 2);
+      ctx.moveTo(icX + 4, icY + 4);
+      ctx.lineTo(icX + 11, icY + 11);
+      ctx.stroke();
+    } else if (activeAct.type === 'cathedral-bell') {
+      // Golden bronze cathedral bell icon with acoustic rings
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(icX, icY - 2, 8, Math.PI, 0);
+      ctx.lineTo(icX + 11, icY + 8);
+      ctx.lineTo(icX - 11, icY + 8);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Speech / Toast chalice icon
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(icX, icY, 9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fde047';
+    ctx.font = '700 11.5px Georgia, serif';
+    const titleTxt =
+      activeAct.type === 'souvenir'
+        ? `KEEPSAKE WRAPPED & ADDED TO SATCHEL: ${activeAct.itemName.toUpperCase()}`
+        : activeAct.type === 'inspect'
+          ? `DISPLAY SHOWCASE INSPECTED: ${(activeAct.title || venue.name).toUpperCase()}`
+          : activeAct.type === 'dialogue'
+            ? `CONVERSATION WITH ${activeAct.proprietor.toUpperCase()} (${activeAct.role.toUpperCase()})`
+            : activeAct.type === 'cathedral-bell'
+              ? `SE DE LISBOA (1147) BRONZE BELL CHIME (${activeAct.clockLabel})`
+              : `SHARED LISBOA TOAST AT ${venue.name.toUpperCase()}`;
+    ctx.fillText(titleTxt, cardX + 72, cardY + 25, cardW - 86);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    const line1 =
+      activeAct.type === 'souvenir'
+        ? `Hand-wrapped by ${activeAct.proprietor} at ${venue.name} (-${Number(activeAct.costEur || 0).toFixed(2)} EUR).`
+        : activeAct.type === 'inspect'
+          ? activeAct.note
+          : activeAct.type === 'dialogue'
+            ? `"${activeAct.greeting}"`
+            : activeAct.text;
+    ctx.fillText(line1, cardX + 72, cardY + 45, cardW - 86);
+
+    ctx.fillStyle = '#93c5fd';
+    ctx.font = '600 10px "Segoe UI", sans-serif';
+    const line2 =
+      activeAct.type === 'dialogue'
+        ? `Phrase: "${activeAct.phrasePt}" (${activeAct.phraseEn})`
+        : activeAct.type === 'souvenir'
+          ? 'Open your Satchel panel anytime to admire your Lisboa keepsakes.'
+          : activeAct.type === 'inspect'
+            ? `Cultural heritage exhibit inside ${venue.name} (${venue.memory.neighborhood}).`
+            : 'Visible indoor action active in room.';
+    ctx.fillText(line2, cardX + 72, cardY + 64, cardW - 86);
+    ctx.restore();
   }
 
   // =========================================================================
@@ -1197,9 +1634,84 @@ export class LisboaScenes3DRenderer {
     this.drawLine3D(ctx, cam, [50, 322, -15], [710, 322, -15], '#94a3b8', 2.4);
     this.drawLine3D(ctx, cam, [50, 356, -15], [710, 356, -15], '#94a3b8', 2.4);
 
-    // North Concourse Wall (with Azulejo tile band & Escalator Exit to Street!)
+    // North Concourse Wall (with station-specific Lisboa Azulejo art mural & Escalator Exit to Street!)
     this.drawPoly3D(ctx, cam, [[50, 140, 0], [710, 140, 0], [710, 140, ceilZ], [50, 140, ceilZ]], theme.wallPrimary, theme.trim, 1.4);
     this.drawPoly3D(ctx, cam, [[50, 140, 0], [710, 140, 0], [710, 140, 44], [50, 140, 44]], theme.tileAccent);
+    // Continuous Linha Azul cobalt wayfinding frieze along North Concourse Wall
+    this.drawPoly3D(ctx, cam, [[50, 140.4, 44], [710, 140.4, 44], [710, 140.4, 54], [50, 140.4, 54]], '#1d4ed8');
+    if (station.lines.includes('Linha Verde')) {
+      this.drawPoly3D(ctx, cam, [[50, 140.5, 54], [710, 140.5, 54], [710, 140.5, 59], [50, 140.5, 59]], '#16a34a');
+    }
+
+    // Station-specific Portuguese Architectural & Azulejo Wall Art Panels (left & right of escalator alcove)
+    for (const [panX0, panX1] of [[78, 304], [456, 682]]) {
+      if (theme.muralStyle === 'siza-limestone-gold') {
+        // Baixa-Chiado (Alvaro Siza Vieira Lioz limestone ashlar grid + Angelo de Sousa gleaming gold geometric tile intervention)
+        this.drawPoly3D(ctx, cam, [[panX0, 140.6, 62], [panX1, 140.6, 62], [panX1, 140.6, 118], [panX0, 140.6, 118]], '#ece6db', '#475569', 1.4);
+        for (let gx = panX0 + 28; gx < panX1 - 10; gx += 44) {
+          this.drawPoly3D(ctx, cam, [[gx, 140.8, 68], [gx + 22, 140.8, 68], [gx + 22, 140.8, 110], [gx, 140.8, 110]], '#eab308', '#fef08a', 1);
+        }
+      } else if (theme.muralStyle === 'transparencia-blue-glass') {
+        // Terreiro do Paco (Joao Rodrigues Vieira "Transparencia II" layered cobalt, cyan & white glazed geometric light panels)
+        this.drawPoly3D(ctx, cam, [[panX0, 140.6, 62], [panX1, 140.6, 62], [panX1, 140.6, 118], [panX0, 140.6, 118]], '#0c4a6e', '#38bdf8', 1.5);
+        const glassCols = ['#0284c7', '#38bdf8', '#e0f2fe', '#1d4ed8'];
+        for (let i = 0; i < 5; i += 1) {
+          const gx = panX0 + 12 + i * 42;
+          this.drawPoly3D(
+            ctx,
+            cam,
+            [[gx, 140.8, 66], [gx + 34, 140.8, 66], [gx + 26, 140.8, 114], [gx + 6, 140.8, 114]],
+            glassCols[i % glassCols.length]
+          );
+        }
+      } else {
+        // Santa Apolonia (Jose Santa Barbara "Homenagem aos Ferroviarios" Viuva Lamego railway wheel & signal relief azulejos)
+        this.drawPoly3D(ctx, cam, [[panX0, 140.6, 62], [panX1, 140.6, 62], [panX1, 140.6, 118], [panX0, 140.6, 118]], '#fef3c7', '#1d4ed8', 1.5);
+        for (let i = 0; i < 4; i += 1) {
+          const wx = panX0 + 34 + i * 52;
+          const wPt = this.projectWorldPt(cam, wx, 141, 90);
+          if (wPt) {
+            const wr = clamp((12 * this.focal) / wPt.cz, 4, 20);
+            ctx.save();
+            ctx.strokeStyle = i % 2 === 0 ? '#1d4ed8' : '#b45309';
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.arc(wPt.x, wPt.y, wr, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = '#d97706';
+            ctx.beginPath();
+            ctx.arc(wPt.x, wPt.y, wr * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
+    }
+
+    // Stainless-Steel Navegante / Viva Viagem Automatic Fare Gates flanking the escalator alcove
+    for (const gx of [214, 250, 286, 474, 510, 546]) {
+      this.drawBox3D(ctx, cam, gx - 5, 146, gx + 5, 164, 0, 24, {
+        front: '#94a3b8',
+        side: '#64748b',
+        top: '#cbd5e1',
+        stroke: '#1e293b',
+        lineWidth: 1
+      });
+      // Blue Navegante card validator dome & green LED entry arrow
+      const vPt = this.projectWorldPt(cam, gx, 164, 21);
+      if (vPt) {
+        const vr = clamp((3.2 * this.focal) / vPt.cz, 1.8, 6);
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(vPt.x, vPt.y - vr * 1.4, vr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(vPt.x, vPt.y + vr * 0.6, vr * 0.85, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     // Ascending Escalator Alcove (clickable to return to street!)
     const escPoly = this.drawPoly3D(ctx, cam, [[328, 141, 0], [432, 141, 0], [432, 141, 86], [328, 141, 86]], '#1e3a5f', '#fde047', 2);
     if (escPoly) this.lastHitTargets.push({ kind: 'metro-exit', poly: escPoly });
@@ -1218,25 +1730,99 @@ export class LisboaScenes3DRenderer {
       ctx.restore();
     }
 
-    // South Far Tunnel Wall across the tracks (with iconic red Lisbon Metro M sign & station name!)
-    this.drawPoly3D(ctx, cam, [[710, 420, -16], [50, 420, -16], [50, 420, ceilZ], [710, 420, ceilZ]], shadeColor(theme.wallPrimary, 0.78));
-    this.drawPoly3D(ctx, cam, [[710, 420, 32], [50, 420, 32], [50, 420, 62], [710, 420, 62]], theme.tileAccent);
-    const metroSignPt = this.projectWorldPt(cam, 380, 418, 76);
-    if (metroSignPt) {
-      ctx.save();
-      ctx.font = '700 11px Georgia, serif';
-      const mTxt = `M  |  ${station.name.toUpperCase()}`;
-      const mtw = ctx.measureText(mTxt).width + 20;
-      drawRoundedRect(ctx, metroSignPt.x - mtw * 0.5, metroSignPt.y - 11, mtw, 22, 5);
-      ctx.fillStyle = '#0f172a';
-      ctx.fill();
-      ctx.strokeStyle = '#c81e32';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.fillText(mTxt, metroSignPt.x, metroSignPt.y + 4);
-      ctx.restore();
+    // South Far Tunnel Wall across the tracks (with station-specific Azulejo murals, red diamond Lisbon Metro M signs & Linha Azul frieze!)
+    this.drawPoly3D(ctx, cam, [[710, 420, -16], [50, 420, -16], [50, 420, ceilZ], [710, 420, ceilZ]], shadeColor(theme.wallPrimary, 0.84));
+    this.drawPoly3D(ctx, cam, [[710, 420, 32], [50, 420, 32], [50, 420, 56], [710, 420, 56]], theme.tileAccent);
+    if (station.lines.includes('Linha Verde')) {
+      this.drawPoly3D(ctx, cam, [[710, 419.6, 56], [50, 419.6, 56], [50, 419.6, 62], [710, 419.6, 62]], '#16a34a');
+    }
+
+    // Station-specific Portuguese Architectural & Azulejo Wall Art across the South Track Wall (visible above the train!)
+    for (const [panX0, panX1] of [[70, 355], [405, 690]]) {
+      if (theme.muralStyle === 'siza-limestone-gold') {
+        this.drawPoly3D(ctx, cam, [[panX1, 419.4, 64], [panX0, 419.4, 64], [panX0, 419.4, 114], [panX1, 419.4, 114]], '#ece6db', '#475569', 1.4);
+        for (let gx = panX0 + 18; gx < panX1 - 24; gx += 46) {
+          this.drawPoly3D(ctx, cam, [[gx + 26, 419.1, 70], [gx, 419.1, 70], [gx, 419.1, 108], [gx + 26, 419.1, 108]], '#eab308', '#fef08a', 1);
+        }
+      } else if (theme.muralStyle === 'transparencia-blue-glass') {
+        this.drawPoly3D(ctx, cam, [[panX1, 419.4, 64], [panX0, 419.4, 64], [panX0, 419.4, 114], [panX1, 419.4, 114]], '#0c4a6e', '#38bdf8', 1.5);
+        const glassCols = ['#0284c7', '#38bdf8', '#e0f2fe', '#1d4ed8'];
+        for (let i = 0; i < 6; i += 1) {
+          const gx = panX0 + 12 + i * 44;
+          this.drawPoly3D(
+            ctx,
+            cam,
+            [[gx + 34, 419.1, 68], [gx, 419.1, 68], [gx + 6, 419.1, 110], [gx + 28, 419.1, 110]],
+            glassCols[i % glassCols.length]
+          );
+        }
+      } else {
+        this.drawPoly3D(ctx, cam, [[panX1, 419.4, 64], [panX0, 419.4, 64], [panX0, 419.4, 114], [panX1, 419.4, 114]], '#fef3c7', '#1d4ed8', 1.5);
+        for (let i = 0; i < 5; i += 1) {
+          const wx = panX0 + 30 + i * 54;
+          const wPt = this.projectWorldPt(cam, wx, 418.8, 89);
+          if (wPt) {
+            const wr = clamp((13 * this.focal) / wPt.cz, 5, 22);
+            ctx.save();
+            ctx.strokeStyle = i % 2 === 0 ? '#1d4ed8' : '#b45309';
+            ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            ctx.arc(wPt.x, wPt.y, wr, 0, Math.PI * 2);
+            ctx.stroke();
+            // Railway wheel spokes
+            for (let sp = 0; sp < 4; sp += 1) {
+              const ang = (sp * Math.PI) / 4;
+              ctx.beginPath();
+              ctx.moveTo(wPt.x - Math.cos(ang) * wr, wPt.y - Math.sin(ang) * wr);
+              ctx.lineTo(wPt.x + Math.cos(ang) * wr, wPt.y + Math.sin(ang) * wr);
+              ctx.stroke();
+            }
+            ctx.fillStyle = '#d97706';
+            ctx.beginPath();
+            ctx.arc(wPt.x, wPt.y, wr * 0.34, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
+    }
+
+    for (const sx of [185, 380, 575]) {
+      const metroSignPt = this.projectWorldPt(cam, sx, 418, 120);
+      if (metroSignPt) {
+        ctx.save();
+        ctx.font = '700 10.5px Georgia, serif';
+        const shortName = station.name.replace('Metro ', '').toUpperCase();
+        const mTxt = sx === 380 ? `${shortName}  |  ${theme.artist ? theme.artist.toUpperCase() : 'LINHA AZUL'}` : shortName;
+        const mtw = ctx.measureText(mTxt).width + 38;
+        drawRoundedRect(ctx, metroSignPt.x - mtw * 0.5, metroSignPt.y - 12, mtw, 24, 5);
+        ctx.fillStyle = '#0f172a';
+        ctx.fill();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        // Authentic Red Diamond "M" Metropolitano de Lisboa logo on left of sign
+        const dX = metroSignPt.x - mtw * 0.5 + 15;
+        const dY = metroSignPt.y;
+        ctx.fillStyle = '#c81e32';
+        ctx.beginPath();
+        ctx.moveTo(dX, dY - 8);
+        ctx.lineTo(dX + 8, dY);
+        ctx.lineTo(dX, dY + 8);
+        ctx.lineTo(dX - 8, dY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.1;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '800 8px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('M', dX, dY + 3);
+        ctx.font = '700 10.5px Georgia, serif';
+        ctx.fillText(mTxt, metroSignPt.x + 10, metroSignPt.y + 4);
+        ctx.restore();
+      }
     }
 
     // West & East End Walls with Dark Subterranean Tunnel Portals
@@ -1245,7 +1831,7 @@ export class LisboaScenes3DRenderer {
     this.drawPoly3D(ctx, cam, [[710, 140, -16], [710, 420, -16], [710, 420, ceilZ], [710, 140, ceilZ]], shadeColor(theme.wallPrimary, 0.75));
     this.drawPoly3D(ctx, cam, [[709, 294, -16], [709, 390, -16], [709, 390, 72], [709, 294, 72]], '#050912');
 
-    // 3D Silver-and-Crimson Metropolitano de Lisboa Train parked cleanly at the platform!
+    // 3D Silver-Blue-and-Crimson Metropolitano de Lisboa ML99 Train parked cleanly at the platform!
     const tx = m.trainX || 380;
     this.drawBox3D(
       ctx,
@@ -1259,11 +1845,40 @@ export class LisboaScenes3DRenderer {
       { front: '#cbd5e1', back: '#e2e8f0', side: '#94a3b8', top: '#64748b', stroke: '#1e293b', lineWidth: 1.4 },
       { kind: 'metro-board' }
     );
-    // Crimson Lisbon Metro stripe & illuminated passenger doors along the train side facing platform (y = 302)
+    // Blue Linha Azul lower skirt, Crimson Lisbon Metro belt & illuminated open passenger doors along the train side facing platform (y = 302)
     const doorColor = state.metroDoorChime ? '#fb923c' : '#fef08a';
+    this.drawPoly3D(ctx, cam, [[tx + 175, 301.6, -10], [tx - 175, 301.6, -10], [tx - 175, 301.6, 4], [tx + 175, 301.6, 4]], '#1d4ed8');
     this.drawPoly3D(ctx, cam, [[tx + 175, 301.5, 4], [tx - 175, 301.5, 4], [tx - 175, 301.5, 16], [tx + 175, 301.5, 16]], '#c81e32');
     for (let dx = -140; dx <= 120; dx += 52) {
       this.drawPoly3D(ctx, cam, [[tx + dx + 34, 301, 18], [tx + dx, 301, 18], [tx + dx, 301, 38], [tx + dx + 34, 301, 38]], doorColor, '#1e293b', 1.2);
+      // Yellow vertical passenger grab pole inside open doorway
+      this.drawLine3D(ctx, cam, [tx + dx + 17, 301.2, 18], [tx + dx + 17, 301.2, 38], '#eab308', 2);
+    }
+
+    // Suspended Red-LED Next-Train Countdown Boards (Paineis Eletronicos de Destino) hanging at eye-level above platform & train
+    for (const [bx, destLabel, mins] of [
+      [300, (theme.nextTrainDest || 'SANTA APOLONIA').toUpperCase(), '1 MIN'],
+      [460, (theme.oppositeDest || 'REBOLEIRA').toUpperCase(), '4 MIN']
+    ]) {
+      this.drawLine3D(ctx, cam, [bx - 22, 296, ceilZ], [bx - 22, 296, 56], '#475569', 1.8);
+      this.drawLine3D(ctx, cam, [bx + 22, 296, ceilZ], [bx + 22, 296, 56], '#475569', 1.8);
+      const bPt = this.projectWorldPt(cam, bx, 296, 53);
+      if (bPt && bPt.cz > 25) {
+        ctx.save();
+        const bw = clamp((86 * this.focal) / bPt.cz, 118, 196);
+        const bh = clamp((18 * this.focal) / bPt.cz, 22, 32);
+        drawRoundedRect(ctx, bPt.x - bw * 0.5, bPt.y - bh * 0.5, bw, bh, 4);
+        ctx.fillStyle = '#090d16';
+        ctx.fill();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#fb923c';
+        ctx.font = '700 10px "Consolas", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`DEST: ${destLabel}  ${mins}`, bPt.x, bPt.y + 3.5, bw - 10);
+        ctx.restore();
+      }
     }
 
     // Hover ring on platform

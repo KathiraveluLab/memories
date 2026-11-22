@@ -378,11 +378,35 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.equal(state.energy, 80);
   assert.equal(state.stats.mealsEaten, 1);
   assert.ok(state.memories.some((m) => m.id === 'mem-milestone-taste'));
+  // Verify ordering food gives a plate and seats the player at the dining table with visible outcome!
+  assert.ok(state.seatedDining, 'Ordering food in a restaurant or cafe must create an active seatedDining plate state');
+  assert.equal(state.seatedDining.active, true);
+  assert.equal(state.seatedDining.itemId, 'item-bica-nata');
+  assert.equal(state.player.x, 562);
+  assert.equal(state.player.y, 252);
+  assert.equal(state.player.facing, 'right');
+  assert.equal(isInteriorPositionValid(state.player.x, state.player.y), true);
+  assert.equal(state.indoorActivity?.type, 'dining');
+
+  // Verify talking to proprietor and inspecting venue display also produce visible indoor outcomes
+  const talkRes = engine.talkToProprietor();
+  assert.equal(talkRes.ok, true);
+  assert.equal(state.indoorActivity?.type, 'dialogue');
+  assert.equal(state.indoorActivity?.proprietor, enterRes.venue.proprietor);
+
+  const inspectRes = engine.inspectVenueDisplay();
+  assert.equal(inspectRes.ok, true);
+  assert.equal(state.indoorActivity?.type, 'inspect');
+  assert.equal(state.player.x, 175);
+  assert.equal(state.player.y, 245);
+  assert.equal(isInteriorPositionValid(state.player.x, state.player.y), true);
 
   const exitRes = engine.exitVenue();
   assert.equal(exitRes.ok, true);
   assert.equal(state.mode, 'overworld');
   assert.equal(state.currentVenueId, null);
+  assert.equal(state.seatedDining, null);
+  assert.equal(state.indoorActivity, null);
   assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
 
   assert.equal(engine.enterVenue('oficina-azulejos').ok, true);
@@ -390,6 +414,8 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.equal(buyRes.ok, true);
   assert.equal(state.satchel.length, 1);
   assert.equal(state.satchel[0].name, 'Cobalt Azulejo Tile');
+  assert.equal(state.indoorActivity?.type, 'souvenir');
+  assert.equal(state.indoorActivity?.itemId, 'item-azulejo-coaster');
   assert.ok(state.memories.some((m) => m.id === 'mem-milestone-keepsake'));
   assert.ok(state.memories.some((m) => m.id === 'mem-oficina-azulejos'));
   assert.equal(engine.exitVenue().ok, true);
@@ -404,6 +430,37 @@ test('AC-03 & AC-04: entering Cafe A Brasileira & shops, walking interiors, eati
   assert.equal(engine.purchaseVenueItem('item-se-cloister-pass').ok, true);
   assert.equal(engine.exitVenue().ok, true);
   assert.equal(isPointInVehicleLane(state.player.x, state.player.y), false);
+
+  // Verify polite riverside jogger collision avoidance around pedestrians (never running through people!)
+  engine.setMonth(7, { silent: true }); // July has warm-month joggers active
+  assert.ok(state.joggers.length >= 2, 'Expected warm-month riverside joggers in July');
+  const jog = state.joggers[1]; // Tejo Runner (min: 855, max: 1380)
+  jog.x = 1100;
+  jog.y = 992;
+  jog.homeY = 992;
+  jog.dir = 1;
+  jog.avoidSide = 0;
+  // Place a stationary pedestrian directly in the jogger's path at (1148, 992)
+  engine.setPlayerPosition(1148, 992);
+  let minSepToPlayer = Infinity;
+  let maxLatOffset = 0;
+  for (let step = 0; step < 35; step += 1) {
+    engine.updateJoggers(0.05);
+    const d = Math.hypot(jog.x - state.player.x, jog.y - state.player.y);
+    if (d < minSepToPlayer) minSepToPlayer = d;
+    const lat = Math.abs(jog.y - 992);
+    if (lat > maxLatOffset) maxLatOffset = lat;
+  }
+  assert.ok(jog.x > 1165, `Expected jogger to curve around and pass x=1148, reached x=${jog.x}`);
+  assert.ok(maxLatOffset >= 10, `Expected jogger to arc laterally around pedestrian, maxLatOffset=${maxLatOffset}`);
+  assert.ok(minSepToPlayer >= 16.5, `Expected jogger never to pass through pedestrian (minSep=${minSepToPlayer})`);
+
+  // Verify authentic Lisboa Metro station characteristics across all 3 stations
+  for (const st of METRO_STATIONS) {
+    assert.ok(st.undergroundTheme?.architect, `Metro station ${st.id} must specify its Lisbon architect`);
+    assert.ok(st.undergroundTheme?.artist, `Metro station ${st.id} must specify its Portuguese azulejo/mural artist`);
+    assert.ok(st.undergroundTheme?.muralStyle, `Metro station ${st.id} must specify its muralStyle`);
+  }
 });
 
 test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, gentle loop, Transtejo ferries, and 26-memory completion', () => {

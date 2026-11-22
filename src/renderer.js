@@ -4684,6 +4684,117 @@ export class LisboaCanvasRenderer {
       this.drawCharacterSprite(ctx, actor.x, actor.y, actor);
     }
 
+    // 2D Overhead Visible Indoor Outcomes: Seated Dining Chair & Freshly Served Plate, Wrapped Souvenir, Display Spotlight, or Dialogue Bubble
+    const activeAct = state.indoorActivity && state.indoorActivity.venueId === venue.id ? state.indoorActivity : null;
+    const seatedMeal = state.seatedDining && state.seatedDining.venueId === venue.id ? state.seatedDining : null;
+    if (seatedMeal) {
+      // Wooden dining chair at (562, 252) & glowing freshly served plate on Table 1 at (616, 252)
+      ctx.save();
+      ctx.fillStyle = '#7c4724';
+      drawRoundedRect(ctx, seatedMeal.seatX - 10, seatedMeal.seatY - 10, 16, 20, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+
+      // Highlighted served plate with cobalt rim & steam on Dining Table 1
+      const px = seatedMeal.plateX || 616;
+      const py = seatedMeal.plateY || 252;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px, py, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1d4ed8';
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+      ctx.fillStyle = '#d97706';
+      ctx.beginPath();
+      ctx.arc(px, py, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+      const sShift = Math.sin(this.animTime * 4) * 2.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(px - 3, py - 10);
+      ctx.quadraticCurveTo(px - 3 + sShift, py - 18, px - 1, py - 24);
+      ctx.moveTo(px + 4, py - 10);
+      ctx.quadraticCurveTo(px + 4 - sShift, py - 18, px + 2, py - 24);
+      ctx.stroke();
+
+      // Floating dining table badge above Table 1
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      const label = `DINING: ${seatedMeal.itemName}`;
+      const lw = Math.ceil(ctx.measureText(label).width) + 16;
+      drawRoundedRect(ctx, 636 - lw * 0.5, 198, lw, 19, 5);
+      ctx.fillStyle = 'rgba(20, 50, 88, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+      ctx.fillStyle = '#fef08a';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, 636, 211);
+      ctx.restore();
+    } else if (activeAct?.type === 'souvenir') {
+      // Ribbon-wrapped souvenir box glowing on the counter
+      ctx.save();
+      drawRoundedRect(ctx, 368, 152, 24, 18, 3);
+      ctx.fillStyle = '#fef3c7';
+      ctx.fill();
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      const label = `SATCHEL +1: ${activeAct.itemName}`;
+      const lw = Math.ceil(ctx.measureText(label).width) + 16;
+      drawRoundedRect(ctx, 380 - lw * 0.5, 194, lw, 19, 5);
+      ctx.fillStyle = 'rgba(120, 53, 15, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+      ctx.fillStyle = '#fef08a';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, 380, 207);
+      ctx.restore();
+    } else if (activeAct?.type === 'inspect') {
+      // Golden museum spotlight halo around the left display vitrine + exhibit note banner
+      ctx.save();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 3;
+      drawRoundedRect(ctx, 59, 201, 78, 124, 8);
+      ctx.stroke();
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      const label = `INSPECTING: ${venue.displayNote.slice(0, 54)}...`;
+      const lw = Math.ceil(ctx.measureText(label).width) + 16;
+      drawRoundedRect(ctx, Math.max(12, 130 - lw * 0.3), 176, lw, 19, 5);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.fillStyle = '#e0f2fe';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, Math.max(12, 130 - lw * 0.3) + 8, 189);
+      ctx.restore();
+    } else if (activeAct?.type === 'dialogue') {
+      // Speech bubble directly over the proprietor behind the counter
+      ctx.save();
+      ctx.font = '700 9.5px "Segoe UI", sans-serif';
+      const label = `${activeAct.proprietor}: "${activeAct.phrasePt}"`;
+      const lw = Math.min(340, Math.ceil(ctx.measureText(label).width) + 18);
+      drawRoundedRect(ctx, primaryStaffX - lw * 0.5, 68, lw, 20, 6);
+      ctx.fillStyle = '#fffbeb';
+      ctx.fill();
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#78350f';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, primaryStaffX, 81, lw - 12);
+      ctx.restore();
+    }
+
     ctx.restore();
 
     if (nearbyInteraction) {
@@ -5012,10 +5123,47 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 6;
     ctx.stroke();
 
-    // 1. Station tiled upper vault wall
+    // 1. Station tiled upper vault wall + Station-Specific Lisboa Azulejo Mural Art
     ctx.fillStyle = theme.wallPrimary;
     ctx.fillRect(6, 6, INTERIOR_WIDTH - 12, 146);
     this.drawAzulejoWall(ctx, 8, 92, INTERIOR_WIDTH - 16, 56, 'cobalt-azulejo');
+
+    // Station-specific architectural mural interventions (Siza/Angelo de Sousa gold tiles, Transparencia II blue glass, or Santa Barbara railway relief tiles)
+    for (const [mx0, mw] of [[24, 286], [450, 286]]) {
+      if (theme.muralStyle === 'siza-limestone-gold') {
+        ctx.fillStyle = '#ece6db';
+        ctx.fillRect(mx0, 96, mw, 46);
+        for (let gx = mx0 + 14; gx < mx0 + mw - 18; gx += 38) {
+          ctx.fillStyle = '#eab308';
+          ctx.fillRect(gx, 102, 20, 34);
+          ctx.strokeStyle = '#fef08a';
+          ctx.strokeRect(gx, 102, 20, 34);
+        }
+      } else if (theme.muralStyle === 'transparencia-blue-glass') {
+        ctx.fillStyle = '#0c4a6e';
+        ctx.fillRect(mx0, 96, mw, 46);
+        const cols = ['#0284c7', '#38bdf8', '#bae6fd', '#1d4ed8'];
+        for (let i = 0; i < 6; i += 1) {
+          ctx.fillStyle = cols[i % cols.length];
+          ctx.fillRect(mx0 + 10 + i * 45, 100, 34, 38);
+        }
+      } else if (theme.muralStyle === 'ferroviarios-railway-tiles') {
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(mx0, 96, mw, 46);
+        for (let i = 0; i < 5; i += 1) {
+          const wx = mx0 + 28 + i * 56;
+          ctx.strokeStyle = i % 2 === 0 ? '#1d4ed8' : '#b45309';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.arc(wx, 119, 13, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = '#d97706';
+          ctx.beginPath();
+          ctx.arc(wx, 119, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
 
     // Overhead station architectural vault arches & fluorescent light fixtures
     ctx.strokeStyle = 'rgba(30, 58, 95, 0.25)';
@@ -5030,34 +5178,46 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(lx, 14, 72, 6);
     }
 
-    // Left & right station name plaques with crimson Lisbon Metro M emblem
-    for (const px of [138, 622]) {
-      drawRoundedRect(ctx, px - 102, 28, 204, 46, 6);
+    // Left & right station name plaques with authentic red diamond Metropolitano de Lisboa M emblem & LED countdown boards
+    for (const [idx, px] of [138, 622].entries()) {
+      drawRoundedRect(ctx, px - 108, 24, 216, 48, 6);
       ctx.fillStyle = '#143258';
       ctx.fill();
       ctx.strokeStyle = '#60a5fa';
       ctx.lineWidth = 1.6;
       ctx.stroke();
 
+      // Red Diamond M Logo
+      const dx = px - 84;
+      const dy = 48;
       ctx.fillStyle = '#c81e32';
       ctx.beginPath();
-      ctx.arc(px - 80, 51, 12, 0, Math.PI * 2);
+      ctx.moveTo(dx, dy - 13);
+      ctx.lineTo(dx + 13, dy);
+      ctx.lineTo(dx, dy + 13);
+      ctx.lineTo(dx - 13, dy);
+      ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1.6;
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.font = '800 12px "Segoe UI", sans-serif';
+      ctx.font = '800 11px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('M', px - 80, 55);
+      ctx.fillText('M', dx, dy + 4);
 
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ffffff';
-      ctx.font = '700 11.5px Georgia, serif';
-      ctx.fillText(station.name.replace('Metro ', '').toUpperCase(), px - 60, 47);
+      ctx.font = '700 11px Georgia, serif';
+      ctx.fillText(station.name.replace('Metro ', '').toUpperCase(), px - 64, 43);
       ctx.fillStyle = '#93c5fd';
-      ctx.font = '700 9px "Segoe UI", sans-serif';
-      ctx.fillText(station.lines.join(' / ').toUpperCase(), px - 60, 62);
+      ctx.font = '700 8.5px "Segoe UI", sans-serif';
+      ctx.fillText(`${station.lines.join(' / ').toUpperCase()}  -  ${(theme.architect || 'LISBOA').split(' ')[0].toUpperCase()}`, px - 64, 56);
+      // Red-LED Next-Train Countdown Line at bottom of plaque
+      ctx.fillStyle = '#fb923c';
+      ctx.font = '700 8.5px "Consolas", monospace';
+      const nextDest = idx === 0 ? (theme.nextTrainDest || 'Santa Apolonia') : (theme.oppositeDest || 'Reboleira');
+      ctx.fillText(`DEST: ${nextDest.toUpperCase()} ${idx === 0 ? '1 MIN' : '4 MIN'}`, px - 64, 67);
     }
 
     // 2. Animated Moving Escalator Bank (center top: x 328..432, y 22..162)
