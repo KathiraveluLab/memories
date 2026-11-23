@@ -7,6 +7,7 @@ import {
   DECORATIVE_STRUCTURES,
   FERRY_TERMINAL,
   SANTA_JUSTA_LIFT,
+  OVERWORLD_CITY_GATEWAYS,
   METRO_STATIONS,
   VENUES,
   REST_SPOTS,
@@ -807,6 +808,8 @@ export class LisboaStreetView3DRenderer {
         this.drawFerryTerminal3D(ctx, cam, item.highlighted, isEvening);
       } else if (item.kind === 'santa-justa') {
         this.drawSantaJustaTower3D(ctx, cam, item.highlighted, isEvening, animTime);
+      } else if (item.kind === 'city-gateway') {
+        this.drawCityGateway3D(ctx, cam, item.gateway, item.highlighted, isEvening);
       } else if (item.kind === 'monument') {
         this.drawCamoesMonument3D(ctx, cam, item.struct, isEvening, animTime, item.highlighted);
       } else if (item.kind === 'vehicle') {
@@ -1821,6 +1824,20 @@ export class LisboaStreetView3DRenderer {
         x1: SANTA_JUSTA_LIFT.x + SANTA_JUSTA_LIFT.w,
         y1: SANTA_JUSTA_LIFT.y + SANTA_JUSTA_LIFT.h,
         highlighted: nearbyInteraction?.type === 'santa-justa'
+      });
+    }
+
+    // Perimeter Greater Lisboa Walking Avenue Gateways (continuing streets to Rossio, Rato, Cais do Sodre, Alameda & Oriente!)
+    for (const gw of OVERWORLD_CITY_GATEWAYS) {
+      if (!inRange(gw.x - 18, gw.y - 18, gw.x + 18, gw.y + 18)) continue;
+      list.push({
+        kind: 'city-gateway',
+        x0: gw.x - 10,
+        y0: gw.y - 10,
+        x1: gw.x + 10,
+        y1: gw.y + 10,
+        gateway: gw,
+        highlighted: nearbyInteraction?.type === 'city-avenue' && nearbyInteraction.targetZoneId === gw.toZoneId
       });
     }
 
@@ -3595,6 +3612,78 @@ export class LisboaStreetView3DRenderer {
       ctx.textAlign = 'center';
       ctx.fillText(txt, signPt.x, signPt.y + fontSize * 0.34);
       ctx.restore();
+    }
+  }
+
+  drawCityGateway3D(ctx, cam, gw, highlighted, isEvening) {
+    const gz = getTerrainElevation(gw.x, gw.y);
+    const poleCol = isEvening ? '#334155' : '#1e293b';
+    const hitMeta = { kind: 'city-gateway', gateway: gw };
+    // Limestone plinth base & classic dark wrought-iron Lisbon street signpost column
+    const basePt = this.projectWorldPt(cam, gw.x, gw.y, gz);
+    const plinthPt = this.projectWorldPt(cam, gw.x, gw.y, gz + 7);
+    const topPt = this.projectWorldPt(cam, gw.x, gw.y, gz + 50);
+    if (basePt && topPt && basePt.cz < 760) {
+      const sc = clamp(this.focal / basePt.cz, 0.45, 1.4);
+      const pw = Math.max(4, 7 * sc);
+      const postW = Math.max(2.5, 3.6 * sc);
+      ctx.save();
+      // Tapered wrought-iron column with subtle highlight
+      ctx.fillStyle = poleCol;
+      ctx.fillRect(topPt.x - postW * 0.5, topPt.y, postW, Math.max(1, basePt.y - topPt.y));
+      ctx.fillStyle = highlighted ? '#f59e0b' : '#475569';
+      ctx.fillRect(topPt.x - postW * 0.16, topPt.y, Math.max(1, postW * 0.32), Math.max(1, basePt.y - topPt.y));
+      // Stone base plinth at ground level
+      if (plinthPt) {
+        const ph = Math.max(4, basePt.y - plinthPt.y);
+        ctx.fillStyle = isEvening ? '#64748b' : '#d6cfc2';
+        ctx.fillRect(basePt.x - pw * 0.5, basePt.y - ph, pw, ph);
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(basePt.x - pw * 0.5, basePt.y - ph, pw, ph);
+      }
+      ctx.restore();
+    }
+    const sp = this.projectWorldPt(cam, gw.x, gw.y, gz + 54);
+    if (sp && sp.cz < 760) {
+      const scale = clamp(this.focal / sp.cz, 0.45, 1.35);
+      const kmTxt = gw.distanceMeters >= 1000 ? `${(gw.distanceMeters / 1000).toFixed(1)}km` : `${gw.distanceMeters}m`;
+      const l1 = `WALK -> ${gw.shortLabel} (${kmTxt})`;
+      const l2 = `${gw.avenueName.split(' & ')[0]} [E]`;
+      ctx.save();
+      const fs1 = Math.max(8, Math.round(9.5 * scale));
+      const fs2 = Math.max(7, Math.round(8 * scale));
+      ctx.font = `700 ${fs1}px Georgia, serif`;
+      const tw = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width) + 20 * scale;
+      const th = 30 * scale;
+      const bx0 = sp.x - tw * 0.5;
+      const by0 = sp.y - th * 0.5;
+      drawRoundedRect(ctx, bx0, by0, tw, th, 5);
+      ctx.fillStyle = '#faf8f3';
+      ctx.fill();
+      ctx.strokeStyle = highlighted ? '#f59e0b' : '#1b4d89';
+      ctx.lineWidth = highlighted ? 2.4 : 1.8;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(27, 77, 137, 0.42)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx0 + 3, by0 + 3, tw - 6, th - 6);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#14375f';
+      ctx.font = `700 ${fs1}px Georgia, serif`;
+      ctx.fillText(l1, sp.x, by0 + th * 0.44);
+      ctx.fillStyle = '#2563eb';
+      ctx.font = `700 ${fs2}px "Segoe UI", sans-serif`;
+      ctx.fillText(l2, sp.x, by0 + th * 0.8);
+      ctx.restore();
+      this.lastHitTargets.push({
+        ...hitMeta,
+        poly: [
+          { x: bx0, y: by0 },
+          { x: bx0 + tw, y: by0 },
+          { x: bx0 + tw, y: by0 + th },
+          { x: bx0, y: by0 + th }
+        ]
+      });
     }
   }
 

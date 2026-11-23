@@ -10,6 +10,13 @@ import {
   CITY_METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
+  OVERWORLD_CITY_GATEWAYS,
+  LISBOA_WALKING_NETWORK,
+  LISBOA_CITY_MAP_NODES,
+  getLisboaZoneLabel,
+  getLisboaZoneShortName,
+  getWalkingAvenuesFrom,
+  computeLisboaWalkingRoute,
   computeMetroNetworkRoute,
   getMetroLineById,
   getStationLineIds,
@@ -249,7 +256,7 @@ const dragLook = {
 };
 
 function isFirstPerson3DActive(state) {
-  if (!state || state.viewMode !== 'street3d' || state.ridingVehicleId) return false;
+  if (!state || state.viewMode !== 'street3d' || state.ridingVehicleId || state.cityWalk?.active) return false;
   if (state.mode === 'overworld' || state.mode === 'interior' || state.mode === 'city-district') return true;
   if (state.mode === 'metro' && state.metro.phase === 'platform') return true;
   if (state.mode === 'ferry' && state.ferry.phase === 'terminal') return true;
@@ -307,6 +314,7 @@ function handleCanvasClick(event) {
     return;
   }
   const state = engine.getState();
+  if (state.cityWalk?.active) return;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
@@ -369,6 +377,24 @@ function handleCanvasClick(event) {
       }
       if (hit3d.kind === 'city-district-metro') {
         engine.setWalkTarget(380, 256, { type: 'enterCityDistrictMetro' });
+        return;
+      }
+      if (hit3d.kind === 'city-avenue' && hit3d.targetZoneId) {
+        engine.setWalkTarget(hit3d.x, hit3d.y, { type: 'walkCityAvenue', targetZoneId: hit3d.targetZoneId });
+        setStatusBanner(`Walking toward open Lisbon avenue -> ${getLisboaZoneShortName(hit3d.targetZoneId)}...`);
+        return;
+      }
+      if (hit3d.kind === 'city-gateway' && hit3d.gateway) {
+        const gw = hit3d.gateway;
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          gw.x,
+          gw.y,
+          { type: 'walkCityAvenue', targetZoneId: gw.toZoneId }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking along ${gw.avenueName} toward ${getLisboaZoneShortName(gw.toZoneId)}...`);
         return;
       }
       if (hit3d.kind === 'santa-justa-ascend') {
@@ -585,6 +611,13 @@ function handleCanvasClick(event) {
 
   if (state.mode === 'city-district') {
     const dist = LISBOA_CITY_DISTRICTS.find((d) => d.id === state.cityDistrictId);
+    for (const av of getWalkingAvenuesFrom(state.cityDistrictId)) {
+      if (Math.hypot(worldPt.x - av.x, worldPt.y - av.y) <= 58) {
+        engine.setWalkTarget(av.x, av.y, { type: 'walkCityAvenue', targetZoneId: av.toZoneId });
+        setStatusBanner(`Walking toward ${av.avenueName} -> ${getLisboaZoneShortName(av.toZoneId)}...`);
+        return;
+      }
+    }
     for (const spot of dist?.townSpots || []) {
       if (Math.hypot(worldPt.x - spot.x, worldPt.y - spot.y) <= 68 || (worldPt.y <= 165 && Math.abs(worldPt.x - spot.x) <= 95)) {
         engine.setWalkTarget(spot.x, spot.y, { type: 'cityDistrictSpot', spotId: spot.id });
@@ -655,6 +688,22 @@ function handleCanvasClick(event) {
     engine.setWalkPath(path);
     setStatusBanner(`Walking along Rua do Carmo toward ${SANTA_JUSTA_LIFT.name}...`);
     return;
+  }
+
+  // Overworld clicks: check perimeter Lisbon Walking Avenue Gateways into Greater Lisboa
+  for (const gw of OVERWORLD_CITY_GATEWAYS) {
+    if (Math.hypot(worldPt.x - gw.x, worldPt.y - gw.y) <= 44) {
+      const path = buildOverworldPath(
+        state.player.x,
+        state.player.y,
+        gw.x,
+        gw.y,
+        { type: 'walkCityAvenue', targetZoneId: gw.toZoneId }
+      );
+      engine.setWalkPath(path);
+      setStatusBanner(`Walking toward ${gw.avenueName} -> ${getLisboaZoneShortName(gw.toZoneId)}...`);
+      return;
+    }
   }
 
   // Overworld clicks: check Metro stations first
@@ -825,6 +874,8 @@ function renderActiveContextPanel(state) {
     activeSouthBankSpotId: state.activeSouthBankSpotId || null,
     cityDistrictId: state.cityDistrictId || null,
     activeCityDistrictSpotId: state.activeCityDistrictSpotId || null,
+    cityWalkActive: Boolean(state.cityWalk?.active),
+    cityWalkTo: state.cityWalk?.toZoneId || null,
     visitedCityDistricts: (state.visitedCityDistricts || []).length,
     visitedMetroStations: (state.visitedMetroStations || []).length,
     fadoTrackId: soundEngine.getCurrentFadoTrack()?.id || null,
@@ -838,11 +889,29 @@ function renderActiveContextPanel(state) {
     seatedBenchId: state.seatedBenchId || null,
     nearbyCastanhaId: nearby?.type === 'castanha-cart' ? nearby.id : null,
     nearbyFunicularKey: nearby?.type === 'funicular-station' ? `${nearby.id}:${nearby.fromEnd}` : null,
+    nearbyCityAvenue: nearby?.type === 'city-avenue' ? nearby.targetZoneId : null,
     euros: state.euros
   });
 
   if (sig === lastContextSignature) return;
   lastContextSignature = sig;
+
+  if (state.cityWalk?.active) {
+    const cw = state.cityWalk;
+    const distLabel = cw.distanceMeters >= 1000 ? `${(cw.distanceMeters / 1000).toFixed(1)} km` : `${cw.distanceMeters} m`;
+    dom.activeContextPanel.classList.remove('hidden');
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>Walking Along ${escapeHtml(cw.avenueName)}</h3>
+          <div class="item-meta">${escapeHtml(getLisboaZoneShortName(cw.fromZoneId))} -> ${escapeHtml(getLisboaZoneShortName(cw.toZoneId))}</div>
+        </div>
+        <span class="badge badge-bus">ON FOOT</span>
+      </div>
+      <p class="helper-text">Strolling continuously across Lisboa on foot (${escapeHtml(distLabel)}, ~${cw.walkMinutes} min) into ${escapeHtml(getLisboaZoneLabel(cw.toZoneId))}...</p>
+    `;
+    return;
+  }
 
   if (state.ridingFunicularId) {
     const fun = (state.funiculars || []).find((f) => f.id === state.ridingFunicularId);
@@ -1255,6 +1324,26 @@ function renderActiveContextPanel(state) {
         })
         .join('');
 
+      const walkingAvenues = getWalkingAvenuesFrom(district.id);
+      const avenuesHtml = walkingAvenues
+        .map((av) => {
+          const kmLabel = av.distanceMeters >= 1000 ? `${(av.distanceMeters / 1000).toFixed(1)} km` : `${av.distanceMeters} m`;
+          const destVisited = av.toZoneId === 'overworld' || (state.visitedCityDistricts || []).includes(av.toZoneId);
+          return `
+            <div class="item-card">
+              <div>
+                <h4>${escapeHtml(getLisboaZoneShortName(av.toZoneId))} <span class="badge-muted">${escapeHtml(av.portalLabel)} AVENUE${destVisited ? ' | VISITED' : ''}</span></h4>
+                <div class="item-meta"><strong>${escapeHtml(av.avenueName)}</strong></div>
+                <div class="item-meta">${escapeHtml(kmLabel)} on foot | ~${av.walkMinutes} min stroll | Free</div>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" data-walk-city-avenue="${escapeHtml(av.toZoneId)}">
+                Walk ${escapeHtml(av.portalLabel)}
+              </button>
+            </div>
+          `;
+        })
+        .join('');
+
       dom.activeContextPanel.innerHTML = `
         <div class="context-header">
           <div>
@@ -1270,6 +1359,8 @@ function renderActiveContextPanel(state) {
           <span>${escapeHtml(district.phrase.en)}</span>
         </div>
         ${spotsHtml}
+        <div class="hood-group-title" style="margin-top:10px;">Walkable Lisbon Avenues (Continue on Foot)</div>
+        ${avenuesHtml}
         <div class="action-strip">
           <button type="button" class="btn btn-sm" data-venue-action="postcard">Shared Postcard [P]</button>
           <button type="button" class="btn btn-secondary btn-sm" data-cd-metro="true">Return to Metro Network (Esc)</button>
@@ -1565,6 +1656,32 @@ function renderActiveContextPanel(state) {
     return;
   }
 
+  if (nearby?.type === 'city-avenue' && nearby.avenue) {
+    const av = nearby.avenue;
+    const kmLabel = av.distanceMeters >= 1000 ? `${(av.distanceMeters / 1000).toFixed(1)} km` : `${av.distanceMeters} m`;
+    dom.activeContextPanel.classList.remove('hidden');
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>${escapeHtml(av.avenueName)}</h3>
+          <div class="item-meta">Lisboa Avenue Gateway -> ${escapeHtml(getLisboaZoneShortName(av.toZoneId))}</div>
+        </div>
+        <span class="badge badge-bus">ON FOOT</span>
+      </div>
+      <p class="helper-text">Walk continuously beyond Historic Central Lisboa along ${escapeHtml(av.avenueName)} directly into ${escapeHtml(getLisboaZoneLabel(av.toZoneId))}.</p>
+      <div class="item-card">
+        <div>
+          <h4>Walk to ${escapeHtml(getLisboaZoneShortName(av.toZoneId))}</h4>
+          <div class="item-meta"><strong>Free on foot</strong> | ${escapeHtml(kmLabel)} (~${av.walkMinutes} min stroll)</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" data-walk-city-avenue="${escapeHtml(av.toZoneId)}">
+          Walk Avenue [E]
+        </button>
+      </div>
+    `;
+    return;
+  }
+
   dom.activeContextPanel.classList.add('hidden');
   dom.activeContextPanel.innerHTML = '';
 }
@@ -1583,6 +1700,8 @@ function renderLists(state) {
     journalLen: state.journal.length,
     journalHead: state.journal[0]?.id || 0,
     mode: state.mode,
+    currentCityZone: state.mode === 'city-district' ? state.cityDistrictId : 'overworld',
+    cityWalkActive: Boolean(state.cityWalk?.active),
     riding: state.ridingVehicleId
   });
   if (sig === lastUiSignature) return;
@@ -1595,7 +1714,81 @@ function renderLists(state) {
 
   dom.albumCompleteBanner.classList.toggle('hidden', !state.albumCompleted);
 
+  const curZone = state.mode === 'city-district' && state.cityDistrictId ? state.cityDistrictId : 'overworld';
+  const visitedDistrictSet = new Set(['overworld', ...(state.visitedCityDistricts || [])]);
+  const mapNodeCoords = new Map(
+    LISBOA_CITY_MAP_NODES.map((n) => [
+      n.id,
+      { ...n, sx: Math.round(n.x * 2.95 + 12), sy: Math.round(n.y * 1.44 + 15) }
+    ])
+  );
+  const drawnEdges = new Set();
+  const mapEdgeLines = [];
+  for (const [fromId, links] of Object.entries(LISBOA_WALKING_NETWORK)) {
+    const a = mapNodeCoords.get(fromId);
+    if (!a) continue;
+    for (const link of links) {
+      const b = mapNodeCoords.get(link.toZoneId);
+      if (!b) continue;
+      const edgeKey = [fromId, link.toZoneId].sort().join('--');
+      if (drawnEdges.has(edgeKey)) continue;
+      drawnEdges.add(edgeKey);
+      const isActiveEdge = fromId === curZone || link.toZoneId === curZone;
+      mapEdgeLines.push(
+        `<line x1="${a.sx}" y1="${a.sy}" x2="${b.sx}" y2="${b.sy}" stroke="${isActiveEdge ? '#1b4d89' : '#94a3b8'}" stroke-width="${isActiveEdge ? '2.4' : '1.4'}" stroke-dasharray="${isActiveEdge ? '' : '3 2'}" />`
+      );
+    }
+  }
+
+  const labelOffsets = {
+    'district-sao-sebastiao-sete-rios': { dx: 0, dy: -10, anchor: 'middle', txt: 'Sao Sebastiao & Zoo' },
+    'district-campo-grande-alvalade': { dx: 0, dy: -10, anchor: 'middle', txt: 'Campo Grande' },
+    'district-oriente-parque-nacoes': { dx: 8, dy: -10, anchor: 'end', txt: 'Oriente & Expo' },
+    'district-rato-principe-real': { dx: -8, dy: -9, anchor: 'middle', txt: 'Rato & Pr. Real' },
+    'district-marques-pombal-avenida': { dx: -2, dy: -9, anchor: 'middle', txt: 'Marques' },
+    'district-saldanha-campo-pequeno': { dx: 4, dy: -9, anchor: 'middle', txt: 'Saldanha' },
+    'district-alameda-arroios': { dx: 10, dy: 3, anchor: 'start', txt: 'Alameda' },
+    'district-rossio-restauradores': { dx: 2, dy: 15, anchor: 'middle', txt: 'Rossio' },
+    'district-cais-sodre-belem': { dx: 6, dy: 15, anchor: 'middle', txt: 'Cais & Belem' },
+    overworld: { dx: 12, dy: 15, anchor: 'middle', txt: 'Chiado, Bairro Alto & Alfama' }
+  };
+
+  const mapNodesSvg = LISBOA_CITY_MAP_NODES.map((n) => {
+    const pt = mapNodeCoords.get(n.id);
+    const isHere = n.id === curZone;
+    const isVisited = visitedDistrictSet.has(n.id);
+    const lo = labelOffsets[n.id] || { dx: 0, dy: -10, anchor: 'middle', txt: n.shortName };
+    return `
+      <g class="city-map-node" data-walk-city-district="${escapeHtml(n.id)}" role="button" tabindex="0">
+        <title>Walk to ${escapeHtml(getLisboaZoneLabel(n.id))}</title>
+        ${isHere ? `<circle cx="${pt.sx}" cy="${pt.sy}" r="10.5" fill="rgba(250, 204, 21, 0.38)" stroke="#d97706" stroke-width="1.6" />` : ''}
+        <circle class="city-map-dot" cx="${pt.sx}" cy="${pt.sy}" r="${isHere ? '6.2' : '5'}" fill="${isHere ? '#f59e0b' : n.color}" stroke="${isVisited ? '#14532d' : '#ffffff'}" stroke-width="${isHere ? '2.2' : '1.6'}" />
+        <text x="${pt.sx + lo.dx}" y="${pt.sy + lo.dy}" text-anchor="${lo.anchor}" font-size="7.4" font-weight="${isHere ? '800' : '700'}" fill="${isHere ? '#92400e' : '#1e293b'}">${escapeHtml(lo.txt)}</text>
+      </g>
+    `;
+  }).join('');
+
   const guideParts = [];
+  guideParts.push(`
+    <div class="city-map-card">
+      <div class="city-map-header">
+        <span class="city-map-title">Cidade de Lisboa - Connected Walking Map</span>
+        <span class="badge-muted">${visitedDistrictSet.size} / ${LISBOA_CITY_MAP_NODES.length} Zones</span>
+      </div>
+      <svg class="city-map-svg" viewBox="0 0 320 186" aria-label="Interactive Full-City Lisboa Walking Map">
+        <rect x="0" y="156" width="320" height="30" fill="#bae6fd" opacity="0.62" />
+        <text x="312" y="176" text-anchor="end" font-size="7" font-weight="700" fill="#0369a1" letter-spacing="0.06em">RIO TEJO (TAGUS ESTUARY)</text>
+        ${mapEdgeLines.join('')}
+        ${mapNodesSvg}
+      </svg>
+      <div class="city-map-legend">
+        <span><strong>Here:</strong> ${escapeHtml(getLisboaZoneShortName(curZone))}</span>
+        ${curZone !== 'overworld'
+          ? `<button type="button" class="btn btn-sm" data-walk-city-district="overworld" ${state.ridingVehicleId || state.cityWalk?.active ? 'disabled' : ''}>Walk to Historic Core</button>`
+          : '<span>Click any district circle to walk along Lisbon avenues</span>'}
+      </div>
+    </div>
+  `);
   for (const hood of NEIGHBORHOODS) {
     guideParts.push(`<div class="hood-group-title">${escapeHtml(hood.name)}</div>`);
     const hoodVenues = VENUES.filter((v) => v.neighborhood === hood.id);
@@ -1684,18 +1877,30 @@ function renderLists(state) {
     `);
   }
 
-  guideParts.push('<div class="hood-group-title">Greater Lisboa Metro Stations &amp; City Districts (All 4 Lines)</div>');
+  guideParts.push('<div class="hood-group-title">Greater Lisboa Metro Stations &amp; City Districts (Walk or Ride Metro)</div>');
   for (const station of CITY_METRO_STATIONS) {
     const visited = (state.visitedCityDistricts || []).includes(station.districtId);
+    const isHere = curZone === station.districtId;
+    const walkRoute = computeLisboaWalkingRoute(curZone, station.districtId);
+    const walkHint = isHere
+      ? 'You are here now'
+      : walkRoute.ok
+        ? `On foot: ${(walkRoute.totalMeters / 1000).toFixed(1)} km (~${walkRoute.totalMinutes} min, ${walkRoute.legs.length} ${walkRoute.legs.length === 1 ? 'avenue' : 'avenues'})`
+        : 'Connected via Lisboa streets';
     guideParts.push(`
       <div class="guide-card ${visited ? 'visited' : ''}">
         <div>
           <div class="guide-card-title">${escapeHtml(station.name)} <span class="badge-muted">${escapeHtml(station.lines.join(' / '))}</span></div>
-          <div class="guide-card-sub">${escapeHtml(station.zoneLabel)} | ${escapeHtml((station.transitConnections || []).slice(0, 2).join(' | '))}</div>
+          <div class="guide-card-sub">${escapeHtml(station.zoneLabel)} | ${escapeHtml(walkHint)}</div>
         </div>
-        <button type="button" class="btn btn-sm" data-travel-city-metro="${escapeHtml(station.id)}" ${state.ridingVehicleId ? 'disabled' : ''}>
-          Ride Metro
-        </button>
+        <div class="guide-card-actions">
+          <button type="button" class="btn btn-primary btn-sm" data-walk-city-district="${escapeHtml(station.districtId)}" ${state.ridingVehicleId || state.cityWalk?.active || isHere ? 'disabled' : ''}>
+            ${isHere ? 'Here Now' : 'Walk Here'}
+          </button>
+          <button type="button" class="btn btn-sm" data-travel-city-metro="${escapeHtml(station.id)}" ${state.ridingVehicleId || state.cityWalk?.active ? 'disabled' : ''}>
+            Ride Metro
+          </button>
+        </div>
       </div>
     `);
   }
@@ -1982,7 +2187,12 @@ function refreshUi(force = false) {
   const venue = engine.getCurrentVenue();
   const riding = engine.getRidingVehicle();
   const metroStation = engine.getActiveMetroStation();
-  if (state.mode === 'ferry') {
+  if (state.cityWalk?.active) {
+    const cw = state.cityWalk;
+    const distText = cw.distanceMeters >= 1000 ? `${(cw.distanceMeters / 1000).toFixed(1)} km` : `${cw.distanceMeters} m`;
+    dom.sceneTitle.textContent = `Walking Along ${cw.avenueName}`;
+    dom.sceneSubtitle.textContent = `${getLisboaZoneShortName(cw.fromZoneId)} -> ${getLisboaZoneShortName(cw.toZoneId)} on foot (${distText}, ~${cw.walkMinutes} min stroll).`;
+  } else if (state.mode === 'ferry') {
     const f = state.ferry;
     const portInfo = FERRY_DESTINATIONS.find((d) => d.id === f.portId);
     const toName =
@@ -2015,8 +2225,8 @@ function refreshUi(force = false) {
     const dist = LISBOA_CITY_DISTRICTS.find((d) => d.id === state.cityDistrictId);
     dom.sceneTitle.textContent = dist ? `${dist.name} (${state.viewMode === 'street3d' ? '3D' : '2.5D'})` : 'Lisboa City District';
     dom.sceneSubtitle.textContent = dist
-      ? `${dist.transitSummary} | Explore Eatery, Monument & Shop, or descend into Metro (Esc).`
-      : 'Explore this Lisbon Metro city district plaza or return underground.';
+      ? `${dist.transitSummary} | Walk out any open Lisbon avenue on foot, explore Eatery/Monument/Shop, or descend into Metro (Esc).`
+      : 'Explore this Lisbon Metro city district plaza, continue along open avenues on foot, or return underground.';
   } else if (state.mode === 'metro') {
     const destStation = ALL_METRO_STATIONS.find((s) => s.id === state.metro.toStationId);
     const activeLn = getMetroLineById(state.metro.activeLineId || (metroStation ? getStationLineIds(metroStation)[0] : 'linha-azul'));
@@ -2098,7 +2308,7 @@ function refreshUi(force = false) {
         : state.mode === 'metro'
           ? 'Walk to BOARD METRO zone or ESCALATOR TO STREET'
           : state.mode === 'city-district'
-            ? 'Explore Eatery, Monument, Shop, or walk to METRO ENTRANCE'
+            ? 'Walk to open Lisbon avenue sign, Eatery/Monument/Shop, or METRO ENTRANCE'
             : state.mode === 'ferry'
               ? 'Walk to BOARD FERRY gangway or pick destination'
               : 'Walk near a shop, Metro, Cais do Sodre Port, transit stop, or bench';
@@ -2478,6 +2688,9 @@ window.addEventListener('keydown', (event) => {
     }
   }
   if (event.code === 'Escape') {
+    if (engine.getState().cityWalk?.active) {
+      return;
+    }
     if (engine.getState().ridingFunicularId) {
       engine.disembarkFunicular();
       refreshUi(true);
@@ -2795,6 +3008,13 @@ dom.activeContextPanel.addEventListener('click', (event) => {
     refreshUi(true);
     return;
   }
+  const walkAvBtn = event.target.closest('[data-walk-city-avenue]');
+  if (walkAvBtn) {
+    const res = engine.walkCityAvenue(walkAvBtn.dataset.walkCityAvenue);
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
   const ferryBtn = event.target.closest('[data-board-ferry]');
   if (ferryBtn) {
     const res = engine.boardFerry(ferryBtn.dataset.boardFerry);
@@ -2886,15 +3106,64 @@ dom.activeContextPanel.addEventListener('click', (event) => {
 });
 
 dom.guideList.addEventListener('click', (event) => {
+  const walkCityBtn = event.target.closest('[data-walk-city-district]');
+  if (walkCityBtn) {
+    const targetZone = walkCityBtn.dataset.walkCityDistrict;
+    const st = engine.getState();
+    if (st.ridingVehicleId || st.ridingFunicularId || st.cityWalk?.active) return;
+    if (st.mode === 'interior') {
+      engine.exitVenue();
+    } else if (st.mode === 'metro') {
+      if (st.metro.phase === 'riding' || st.metro.phase === 'transferring') return;
+      engine.exitMetroStation({ immediate: true });
+    } else if (st.mode === 'santa-justa') {
+      engine.descendSantaJusta({ immediate: true });
+    } else if (st.mode === 'ferry') {
+      if (st.ferry.phase === 'sailing') return;
+      engine.exitFerryTerminal({ immediate: true });
+    }
+
+    const fromZone = engine.getCurrentCityZoneId() || 'overworld';
+    if (fromZone === targetZone) {
+      setStatusBanner(`You are already in ${getLisboaZoneShortName(targetZone)}!`);
+      refreshUi(true);
+      return;
+    }
+    const route = computeLisboaWalkingRoute(fromZone, targetZone);
+    if (!route.ok || !route.legs.length) {
+      setStatusBanner('No walkable avenue route found to that district.', true);
+      refreshUi(true);
+      return;
+    }
+    const firstLeg = route.legs[0];
+    const res = engine.walkCityAvenue(firstLeg.toZoneId);
+    if (!res.ok && res.error) {
+      setStatusBanner(res.error, true);
+    } else if (route.legs.length > 1) {
+      const nextSteps = route.legs
+        .slice(1)
+        .map((leg) => `${leg.avenueName.split(' -> ')[0]} -> ${getLisboaZoneShortName(leg.toZoneId)}`)
+        .join(' | ');
+      setStatusBanner(
+        `Walking Leg 1 of ${route.legs.length} along ${firstLeg.avenueName} toward ${getLisboaZoneShortName(firstLeg.toZoneId)} (Next: ${nextSteps})`
+      );
+    }
+    refreshUi(true);
+    return;
+  }
+
   const travelCityBtn = event.target.closest('[data-travel-city-metro]');
   if (travelCityBtn) {
     const targetStationId = travelCityBtn.dataset.travelCityMetro;
     const st = engine.getState();
+    if (st.cityWalk?.active) return;
     if (st.mode === 'metro' && (st.metro.phase === 'riding' || st.metro.phase === 'transferring')) {
       return;
     }
     if (st.mode === 'interior') {
       engine.exitVenue();
+    } else if (st.mode === 'santa-justa') {
+      engine.descendSantaJusta({ immediate: true });
     } else if (st.mode === 'ferry') {
       if (st.ferry.phase === 'sailing') return;
       engine.exitFerryTerminal({ immediate: true });

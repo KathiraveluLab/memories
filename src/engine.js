@@ -16,6 +16,11 @@ import {
   CITY_METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
+  CITY_DISTRICT_PORTALS,
+  OVERWORLD_CITY_GATEWAYS,
+  getWalkingAvenuesFrom,
+  getLisboaZoneShortName,
+  computeLisboaWalkingRoute,
   getMetroLineById,
   getStationLineIds,
   getDirectStationsOnLine,
@@ -132,6 +137,7 @@ export const METRO_TRANSFER_DURATION = 1.1;
 export const METRO_RIDE_BASE_DURATION = 3.0;
 export const METRO_RIDE_EXTRA_HOP_DURATION = 1.2;
 export const SANTA_JUSTA_RIDE_DURATION = 3.2;
+export const CITY_AVENUE_WALK_DURATION = 1.45;
 
 const SOLID_INTERIOR_RECTS = [
   { x: 62, y: 204, w: 72, h: 118 },
@@ -532,6 +538,19 @@ export function createInitialState() {
       focusedLandmarkId: 'sj-castelo'
     },
     visitedSantaJustaMiradouro: false,
+    cityWalk: {
+      active: false,
+      progress: 0,
+      duration: CITY_AVENUE_WALK_DURATION,
+      fromZoneId: null,
+      toZoneId: null,
+      toSlot: null,
+      avenueName: '',
+      shortLabel: '',
+      distanceMeters: 0,
+      walkMinutes: 0,
+      sceneryStyle: 'grand-boulevard'
+    },
     visitedFerryPorts: [],
     activeSouthBankSpotId: null,
     southBankFeedback: null,
@@ -2641,6 +2660,27 @@ export class MemoriesGameEngine {
           this.openSantaJusta();
           return;
         }
+        if (doorMatch.type === 'city-gateway' && doorMatch.targetZoneId) {
+          this.walkCityAvenue(doorMatch.targetZoneId);
+          return;
+        }
+      }
+    }
+
+    // Directional push-to-walk out of open Lisbon Avenues along the edges of any Greater Lisboa City District plaza
+    if (this.state.mode === 'city-district' && this.doorEntryCooldown <= 0 && !player.walkTarget) {
+      const avenues = getWalkingAvenuesFrom(this.state.cityDistrictId);
+      for (const av of avenues) {
+        const hitWest = av.slot === 'west' && vx < -0.25 && player.x <= 88 && Math.abs(player.y - 214) <= 44;
+        const hitEast = av.slot === 'east' && vx > 0.25 && player.x >= 672 && Math.abs(player.y - 214) <= 44;
+        const hitNW = av.slot === 'north-west' && vy < -0.25 && player.y <= 178 && Math.abs(player.x - 267) <= 38;
+        const hitNE = av.slot === 'north-east' && vy < -0.25 && player.y <= 178 && Math.abs(player.x - 493) <= 38;
+        const hitSW = av.slot === 'south-west' && vy > 0.25 && player.y >= 260 && Math.abs(player.x - 168) <= 44;
+        const hitSE = av.slot === 'south-east' && vy > 0.25 && player.y >= 260 && Math.abs(player.x - 592) <= 44;
+        if (hitWest || hitEast || hitNW || hitNE || hitSW || hitSE) {
+          this.walkCityAvenue(av.toZoneId);
+          return;
+        }
       }
     }
 
@@ -2828,6 +2868,20 @@ export class MemoriesGameEngine {
       return { type: 'santa-justa', id: SANTA_JUSTA_LIFT.id };
     }
 
+    // Perimeter Greater Lisboa Walking Avenue Gateways (walk cleanly out into connected Lisbon districts!)
+    for (const gw of OVERWORLD_CITY_GATEWAYS) {
+      const distGw = distance(px, py, gw.x, gw.y);
+      if (distGw > 30) continue;
+      if (
+        (gw.pushDir === 'west' && vx < -0.35) ||
+        (gw.pushDir === 'east' && vx > 0.35) ||
+        (gw.pushDir === 'north' && vy < -0.35) ||
+        (gw.pushDir === 'south' && vy > 0.35)
+      ) {
+        return { type: 'city-gateway', id: gw.id, targetZoneId: gw.toZoneId };
+      }
+    }
+
     return null;
   }
 
@@ -2880,6 +2934,8 @@ export class MemoriesGameEngine {
       this.enterMetroFromCityDistrict();
     } else if (action.type === 'openSantaJusta') {
       this.openSantaJusta();
+    } else if (action.type === 'walkCityAvenue' && action.targetZoneId) {
+      this.walkCityAvenue(action.targetZoneId);
     }
   }
 
@@ -3135,6 +3191,147 @@ export class MemoriesGameEngine {
     }
   }
 
+  getCurrentCityZoneId() {
+    if (this.state.mode === 'city-district' && this.state.cityDistrictId) {
+      return this.state.cityDistrictId;
+    }
+    if (this.state.mode === 'overworld') {
+      return 'overworld';
+    }
+    return null;
+  }
+
+  walkCityAvenue(targetZoneId, { immediate = false } = {}) {
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId) {
+      return { ok: false, error: 'Step off transit before walking along Lisboa avenues.' };
+    }
+    if (this.state.cityWalk?.active) {
+      return { ok: false, error: 'Already strolling along a Lisbon avenue.' };
+    }
+    const fromZoneId = this.getCurrentCityZoneId();
+    if (!fromZoneId) {
+      return { ok: false, error: 'Step out onto the street or city plaza to walk to a neighboring Lisbon district.' };
+    }
+    if (fromZoneId === targetZoneId) {
+      return { ok: true, alreadyHere: true, zoneId: fromZoneId, state: this.state };
+    }
+
+    const avenues = getWalkingAvenuesFrom(fromZoneId);
+    const link = avenues.find((a) => a.toZoneId === targetZoneId || a.id === targetZoneId);
+    if (!link) {
+      const route = computeLisboaWalkingRoute(fromZoneId, targetZoneId);
+      const nextZoneId = route.legs?.[0]?.toZoneId || null;
+      const nextName = nextZoneId ? getLisboaZoneShortName(nextZoneId) : 'the neighboring district';
+      const msg = route.ok
+        ? `Walk step by step across Lisboa: first stroll to ${nextName} along ${route.legs[0].avenueName} (${(route.totalMeters / 1000).toFixed(1)} km total).`
+        : 'No walkable avenue found to that destination.';
+      this.state.statusMessage = msg;
+      return { ok: false, multiStepRequired: true, route, nextZoneId, error: msg, state: this.state };
+    }
+
+    // Gentle realistic walking clock & stamina progression along the Lisbon avenue
+    this.advanceMinutes(Math.max(4, link.walkMinutes || 8));
+    this.state.stats.distanceWalkedPx += (link.distanceMeters || 800) * 6;
+    const energyCost = clamp(Math.round((link.distanceMeters || 800) / 450), 1, 6);
+    const fullnessCost = clamp(Math.round((link.distanceMeters || 800) / 700), 1, 4);
+    this.state.energy = clamp(Math.max(5, this.state.energy - energyCost), 0, 100);
+    this.state.fullness = clamp(Math.max(5, this.state.fullness - fullnessCost), 0, 100);
+
+    this.state.seatedDining = null;
+    this.state.seatedBenchId = null;
+    this.state.seatedBench = null;
+    this.state.cityDistrictFeedback = null;
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = true;
+
+    this.state.cityWalk = {
+      active: true,
+      progress: 0,
+      duration: CITY_AVENUE_WALK_DURATION,
+      fromZoneId,
+      toZoneId: link.toZoneId,
+      toSlot: link.toSlot,
+      avenueName: link.avenueName,
+      shortLabel: link.shortLabel,
+      distanceMeters: link.distanceMeters,
+      walkMinutes: link.walkMinutes,
+      sceneryStyle: link.sceneryStyle || 'grand-boulevard'
+    };
+
+    const kmText = link.distanceMeters >= 1000 ? `${(link.distanceMeters / 1000).toFixed(1)} km` : `${link.distanceMeters} m`;
+    this.state.statusMessage = `Walking on foot along ${link.avenueName} (${kmText}, ~${link.walkMinutes} min) toward ${getLisboaZoneShortName(link.toZoneId)}...`;
+    recordLog(this.state, 'walk', `Walked along ${link.avenueName} (${kmText}) toward ${getLisboaZoneShortName(link.toZoneId)}.`);
+
+    if (immediate) {
+      return this.completeCityAvenueWalk();
+    }
+    return { ok: true, link, state: this.state };
+  }
+
+  completeCityAvenueWalk() {
+    const cw = this.state.cityWalk;
+    if (!cw || !cw.active) return { ok: false, state: this.state };
+    const { toZoneId, toSlot, avenueName } = cw;
+
+    cw.active = false;
+    cw.progress = 0;
+    this.doorEntryCooldown = 0.75;
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+
+    if (toZoneId === 'overworld') {
+      const gw = OVERWORLD_CITY_GATEWAYS.find((g) => g.slot === toSlot) || OVERWORLD_CITY_GATEWAYS[2];
+      this.state.mode = 'overworld';
+      this.state.cityDistrictId = null;
+      this.state.activeCityDistrictSpotId = null;
+      this.state.cityDistrictFeedback = null;
+      this.state.player.x = gw.spawnX;
+      this.state.player.y = gw.spawnY;
+      this.state.player.overworldX = gw.spawnX;
+      this.state.player.overworldY = gw.spawnY;
+      if (gw.pushDir === 'west') {
+        this.state.player.facing = 'right';
+        this.state.cameraYaw = 0;
+      } else if (gw.pushDir === 'east') {
+        this.state.player.facing = 'left';
+        this.state.cameraYaw = Math.PI;
+      } else {
+        this.state.player.facing = 'down';
+        this.state.cameraYaw = Math.PI * 0.5;
+      }
+      this.state.cameraPitch = 0.02;
+      this.updateNeighborhoodTracking();
+      this.state.statusMessage = `Walked along ${avenueName} into Historic Central Lisboa (${this.state.currentNeighborhoodName})!`;
+      return { ok: true, zoneId: 'overworld', state: this.state };
+    }
+
+    const district = getCityDistrictById(toZoneId);
+    const portal = CITY_DISTRICT_PORTALS[toSlot] || CITY_DISTRICT_PORTALS.west;
+    this.state.mode = 'city-district';
+    this.state.cityDistrictId = toZoneId;
+    this.state.activeCityDistrictSpotId = null;
+    this.state.cityDistrictFeedback = null;
+    this.state.player.x = portal.spawnX;
+    this.state.player.y = portal.spawnY;
+    this.state.player.facing = portal.arriveFacing;
+    this.state.cameraYaw = portal.arriveYaw;
+    this.state.cameraPitch = 0.03;
+
+    if (!this.state.visitedCityDistricts.includes(toZoneId)) {
+      this.state.visitedCityDistricts.push(toZoneId);
+    }
+    if (district) {
+      this.state.currentNeighborhoodName = district.shortName;
+      recordPhrase(this.state, district.phrase, district.name);
+      this.state.statusMessage = `Arrived on foot via ${avenueName} in ${district.name}! ${district.plazaNote}`;
+    } else {
+      this.state.statusMessage = `Arrived on foot in ${getLisboaZoneShortName(toZoneId)}.`;
+    }
+    return { ok: true, zoneId: toZoneId, district, state: this.state };
+  }
+
   updateMetroSimulation(dt) {
     if (this.state.mode !== 'metro') return;
     const m = this.state.metro;
@@ -3363,6 +3560,17 @@ export class MemoriesGameEngine {
       }
     }
 
+    if (this.state.cityWalk?.active) {
+      const cw = this.state.cityWalk;
+      cw.progress = Math.min(1, cw.progress + dt / Math.max(0.5, cw.duration || CITY_AVENUE_WALK_DURATION));
+      this.state.player.isMoving = true;
+      this.state.player.walkPhase = (this.state.player.walkPhase + dt * 9.5) % (Math.PI * 2);
+      if (cw.progress >= 1) {
+        this.completeCityAvenueWalk();
+      }
+      return this.state;
+    }
+
     if (this.state.mode === 'metro') {
       this.updateMetroSimulation(dt);
       if (this.state.mode === 'metro' && this.state.metro.phase === 'platform') {
@@ -3491,6 +3699,15 @@ export class MemoriesGameEngine {
       };
     }
 
+    if (state.cityWalk?.active) {
+      const cw = state.cityWalk;
+      return {
+        type: 'city-walk-transition',
+        label: `Walking along ${cw.avenueName} -> ${cw.shortLabel}`,
+        sublabel: `${cw.distanceMeters >= 1000 ? `${(cw.distanceMeters / 1000).toFixed(1)} km` : `${cw.distanceMeters} m`} on foot (~${cw.walkMinutes} min)`
+      };
+    }
+
     if (state.mode === 'metro') {
       const m = state.metro;
       const station = getMetroStationById(m.stationId);
@@ -3580,6 +3797,27 @@ export class MemoriesGameEngine {
           stationId: district.stationId,
           label: `Descend into ${station ? station.name : 'Metro Station'} [METRO]`,
           sublabel: `${station ? station.lines.join(' & ') : 'Metropolitano de Lisboa'} - Press [E] to enter the underground 4-line Metro network`
+        };
+      }
+      // Check walkable perimeter Lisbon Avenue Gateways to neighboring city districts!
+      const cityAvenues = getWalkingAvenuesFrom(district.id);
+      let bestAv = null;
+      let bestAvDist = 62;
+      for (const av of cityAvenues) {
+        const d = distance(px, py, av.x, av.y);
+        if (d <= bestAvDist) {
+          bestAvDist = d;
+          bestAv = av;
+        }
+      }
+      if (bestAv) {
+        const kmTxt = bestAv.distanceMeters >= 1000 ? `${(bestAv.distanceMeters / 1000).toFixed(1)} km` : `${bestAv.distanceMeters} m`;
+        return {
+          type: 'city-avenue',
+          targetZoneId: bestAv.toZoneId,
+          avenue: bestAv,
+          label: `Walk ${bestAv.avenueName} -> ${bestAv.shortLabel} (${kmTxt})`,
+          sublabel: `Continue on foot (~${bestAv.walkMinutes} min, Free) - Walk outward or press [E]`
         };
       }
       if (Array.isArray(district.townSpots)) {
@@ -3941,6 +4179,23 @@ export class MemoriesGameEngine {
       }
     }
 
+    // Perimeter Lisbon Avenue Gateways connecting Historic Central Lisboa on foot to Greater Lisboa!
+    for (const gw of OVERWORLD_CITY_GATEWAYS) {
+      const d = distance(px, py, gw.x, gw.y);
+      if (d <= INTERACT_DISTANCE + 10 && d < bestDist) {
+        bestDist = d;
+        const kmTxt = gw.distanceMeters >= 1000 ? `${(gw.distanceMeters / 1000).toFixed(1)} km` : `${gw.distanceMeters} m`;
+        best = {
+          type: 'city-avenue',
+          id: gw.id,
+          targetZoneId: gw.toZoneId,
+          avenue: gw,
+          label: `Walk ${gw.avenueName} -> ${gw.shortLabel} (${kmTxt})`,
+          sublabel: `Continue on foot into Greater Lisboa (~${gw.walkMinutes} min, Free) - Walk outward or press [E]`
+        };
+      }
+    }
+
     return best;
   }
 
@@ -4012,6 +4267,12 @@ export class MemoriesGameEngine {
     }
     if (nearby.type === 'south-bank-spot' && nearby.spotId) {
       return this.interactWithSouthBankSpot(nearby.spotId);
+    }
+    if (nearby.type === 'city-avenue' && nearby.targetZoneId) {
+      return this.walkCityAvenue(nearby.targetZoneId);
+    }
+    if (nearby.type === 'city-walk-transition') {
+      return { ok: true, state: this.state };
     }
     if (nearby.type === 'city-district-metro') {
       return this.enterMetroFromCityDistrict();
@@ -5972,6 +6233,10 @@ export class MemoriesGameEngine {
         this.state.metro.phase = 'platform';
       }
       this.exitMetroStation({ immediate: true, forceOverworld: true });
+    }
+    if (this.state.cityWalk?.active) {
+      this.state.cityWalk.active = false;
+      this.state.cityWalk.progress = 0;
     }
     if (this.state.mode === 'city-district') {
       this.completeMetroExitToStreet(null, { forceOverworld: true });

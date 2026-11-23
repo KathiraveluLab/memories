@@ -17,6 +17,8 @@ import {
   METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
+  OVERWORLD_CITY_GATEWAYS,
+  getWalkingAvenuesFrom,
   VENUES,
   REST_SPOTS,
   RIVERSIDE_BENCHES,
@@ -158,6 +160,12 @@ export class LisboaCanvasRenderer {
     this.animTime += dtSeconds;
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
+
+    if (state.cityWalk?.active) {
+      this.scenes3d.renderCityAvenueWalk3D(ctx, state, this.animTime);
+      this.drawSharedOverlays(ctx, state);
+      return;
+    }
 
     if (state.mode === 'interior') {
       if (state.viewMode === 'street3d') {
@@ -446,8 +454,9 @@ export class LisboaCanvasRenderer {
     this.drawTransitInfrastructure(ctx);
     this.drawFunicularInfrastructure(ctx, nearbyInteraction);
 
-    // 5. Enamel Lisbon street plaques
+    // 5. Enamel Lisbon street plaques & Perimeter Greater Lisboa Walking Avenue Gateways
     this.drawLisbonStreetPlaques(ctx);
+    this.drawOverworldCityGateways(ctx, nearbyInteraction);
 
     // 6. Jacaranda trees, bougainvillea pergolas, and tiled miradouro benches
     this.drawTreesAndBenches(ctx, state);
@@ -1065,6 +1074,37 @@ export class LisboaCanvasRenderer {
       ctx.fillText(p.sub, p.x, py + 22);
     }
     ctx.textAlign = 'left';
+  }
+
+  drawOverworldCityGateways(ctx, nearbyInteraction) {
+    for (const gw of OVERWORLD_CITY_GATEWAYS) {
+      const isHi = nearbyInteraction?.type === 'city-avenue' && nearbyInteraction.targetZoneId === gw.toZoneId;
+      const kmTxt = gw.distanceMeters >= 1000 ? `${(gw.distanceMeters / 1000).toFixed(1)}km` : `${gw.distanceMeters}m`;
+      const label = `WALK -> ${gw.shortLabel} (${kmTxt})`;
+      ctx.save();
+      ctx.font = '700 8.5px Georgia, serif';
+      const tw = ctx.measureText(label).width + 16;
+      const gx = clamp(gw.x, tw * 0.5 + 8, WORLD_WIDTH - tw * 0.5 - 8);
+      const gy = gw.y - 20;
+      drawRoundedRect(ctx, gx - tw * 0.5, gy - 10, tw, 20, 4);
+      ctx.fillStyle = isHi ? '#fef3c7' : '#faf8f3';
+      ctx.fill();
+      ctx.strokeStyle = isHi ? '#d97706' : '#1b4d89';
+      ctx.lineWidth = isHi ? 2.4 : 1.8;
+      ctx.stroke();
+      ctx.fillStyle = '#14375f';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, gx, gy + 3);
+      // Blue-and-gold directional sidewalk beacon
+      ctx.fillStyle = isHi ? '#f59e0b' : '#1b4d89';
+      ctx.beginPath();
+      ctx.arc(gw.x, gw.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   drawTreesAndBenches(ctx, state) {
@@ -7982,6 +8022,46 @@ export class LisboaCanvasRenderer {
         sp.kind === 'landmark' ? 'EXPLORE [E]' : sp.badge,
         nearbyInteraction?.type === 'city-district-spot' && nearbyInteraction.spotId === sp.id
       );
+    }
+
+    // Open Walkable Perimeter Lisbon Avenue Corridors & Blue-and-White Azulejo Street Signs (continue on foot!)
+    const cityAvenues = getWalkingAvenuesFrom(district.id);
+    for (const av of cityAvenues) {
+      const isHiAv = nearbyInteraction?.type === 'city-avenue' && nearbyInteraction.targetZoneId === av.toZoneId;
+      // Visually open the cobblestone avenue corridor through the plaza border!
+      ctx.fillStyle = '#ece5d6';
+      if (av.slot === 'west') ctx.fillRect(0, 186, 22, 56);
+      else if (av.slot === 'east') ctx.fillRect(INTERIOR_WIDTH - 22, 186, 22, 56);
+      else if (av.slot === 'north-west' || av.slot === 'north-east') ctx.fillRect(av.x - 16, 134, 32, 22);
+      else if (av.slot === 'south-west' || av.slot === 'south-east') ctx.fillRect(av.x - 22, 282, 44, 24);
+
+      const kmTxt = av.distanceMeters >= 1000 ? `${(av.distanceMeters / 1000).toFixed(1)}km` : `${av.distanceMeters}m`;
+      const tag = `-> ${av.shortLabel.split(' & ')[0]} (${kmTxt})`;
+      ctx.save();
+      ctx.font = '700 8px Georgia, serif';
+      const tw = ctx.measureText(tag).width + 14;
+      const mx =
+        av.slot === 'west'
+          ? Math.max(14 + tw * 0.5, 52)
+          : av.slot === 'east'
+            ? Math.min(INTERIOR_WIDTH - 14 - tw * 0.5, INTERIOR_WIDTH - 52)
+            : clamp(av.x, 12 + tw * 0.5, INTERIOR_WIDTH - 12 - tw * 0.5);
+      const my =
+        av.slot === 'south-west' || av.slot === 'south-east'
+          ? 276
+          : av.slot === 'north-west' || av.slot === 'north-east'
+            ? 156
+            : 242;
+      drawRoundedRect(ctx, mx - tw * 0.5, my - 10, tw, 20, 4);
+      ctx.fillStyle = isHiAv ? '#fef3c7' : '#faf8f3';
+      ctx.fill();
+      ctx.strokeStyle = isHiAv ? '#d97706' : '#1b4d89';
+      ctx.lineWidth = isHiAv ? 2.2 : 1.6;
+      ctx.stroke();
+      ctx.fillStyle = '#14375f';
+      ctx.textAlign = 'center';
+      ctx.fillText(tag, mx, my + 3);
+      ctx.restore();
     }
 
     // South Metropolitano de Lisboa Entrance Pavilion (y: 292..448)

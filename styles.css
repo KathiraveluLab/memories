@@ -1101,3 +1101,64 @@ h1, h2, h3, h4, p {
   overflow: auto;
   white-space: pre-wrap;
 }
+
+/* Interactive Full-City Lisboa Connected Street & Metro Map */
+.city-map-card {
+  background: linear-gradient(180deg, #faf7f0 0%, #f1eadc 100%);
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.city-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.city-map-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--azulejo-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.city-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid #d6cbb8;
+  background: #f8f5ec;
+}
+
+.city-map-node {
+  cursor: pointer;
+}
+
+.city-map-node:hover circle.city-map-dot {
+  stroke: #f59e0b;
+  stroke-width: 3px;
+}
+
+.city-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  color: var(--ink-secondary);
+}
+
+.guide-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}

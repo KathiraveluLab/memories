@@ -18,6 +18,12 @@ import {
   CITY_METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
+  CITY_DISTRICT_PORTALS,
+  OVERWORLD_CITY_GATEWAYS,
+  LISBOA_WALKING_NETWORK,
+  LISBOA_CITY_MAP_NODES,
+  getWalkingAvenuesFrom,
+  computeLisboaWalkingRoute,
   computeMetroNetworkRoute,
   getStationLineIds,
   getDirectStationsOnLine,
@@ -2034,6 +2040,112 @@ test('Elevador de Santa Justa (1902): enterable lift on Rua do Carmo & Rossio, 4
   engine.descendSantaJusta({ immediate: true });
   assert.equal(state.mode, 'city-district');
   assert.equal(state.cityDistrictId, 'district-rossio-restauradores');
+});
+
+test('Full-city connected walkable Lisboa: 100% on-foot district connectivity, gateways, and continuous avenue strolls', () => {
+  const allZones = ['overworld', ...LISBOA_CITY_DISTRICTS.map((d) => d.id)];
+  assert.equal(allZones.length, 10);
+  assert.equal(LISBOA_CITY_MAP_NODES.length, 10);
+
+  // 1. All 5 overworld perimeter gateways sit on valid walkable non-lane coordinates
+  assert.equal(OVERWORLD_CITY_GATEWAYS.length, 5);
+  for (const gw of OVERWORLD_CITY_GATEWAYS) {
+    assert.equal(isOverworldPositionValid(gw.x, gw.y), true, `Gateway ${gw.id} position must be walkable`);
+    assert.equal(isPointInVehicleLane(gw.x, gw.y), false, `Gateway ${gw.id} must stay off vehicle lanes`);
+    assert.equal(isOverworldPositionValid(gw.spawnX, gw.spawnY), true, `Gateway ${gw.id} spawn must be walkable`);
+    assert.equal(isPointInVehicleLane(gw.spawnX, gw.spawnY), false, `Gateway ${gw.id} spawn must stay off vehicle lanes`);
+  }
+
+  // 2. Every avenue edge in LISBOA_WALKING_NETWORK is symmetric/bidirectional and every pair (10x10 = 100) is reachable on foot
+  for (const zoneId of allZones) {
+    const outgoing = getWalkingAvenuesFrom(zoneId);
+    assert.ok(outgoing.length >= 2, `Zone ${zoneId} should connect on foot to at least 2 neighboring zones`);
+    for (const edge of outgoing) {
+      const reverse = getWalkingAvenuesFrom(edge.toZoneId).find((r) => r.toZoneId === zoneId);
+      assert.ok(reverse, `Missing reciprocal avenue from ${edge.toZoneId} back to ${zoneId}`);
+      assert.equal(reverse.slot, edge.toSlot, `Mismatched return portal slot between ${zoneId} and ${edge.toZoneId}`);
+      if (edge.toZoneId !== 'overworld') {
+        assert.ok(CITY_DISTRICT_PORTALS[edge.toSlot], `Invalid target portal slot ${edge.toSlot} in ${edge.toZoneId}`);
+      }
+    }
+    for (const destZone of allZones) {
+      const route = computeLisboaWalkingRoute(zoneId, destZone);
+      assert.equal(route.ok, true, `Expected continuous on-foot walking route from ${zoneId} to ${destZone}`);
+      if (zoneId !== destZone) {
+        assert.ok(route.legs.length >= 1 && route.totalMeters > 0 && route.totalMinutes > 0);
+      }
+    }
+  }
+
+  // 3. Continuous real-time on-foot walk across the entire city of Lisboa without ever using the Metro!
+  const engine = new MemoriesGameEngine();
+  const state = engine.getState();
+  const startEuros = state.euros;
+
+  // Non-adjacent district walk requires walking step-by-step (no cross-city teleporting!)
+  const blockedSkip = engine.walkCityAvenue('district-campo-grande-alvalade');
+  assert.equal(blockedSkip.ok, false);
+  assert.equal(blockedSkip.multiStepRequired, true);
+  assert.ok(blockedSkip.nextZoneId);
+
+  // Step A: Walk up to North Gateway on Rua do Carmo -> press [E] -> stroll to Rossio & Baixa
+  const northGw = OVERWORLD_CITY_GATEWAYS.find((g) => g.slot === 'north');
+  state.player.x = northGw.x;
+  state.player.y = northGw.y;
+  const nearGw = engine.getNearbyInteraction();
+  assert.equal(nearGw?.type, 'city-avenue');
+  assert.equal(nearGw?.targetZoneId, 'district-rossio-restauradores');
+
+  const startRossio = engine.triggerNearbyInteraction();
+  assert.equal(startRossio.ok, true);
+  assert.equal(state.cityWalk.active, true);
+  assert.equal(state.cityWalk.toZoneId, 'district-rossio-restauradores');
+  for (let i = 0; i < 12; i += 1) engine.tick(0.15, { x: 0, y: 0 });
+  assert.equal(state.cityWalk.active, false);
+  assert.equal(state.mode, 'city-district');
+  assert.equal(state.cityDistrictId, 'district-rossio-restauradores');
+
+  // Step B: Walk west through Rossio West Portal by keyboard push -> arrives in Rato & Principe Real via Calcada da Gloria!
+  for (let i = 0; i < 8; i += 1) engine.tick(0.12, { x: 0, y: 0 }); // clear arrival cooldown
+  state.player.x = CITY_DISTRICT_PORTALS.west.x + 2;
+  state.player.y = CITY_DISTRICT_PORTALS.west.y;
+  engine.tick(0.1, { x: -1, y: 0 });
+  assert.equal(state.cityWalk.active, true);
+  assert.equal(state.cityWalk.toZoneId, 'district-rato-principe-real');
+  for (let i = 0; i < 12; i += 1) engine.tick(0.15, { x: 0, y: 0 });
+  assert.equal(state.mode, 'city-district');
+  assert.equal(state.cityDistrictId, 'district-rato-principe-real');
+
+  // Step C: Continue on foot: Rato -> Marques de Pombal -> Saldanha -> Alameda -> Oriente -> back to Overworld (Santa Apolonia SE)!
+  const legs = [
+    'district-marques-pombal-avenida',
+    'district-saldanha-campo-pequeno',
+    'district-alameda-arroios',
+    'district-oriente-parque-nacoes',
+    'overworld'
+  ];
+  for (const nextZone of legs) {
+    const walkRes = engine.walkCityAvenue(nextZone);
+    assert.equal(walkRes.ok, true, `Failed walking to ${nextZone}: ${walkRes.error}`);
+    assert.equal(state.cityWalk.active, true);
+    for (let i = 0; i < 12; i += 1) engine.tick(0.15, { x: 0, y: 0 });
+    assert.equal(state.cityWalk.active, false);
+    if (nextZone === 'overworld') {
+      assert.equal(state.mode, 'overworld');
+    } else {
+      assert.equal(state.mode, 'city-district');
+      assert.equal(state.cityDistrictId, nextZone);
+    }
+  }
+
+  // Walking across the entire city is completely free (0 EUR spent) and records all visited districts!
+  assert.equal(state.euros, startEuros);
+  assert.ok(state.visitedCityDistricts.includes('district-rossio-restauradores'));
+  assert.ok(state.visitedCityDistricts.includes('district-rato-principe-real'));
+  assert.ok(state.visitedCityDistricts.includes('district-marques-pombal-avenida'));
+  assert.ok(state.visitedCityDistricts.includes('district-saldanha-campo-pequeno'));
+  assert.ok(state.visitedCityDistricts.includes('district-alameda-arroios'));
+  assert.ok(state.visitedCityDistricts.includes('district-oriente-parque-nacoes'));
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {

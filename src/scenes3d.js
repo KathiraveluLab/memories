@@ -8,6 +8,8 @@ import {
   METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
+  getWalkingAvenuesFrom,
+  getLisboaZoneShortName,
   VENUES,
   getMetroLineById,
   getStationLineIds,
@@ -3344,10 +3346,90 @@ export class LisboaScenes3DRenderer {
       this.drawPoly3D(ctx, cam, pts, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0.85)', 2);
     }
 
-    // 3. Depth-Sorted 3D Buildings, District Monument, Public Transit Vehicles, Metro Entrance & People
+    // 3. Depth-Sorted 3D Buildings, District Monument, Public Transit Vehicles, Metro Entrance, Open Lisbon Avenues & People
     const items = [];
     const primaryLineColor = (station.lineColors && station.lineColors[0]) || district.accentColor || '#2563eb';
     const secondaryLineColor = (station.lineColors && station.lineColors[1]) || null;
+    const walkingAvenues = getWalkingAvenuesFrom(district.id);
+
+    // 2B. Continuing 3D Sunlit Lisbon Avenues extending outward past the plaza perimeter into neighboring districts!
+    for (const av of walkingAvenues) {
+      const avHit = { kind: 'city-avenue', targetZoneId: av.toZoneId, x: av.x, y: av.y };
+      const isHiAv = nearbyInteraction?.type === 'city-avenue' && nearbyInteraction.targetZoneId === av.toZoneId;
+      if (av.slot === 'west') {
+        this.drawPoly3D(ctx, cam, [[-280, 174, -0.05], [48, 174, -0.05], [48, 256, -0.05], [-280, 256, -0.05]], '#dfd7c8', '#64748b', 1.2);
+        this.drawPoly3D(ctx, cam, [[48, 198, 0.32], [86, 198, 0.32], [86, 230, 0.32], [48, 230, 0.32]], 'rgba(27, 77, 137, 0.25)', isHiAv ? '#facc15' : '#1b4d89', 2);
+      } else if (av.slot === 'east') {
+        this.drawPoly3D(ctx, cam, [[712, 174, -0.05], [1040, 174, -0.05], [1040, 256, -0.05], [712, 256, -0.05]], '#dfd7c8', '#64748b', 1.2);
+        this.drawPoly3D(ctx, cam, [[674, 198, 0.32], [712, 198, 0.32], [712, 230, 0.32], [674, 230, 0.32]], 'rgba(27, 77, 137, 0.25)', isHiAv ? '#facc15' : '#1b4d89', 2);
+      } else if (av.slot === 'north-west' || av.slot === 'north-east') {
+        const ax = av.x;
+        this.drawPoly3D(ctx, cam, [[ax - 22, -220, -0.05], [ax + 22, -220, -0.05], [ax + 22, 146, -0.05], [ax - 22, 146, -0.05]], '#dfd7c8', '#64748b', 1.2);
+        this.drawPoly3D(ctx, cam, [[ax - 18, 146, 0.32], [ax + 18, 146, 0.32], [ax + 18, 172, 0.32], [ax - 18, 172, 0.32]], 'rgba(27, 77, 137, 0.25)', isHiAv ? '#facc15' : '#1b4d89', 2);
+      } else if (av.slot === 'south-west' || av.slot === 'south-east') {
+        const ax = av.x;
+        this.drawPoly3D(ctx, cam, [[ax - 28, 286, -0.05], [ax + 28, 286, -0.05], [ax + 28, 520, -0.05], [ax - 28, 520, -0.05]], '#dfd7c8', '#64748b', 1.2);
+        this.drawPoly3D(ctx, cam, [[ax - 22, 260, 0.32], [ax + 22, 260, 0.32], [ax + 22, 286, 0.32], [ax - 22, 286, 0.32]], 'rgba(27, 77, 137, 0.25)', isHiAv ? '#facc15' : '#1b4d89', 2);
+      }
+
+      // Authentic Wrought-Iron Lisbon Blue-and-White Azulejo Avenue Signpost (clickable in 3D!)
+      const postX = av.slot === 'west' ? 52 : av.slot === 'east' ? 708 : av.x;
+      const postY = av.slot === 'north-west' || av.slot === 'north-east' ? 142 : av.slot === 'south-west' || av.slot === 'south-east' ? 286 : av.y;
+      items.push({
+        dist: Math.hypot(postX - cam.camX, postY - cam.camY),
+        draw: () => {
+          this.drawBox3D(
+            ctx,
+            cam,
+            postX - 3,
+            postY - 3,
+            postX + 3,
+            postY + 3,
+            0,
+            46,
+            { front: '#1e293b', side: '#0f172a', top: '#eab308', stroke: isHiAv ? '#facc15' : '#334155', lineWidth: isHiAv ? 2 : 1 },
+            avHit
+          );
+          const sp = this.projectWorldPt(cam, postX, postY, 50);
+          if (sp && sp.cz > 16) {
+            ctx.save();
+            const kmTxt = av.distanceMeters >= 1000 ? `${(av.distanceMeters / 1000).toFixed(1)}km` : `${av.distanceMeters}m`;
+            const line1 = `WALK -> ${av.shortLabel} (${kmTxt})`;
+            const line2 = `${av.avenueName.split(' -> ')[0]}  [E]`;
+            ctx.font = '700 9px Georgia, serif';
+            const tw = Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width) + 18;
+            const bx0 = sp.x - tw * 0.5;
+            const by0 = sp.y - 16;
+            drawRoundedRect(ctx, bx0, by0, tw, 30, 5);
+            ctx.fillStyle = '#faf8f3';
+            ctx.fill();
+            ctx.strokeStyle = isHiAv ? '#f59e0b' : '#1b4d89';
+            ctx.lineWidth = isHiAv ? 2.4 : 1.8;
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(27, 77, 137, 0.45)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx0 + 3, by0 + 3, tw - 6, 24);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#14375f';
+            ctx.font = '700 8.8px Georgia, serif';
+            ctx.fillText(line1, sp.x, by0 + 13);
+            ctx.fillStyle = '#2563eb';
+            ctx.font = '700 7.8px "Segoe UI", sans-serif';
+            ctx.fillText(line2, sp.x, by0 + 24);
+            ctx.restore();
+            this.lastHitTargets.push({
+              ...avHit,
+              poly: [
+                { x: bx0, y: by0 },
+                { x: bx0 + tw, y: by0 },
+                { x: bx0 + tw, y: by0 + 30 },
+                { x: bx0, y: by0 + 30 }
+              ]
+            });
+          }
+        }
+      });
+    }
 
     // A) Left 3D District Eatery / Cafe / Cervejaria (x: 56..244, y: 24..116) + Terrace Dining Table
     items.push({
@@ -3827,25 +3909,220 @@ export class LisboaScenes3DRenderer {
       );
     }
 
+    const districtPois = [
+      { x: 155, y: 186, color: '#f59e0b' },
+      { x: 380, y: 186, color: '#facc15' },
+      { x: 605, y: 186, color: '#a78bfa' },
+      { x: 380, y: 274, color: primaryLineColor },
+      ...walkingAvenues.map((av) => ({ x: av.x, y: av.y, color: '#38bdf8' }))
+    ];
+
     this.drawSceneHud(
       ctx,
       cam,
       `3D LISBOA  -  ${district.shortName.toUpperCase()}`,
-      `${district.zoneBadge}  |  Eatery, Monument, Shop & Metro`,
+      `${district.zoneBadge}  |  ${walkingAvenues.length} Walkable Avenues & Metro`,
       {
         floorRect: { x: 48, y: 148, w: 664, h: 138 },
         floorColor: 'rgba(226, 218, 202, 0.28)',
         px: state.player.x,
         py: state.player.y,
         peers: peersHere,
-        pois: [
-          { x: 155, y: 186, color: '#f59e0b' },
-          { x: 380, y: 186, color: '#facc15' },
-          { x: 605, y: 186, color: '#a78bfa' },
-          { x: 380, y: 274, color: primaryLineColor }
-        ]
+        pois: districtPois
       }
     );
+  }
+
+  // =========================================================================
+  // 4B. CONTINUOUS LISBON AVENUE WALKING STROLL TRANSITION (INTER-DISTRICT FOOT TRAVEL)
+  // =========================================================================
+  renderCityAvenueWalk3D(ctx, state, animTime = 0) {
+    this.lastHitTargets = [];
+    const cw = state.cityWalk;
+    if (!cw || !cw.active) return;
+    const phase = getDayPhase(state.minutesOfDay);
+    const monthInfo = getMonthInfo(state.month);
+    const isEvening = phase.id === 'evening';
+    const isGolden = phase.id === 'golden';
+    const isJacaranda = (monthInfo.jacarandaBloom || 0) >= 0.4;
+    const w = this.viewWidth;
+    const h = this.viewHeight;
+    const vpX = w * 0.5;
+    const hy = Math.round(h * 0.44);
+    const p = clamp(cw.progress || 0, 0, 1);
+    const style = cw.sceneryStyle || 'grand-boulevard';
+
+    // 1. Dynamic Lisbon Sky
+    const sky = ctx.createLinearGradient(0, 0, 0, hy + 8);
+    if (isEvening) {
+      sky.addColorStop(0, '#09152e');
+      sky.addColorStop(1, '#263d66');
+    } else if (isGolden) {
+      sky.addColorStop(0, '#36588f');
+      sky.addColorStop(0.58, '#db8556');
+      sky.addColorStop(1, '#fde68a');
+    } else {
+      sky.addColorStop(0, '#1d5eb8');
+      sky.addColorStop(0.65, '#60b8f0');
+      sky.addColorStop(1, '#e0f2fe');
+    }
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, hy + 8);
+
+    // Distant Lisbon Seven Hills silhouette gently rising behind the boulevard horizon
+    ctx.fillStyle = isEvening ? '#182846' : isGolden ? '#9f7666' : '#7b99a8';
+    ctx.beginPath();
+    ctx.moveTo(0, hy + 2);
+    ctx.quadraticCurveTo(w * 0.22, hy - 34, w * 0.42, hy - 14);
+    ctx.quadraticCurveTo(w * 0.68, hy - 40, w, hy - 10);
+    ctx.lineTo(w, hy + 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2. Perspective Lisbon Avenue & Calçada Portuguesa Promenade floor
+    ctx.fillStyle = isEvening ? '#273142' : '#d8cfc0';
+    ctx.fillRect(0, hy, w, h - hy);
+
+    // Central receding Calçada Portuguesa pedestrian promenade
+    ctx.fillStyle = isEvening ? '#3c4557' : '#ebe4d6';
+    ctx.beginPath();
+    ctx.moveTo(vpX - 64, hy);
+    ctx.lineTo(vpX + 64, hy);
+    ctx.lineTo(w * 0.86, h);
+    ctx.lineTo(w * 0.14, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Animated basalt wave seams scrolling toward you with natural footsteps!
+    const bob = Math.sin(animTime * 11) * 2.5;
+    const tileShift = (animTime * 2.6) % 1;
+    for (let i = 0; i < 10; i += 1) {
+      const t = ((i + tileShift) % 10) / 10;
+      const depth = t * t;
+      const sy = hy + 6 + depth * (h - hy - 6) + bob * depth;
+      const hw = 64 + depth * (w * 0.36 - 64);
+      ctx.strokeStyle = isEvening ? 'rgba(15, 23, 42, 0.45)' : 'rgba(51, 65, 85, 0.25)';
+      ctx.lineWidth = 1.2 + depth * 2;
+      ctx.beginPath();
+      ctx.moveTo(vpX - hw, sy);
+      ctx.lineTo(vpX + hw, sy);
+      ctx.stroke();
+    }
+
+    // 3. Left & Right Scenery (Tagus Riverfront OR Grand Pombaline Lisbon Facades & Blooming Trees!)
+    if (style === 'waterfront-avenue') {
+      // Shimmering Tagus River along the right side of Avenida 24 de Julho / Infante Dom Henrique
+      ctx.fillStyle = isEvening ? '#0f2744' : '#1b769c';
+      ctx.beginPath();
+      ctx.moveTo(vpX + 64, hy);
+      ctx.lineTo(w, hy);
+      ctx.lineTo(w, h);
+      ctx.lineTo(w * 0.86, h);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const wallColors = ['#f5e9d4', '#e8d0c8', '#dce8e3', '#f2dcb4', '#ede4d5'];
+    for (let i = 0; i < 6; i += 1) {
+      const t = ((i + (animTime * 1.4) % 1) % 6) / 6;
+      const depth = t * t;
+      const scale = 0.2 + depth * 1.15;
+      const bh = 165 * scale;
+      const bw = 96 * scale;
+      const baseY = hy + 8 + depth * (h - hy) + bob * depth;
+
+      // Left Lisbon Pombaline facade (or green park hedge) with shuttered windows & balconies
+      const lx = vpX - 66 - depth * (w * 0.38);
+      if (style === 'park-boulevard') {
+        ctx.fillStyle = isEvening ? '#14532d' : '#16a34a';
+        ctx.fillRect(lx - bw, baseY - bh * 0.52, bw, bh * 0.52);
+      } else {
+        ctx.fillStyle = shadeColor(wallColors[i % wallColors.length], isEvening ? 0.55 : 0.96);
+        ctx.fillRect(lx - bw, baseY - bh, bw, bh);
+        ctx.fillStyle = '#b84a32';
+        ctx.fillRect(lx - bw - 3, baseY - bh - 8 * scale, bw + 6, 10 * scale);
+        const winCol = isEvening ? '#fde68a' : '#2c4159';
+        for (let row = 0; row < 2; row += 1) {
+          for (let col = 0; col < 2; col += 1) {
+            const wx = lx - bw + bw * (0.18 + col * 0.44);
+            const wy = baseY - bh * (0.78 - row * 0.32);
+            ctx.fillStyle = winCol;
+            ctx.fillRect(wx, wy, bw * 0.22, bh * 0.18);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = Math.max(0.8, 1.2 * scale);
+            ctx.strokeRect(wx - 1.5 * scale, wy + bh * 0.12, bw * 0.22 + 3 * scale, bh * 0.06);
+          }
+        }
+      }
+
+      // Right side: Lisbon facade OR riverside trees
+      const rx = vpX + 66 + depth * (w * 0.38);
+      if (style !== 'waterfront-avenue') {
+        if (style === 'park-boulevard') {
+          ctx.fillStyle = isEvening ? '#14532d' : '#15803d';
+          ctx.fillRect(rx, baseY - bh * 0.52, bw, bh * 0.52);
+        } else {
+          ctx.fillStyle = shadeColor(wallColors[(i + 2) % wallColors.length], isEvening ? 0.52 : 0.94);
+          ctx.fillRect(rx, baseY - bh, bw, bh);
+          ctx.fillStyle = '#b84a32';
+          ctx.fillRect(rx - 3, baseY - bh - 8 * scale, bw + 6, 10 * scale);
+          const winCol = isEvening ? '#fde68a' : '#2c4159';
+          for (let row = 0; row < 2; row += 1) {
+            for (let col = 0; col < 2; col += 1) {
+              const wx = rx + bw * (0.18 + col * 0.44);
+              const wy = baseY - bh * (0.78 - row * 0.32);
+              ctx.fillStyle = winCol;
+              ctx.fillRect(wx, wy, bw * 0.22, bh * 0.18);
+              ctx.strokeStyle = '#1e293b';
+              ctx.lineWidth = Math.max(0.8, 1.2 * scale);
+              ctx.strokeRect(wx - 1.5 * scale, wy + bh * 0.12, bw * 0.22 + 3 * scale, bh * 0.06);
+            }
+          }
+        }
+      }
+
+      // Flanking Jacaranda / plane street trees & wrought-iron Lisbon streetlamps
+      const treeCol = isJacaranda ? '#8b5cf6' : isEvening ? '#1e3a2f' : '#2f7349';
+      for (const tx of [lx - 6 * scale, rx + 6 * scale]) {
+        ctx.fillStyle = '#5c3d28';
+        ctx.fillRect(tx - 3 * scale, baseY - 46 * scale, 6 * scale, 46 * scale);
+        ctx.fillStyle = treeCol;
+        ctx.beginPath();
+        ctx.arc(tx, baseY - 56 * scale, 22 * scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 4. Authentic Blue-and-White Azulejo Lisbon Street Banner at Top
+    const fromName = getLisboaZoneShortName(cw.fromZoneId);
+    const toName = getLisboaZoneShortName(cw.toZoneId);
+    const walkedM = Math.round((cw.distanceMeters || 800) * p);
+    const distLabel = cw.distanceMeters >= 1000 ? `${(cw.distanceMeters / 1000).toFixed(1)} km` : `${cw.distanceMeters} m`;
+
+    drawRoundedRect(ctx, 130, 18, w - 260, 74, 8);
+    ctx.fillStyle = '#faf8f3';
+    ctx.fill();
+    ctx.strokeStyle = '#1b4d89';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(27, 77, 137, 0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(136, 24, w - 272, 62);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#14375f';
+    ctx.font = '700 13.5px Georgia, serif';
+    ctx.fillText(`WALKING ALONG ${cw.avenueName.toUpperCase()}`, vpX, 44, w - 296);
+    ctx.fillStyle = '#2563eb';
+    ctx.font = '700 10.5px "Segoe UI", sans-serif';
+    ctx.fillText(`${fromName}  ->  ${toName}   |   ${walkedM}m / ${distLabel} (~${cw.walkMinutes} min on foot)`, vpX, 64, w - 296);
+
+    // Smooth walking progress bar
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(220, 74, w - 440, 7);
+    ctx.fillStyle = '#1b4d89';
+    ctx.fillRect(220, 74, Math.round((w - 440) * p), 7);
+    ctx.textAlign = 'left';
   }
 
   // =========================================================================
