@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import {
   NEIGHBORHOODS,
+  ALL_LISBOA_NEIGHBORHOODS,
+  getNeighborhoodAt,
   DECORATIVE_STRUCTURES,
   FADO_TRACKS,
   FERRY_TERMINAL,
@@ -18,6 +20,7 @@ import {
   CITY_METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
+  CITY_DISTRICT_SPOTS,
   CITY_DISTRICT_PORTALS,
   OVERWORLD_CITY_GATEWAYS,
   LISBOA_WALKING_NETWORK,
@@ -98,7 +101,11 @@ test('dataset & spatial integrity: all 15 buildings enterable, 3 real Metro stat
   assert.equal(FERRY_DESTINATIONS.length, 3);
   assert.deepEqual(FERRY_DESTINATIONS.map((d) => d.id), ['cacilhas', 'seixal', 'montijo']);
   assert.equal(REST_SPOTS.length, 3);
-  assert.equal(TRANSIT_LINES.length, 2);
+  assert.equal(TRANSIT_LINES.length, 9);
+  assert.deepEqual(
+    TRANSIT_LINES.map((l) => l.routeNumber),
+    ['28E', '737', '15E', '24E', '736', '728', '746', '706', '744']
+  );
   assert.equal(getAllMemoryCatalog().length, 27);
 
   // Realistic speeds: walking must be noticeably slower than both Tram 28E and Carris Bus 737/758
@@ -1849,14 +1856,16 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   assert.equal(state.metro.stationId, 'metro-rato');
   assert.equal(state.metro.activeLineId, 'linha-amarela');
 
-  // Exit gates at Rato to walkable Principe Real district (resets ticketPaid)
+  // Exit gates at Rato straight onto unified open-world Principe Real / Rato street (resets ticketPaid, ZERO disjoint rooms!)
   engine.exitMetroStation();
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
-  assert.equal(state.mode, 'city-district');
-  assert.equal(state.cityDistrictId, 'district-rato-principe-real');
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.currentNeighborhoodId, 'rato-principe-real');
+  assert.ok(state.visitedCityDistricts.includes('district-rato-principe-real'));
+  assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
   assert.equal(state.metro.ticketPaid, false);
 
-  //    3B) Full factual 2-line transfer journey: Baixa-Chiado (Blue -> Green) -> Alameda (Green -> Red) -> Oriente -> City District Plaza -> Plate vs Glass -> Landmark -> Shop -> Return via Alameda -> Baixa-Chiado
+  //    3B) Full factual 2-line transfer journey: Baixa-Chiado (Blue -> Green) -> Alameda (Green -> Red) -> Oriente -> Unified Oriente Street -> Plate vs Glass -> Landmark -> Shop -> Return via Alameda -> Baixa-Chiado
   const openRes = engine.openMetroStation('metro-baixa-chiado');
   assert.equal(openRes.ok, true);
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
@@ -1895,45 +1904,45 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   assert.equal(state.metro.stationId, 'metro-oriente-aeroporto');
   assert.equal(state.metro.activeLineId, 'linha-vermelha');
 
-  // Ascend escalator into walkable Parque das Nacoes / Gare do Oriente city district
+  // Ascend escalator straight into unified open-world Parque das Nacoes / Gare do Oriente sidewalk!
   const ascRes = engine.exitMetroStation();
   assert.equal(ascRes.ok, true);
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
-  assert.equal(state.mode, 'city-district');
-  assert.equal(state.cityDistrictId, 'district-oriente-parque-nacoes');
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.currentNeighborhoodId, 'oriente-parque-nacoes');
   assert.ok(state.visitedCityDistricts.includes('district-oriente-parque-nacoes'));
-  assert.equal(isCityDistrictPositionValid(state.player.x, state.player.y), true);
+  assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
 
-  // Verify soundscape reacts to riverfront Parque das Nacoes city district
+  // Verify soundscape reacts to riverfront Parque das Nacoes Tagus Estuary street
   const orienteSound = computeSoundscapeProfile(state);
-  assert.ok(orienteSound.riverWater >= 0.5, 'Oriente riverfront district should have Tagus river ambience');
+  assert.ok(orienteSound.riverWater >= 0.5, 'Oriente riverfront neighborhood should have Tagus river ambience');
 
-  // Order a drink (Glass) at Oriente waterfront eatery
+  // Order a drink (Glass) at Oriente waterfront eatery directly on the open-world street
   const drinkRes = engine.purchaseCityDistrictItem('oriente-marina-restaurante', 'item-oriente-espumante-glass');
   assert.equal(drinkRes.ok, true);
   assert.equal(state.seatedDining.servingType, 'glass');
   assert.ok(state.statusMessage.includes('Received a glass of'));
 
-  // Order food (Plate) at Oriente waterfront eatery
+  // Order food (Plate) at Oriente waterfront eatery directly on the open-world street
   const foodRes = engine.purchaseCityDistrictItem('oriente-marina-restaurante', 'item-oriente-robalo-plate');
   assert.equal(foodRes.ok, true);
   assert.equal(state.seatedDining.servingType, 'plate');
   assert.ok(state.statusMessage.includes('Received a plate of'));
 
-  // Explore iconic landmark & Telecabine Lisboa (+25 Energy)
+  // Explore iconic landmark & Telecabine Lisboa (+25 Energy) directly on the open-world street
   state.energy = 60;
   const lmRes = engine.interactWithCityDistrictSpot('oriente-calatrava-telecabine');
   assert.equal(lmRes.ok, true);
   assert.equal(state.energy, 85);
   assert.ok(state.cityDistrictFeedback && state.cityDistrictFeedback.title.includes('Gare do Oriente'));
 
-  // Buy Oceanario keepsake into Satchel
+  // Buy Oceanario keepsake into Satchel directly on the open-world street
   const shopRes = engine.purchaseCityDistrictItem('oriente-oceanario-loja', 'item-oceanario-lontra-keepsake');
   assert.equal(shopRes.ok, true);
   assert.ok(state.satchel.some((s) => s.id === 'item-oceanario-lontra-keepsake'));
 
-  // Descend back into Metro Oriente (Linha Vermelha) -> ride to Alameda -> transfer Linha Verde -> ride to Baixa-Chiado -> Historic Overworld
-  const backMetro = engine.enterMetroFromCityDistrict();
+  // Walk right back into Metro Oriente entrance on the street -> ride to Alameda -> transfer Linha Verde -> ride to Baixa-Chiado
+  const backMetro = engine.openMetroStation('metro-oriente-aeroporto');
   assert.equal(backMetro.ok, true);
   assert.equal(state.mode, 'metro');
   assert.equal(state.metro.stationId, 'metro-oriente-aeroporto');
@@ -2024,128 +2033,142 @@ test('Elevador de Santa Justa (1902): enterable lift on Rua do Carmo & Rossio, 4
   assert.equal(state.mode, 'overworld');
   assert.equal(state.euros, Number((startEuros - SANTA_JUSTA_LIFT.fareEur).toFixed(2)), 'Return descent must be free');
 
-  // 5. Verify entering Elevador de Santa Justa from Rossio / Baixa City District also works & returns to Rossio!
+  // 5. Verify entering Elevador de Santa Justa from Rossio on unified open-world streets returns cleanly to overworld!
   engine.openMetroStation('metro-rossio');
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   engine.exitMetroStation();
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
-  assert.equal(state.mode, 'city-district');
-  assert.equal(state.cityDistrictId, 'district-rossio-restauradores');
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.currentNeighborhoodId, 'rossio-restauradores');
 
   const fromRossio = engine.interactWithCityDistrictSpot('rossio-santa-justa-lift');
   assert.equal(fromRossio.ok, true);
   assert.equal(state.mode, 'santa-justa');
-  assert.equal(state.santaJusta.returnMode, 'city-district');
-  assert.equal(state.santaJusta.returnDistrictId, 'district-rossio-restauradores');
+  assert.equal(state.santaJusta.returnMode, 'overworld');
   engine.descendSantaJusta({ immediate: true });
-  assert.equal(state.mode, 'city-district');
-  assert.equal(state.cityDistrictId, 'district-rossio-restauradores');
+  assert.equal(state.mode, 'overworld');
 });
 
-test('Full-city connected walkable Lisboa: 100% on-foot district connectivity, gateways, and continuous avenue strolls', () => {
-  const allZones = ['overworld', ...LISBOA_CITY_DISTRICTS.map((d) => d.id)];
-  assert.equal(allZones.length, 10);
+test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking, and 9 factual Carris bus & tram routes', () => {
+  // 1. All 12 Metro stations and all 27 Greater Lisboa landmarks/eateries/shops sit on valid non-lane sidewalks on ONE unified map
+  assert.equal(ALL_LISBOA_NEIGHBORHOODS.length, 12);
+  assert.equal(ALL_METRO_STATIONS.length, 12);
+  assert.equal(CITY_DISTRICT_SPOTS.length, 27);
   assert.equal(LISBOA_CITY_MAP_NODES.length, 10);
 
-  // 1. All 5 overworld perimeter gateways sit on valid walkable non-lane coordinates
-  assert.equal(OVERWORLD_CITY_GATEWAYS.length, 5);
-  for (const gw of OVERWORLD_CITY_GATEWAYS) {
-    assert.equal(isOverworldPositionValid(gw.x, gw.y), true, `Gateway ${gw.id} position must be walkable`);
-    assert.equal(isPointInVehicleLane(gw.x, gw.y), false, `Gateway ${gw.id} must stay off vehicle lanes`);
-    assert.equal(isOverworldPositionValid(gw.spawnX, gw.spawnY), true, `Gateway ${gw.id} spawn must be walkable`);
-    assert.equal(isPointInVehicleLane(gw.spawnX, gw.spawnY), false, `Gateway ${gw.id} spawn must stay off vehicle lanes`);
+  for (const station of ALL_METRO_STATIONS) {
+    assert.ok(station.spawnOutside, `Missing spawnOutside on ${station.id}`);
+    assert.equal(isOverworldPositionValid(station.spawnOutside.x, station.spawnOutside.y), true, `${station.id} spawnOutside must be walkable`);
+    assert.equal(isPointInVehicleLane(station.spawnOutside.x, station.spawnOutside.y), false, `${station.id} spawnOutside must stay off vehicle lanes`);
+  }
+  for (const spot of CITY_DISTRICT_SPOTS) {
+    assert.ok(spot.spawnOutside, `Missing spawnOutside on ${spot.id}`);
+    assert.equal(isOverworldPositionValid(spot.spawnOutside.x, spot.spawnOutside.y), true, `${spot.id} spawnOutside must be walkable`);
+    assert.equal(isPointInVehicleLane(spot.spawnOutside.x, spot.spawnOutside.y), false, `${spot.id} spawnOutside must stay off vehicle lanes`);
   }
 
-  // 2. Every avenue edge in LISBOA_WALKING_NETWORK is symmetric/bidirectional and every pair (10x10 = 100) is reachable on foot
-  for (const zoneId of allZones) {
-    const outgoing = getWalkingAvenuesFrom(zoneId);
-    assert.ok(outgoing.length >= 2, `Zone ${zoneId} should connect on foot to at least 2 neighboring zones`);
-    for (const edge of outgoing) {
-      const reverse = getWalkingAvenuesFrom(edge.toZoneId).find((r) => r.toZoneId === zoneId);
-      assert.ok(reverse, `Missing reciprocal avenue from ${edge.toZoneId} back to ${zoneId}`);
-      assert.equal(reverse.slot, edge.toSlot, `Mismatched return portal slot between ${zoneId} and ${edge.toZoneId}`);
-      if (edge.toZoneId !== 'overworld') {
-        assert.ok(CITY_DISTRICT_PORTALS[edge.toSlot], `Invalid target portal slot ${edge.toSlot} in ${edge.toZoneId}`);
-      }
-    }
-    for (const destZone of allZones) {
-      const route = computeLisboaWalkingRoute(zoneId, destZone);
-      assert.equal(route.ok, true, `Expected continuous on-foot walking route from ${zoneId} to ${destZone}`);
-      if (zoneId !== destZone) {
-        assert.ok(route.legs.length >= 1 && route.totalMeters > 0 && route.totalMinutes > 0);
-      }
-    }
+  // 2. All 9 real Carris surface routes (28E, 15E, 24E trams & 737, 736, 728, 746, 706, 744 buses) and all 41 stops sit off vehicle lanes on walkable sidewalks
+  const expectedRoutes = ['28E', '737', '15E', '24E', '736', '728', '746', '706', '744'];
+  assert.deepEqual(TRANSIT_LINES.map((l) => l.routeNumber), expectedRoutes);
+  const allStops = getAllTransitStops();
+  assert.equal(allStops.length, 41);
+  for (const stop of allStops) {
+    assert.equal(isOverworldPositionValid(stop.platformX, stop.platformY), true, `Stop ${stop.stopId} sidewalk platform must be walkable`);
+    assert.equal(isPointInVehicleLane(stop.platformX, stop.platformY), false, `Stop ${stop.stopId} sidewalk platform must stay off vehicle lanes`);
   }
 
-  // 3. Continuous real-time on-foot walk across the entire city of Lisboa without ever using the Metro!
+  // 3. Continuous physical walking on foot from Chiado straight up Avenida da Liberdade into Rossio and Marques de Pombal (ZERO portals!)
   const engine = new MemoriesGameEngine();
   const state = engine.getState();
   const startEuros = state.euros;
+  assert.equal(state.vehicles.length, 9, 'All 9 Carris surface transit vehicles must run simultaneously');
 
-  // Non-adjacent district walk requires walking step-by-step (no cross-city teleporting!)
-  const blockedSkip = engine.walkCityAvenue('district-campo-grande-alvalade');
-  assert.equal(blockedSkip.ok, false);
-  assert.equal(blockedSkip.multiStepRequired, true);
-  assert.ok(blockedSkip.nextZoneId);
+  // Stand on the west sidewalk of Avenida da Liberdade (x = 892, y = 220 in Chiado) and walk continuously north on foot!
+  engine.setPlayerPosition(892, 220);
+  assert.equal(state.currentNeighborhoodId, 'chiado');
+  for (let i = 0; i < 110; i += 1) {
+    state.energy = 100;
+    state.fullness = 90;
+    engine.tick(0.1, { x: 0, y: -1 });
+  }
+  assert.equal(state.mode, 'overworld', 'Walking north across Lisbon must remain continuously in overworld with zero portals');
+  assert.equal(state.currentNeighborhoodId, 'rossio-restauradores');
+  assert.ok(state.visitedCityDistricts.includes('district-rossio-restauradores'), 'Walking naturally into Rossio must mark Rossio visited');
 
-  // Step A: Walk up to North Gateway on Rua do Carmo -> press [E] -> stroll to Rossio & Baixa
-  const northGw = OVERWORLD_CITY_GATEWAYS.find((g) => g.slot === 'north');
-  state.player.x = northGw.x;
-  state.player.y = northGw.y;
-  const nearGw = engine.getNearbyInteraction();
-  assert.equal(nearGw?.type, 'city-avenue');
-  assert.equal(nearGw?.targetZoneId, 'district-rossio-restauradores');
+  // Keep walking north along Avenida da Liberdade right into Marques de Pombal!
+  for (let i = 0; i < 100; i += 1) {
+    state.energy = 100;
+    state.fullness = 90;
+    engine.tick(0.1, { x: 0, y: -1 });
+  }
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.currentNeighborhoodId, 'marques-pombal-avenida');
+  assert.ok(state.visitedCityDistricts.includes('district-marques-pombal-avenida'));
 
-  const startRossio = engine.triggerNearbyInteraction();
-  assert.equal(startRossio.ok, true);
-  assert.equal(state.cityWalk.active, true);
-  assert.equal(state.cityWalk.toZoneId, 'district-rossio-restauradores');
-  for (let i = 0; i < 12; i += 1) engine.tick(0.15, { x: 0, y: 0 });
-  assert.equal(state.cityWalk.active, false);
-  assert.equal(state.mode, 'city-district');
-  assert.equal(state.cityDistrictId, 'district-rossio-restauradores');
+  // Keep walking continuously all the way north into Campo Grande!
+  for (let i = 0; i < 100; i += 1) {
+    state.energy = 100;
+    state.fullness = 90;
+    engine.tick(0.1, { x: 0, y: -1 });
+  }
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.currentNeighborhoodId, 'campo-grande-alvalade');
+  assert.ok(state.visitedCityDistricts.includes('district-campo-grande-alvalade'));
+  assert.equal(state.euros, startEuros, 'Walking on foot across Greater Lisboa must be free');
 
-  // Step B: Walk west through Rossio West Portal by keyboard push -> arrives in Rato & Principe Real via Calcada da Gloria!
-  for (let i = 0; i < 8; i += 1) engine.tick(0.12, { x: 0, y: 0 }); // clear arrival cooldown
-  state.player.x = CITY_DISTRICT_PORTALS.west.x + 2;
-  state.player.y = CITY_DISTRICT_PORTALS.west.y;
-  engine.tick(0.1, { x: -1, y: 0 });
-  assert.equal(state.cityWalk.active, true);
-  assert.equal(state.cityWalk.toZoneId, 'district-rato-principe-real');
-  for (let i = 0; i < 12; i += 1) engine.tick(0.15, { x: 0, y: 0 });
-  assert.equal(state.mode, 'city-district');
-  assert.equal(state.cityDistrictId, 'district-rato-principe-real');
+  // 4. Ride real Carris Bus 736 (Baixa - Rossio - Marques de Pombal - Campo Grande - Saldanha) seamlessly across neighborhoods!
+  const stop736Rossio = allStops.find((s) => s.stopId === 'stop-bus736-rossio');
+  assert.ok(stop736Rossio, 'Carris Bus 736 must serve Rossio');
+  engine.setPlayerPosition(stop736Rossio.platformX, stop736Rossio.platformY);
+  const board736 = engine.boardTransitAtStop(stop736Rossio.stopId, { waitIfApproaching: true });
+  assert.equal(board736.ok, true);
+  assert.equal(engine.getRidingVehicle().routeNumber, '736');
+  const bus736Audio = computeSoundscapeProfile(state);
+  assert.ok(bus736Audio.activeLabel.includes('736'), `Audio label should reflect Bus 736, got ${bus736Audio.activeLabel}`);
+  // Ride until Bus 736 reaches the next stop north and step off onto a valid sidewalk!
+  const alight736 = engine.disembarkTransit({ immediateToNextStop: true });
+  assert.equal(alight736.ok, true);
+  assert.equal(state.ridingVehicleId, null);
+  assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
 
-  // Step C: Continue on foot: Rato -> Marques de Pombal -> Saldanha -> Alameda -> Oriente -> back to Overworld (Santa Apolonia SE)!
-  const legs = [
-    'district-marques-pombal-avenida',
-    'district-saldanha-campo-pequeno',
-    'district-alameda-arroios',
-    'district-oriente-parque-nacoes',
-    'overworld'
+  // 5. Ride real Carris Bus 728 along the entire Tagus riverfront from Belem to Gare do Oriente!
+  const stop728Belem = allStops.find((s) => s.stopId === 'stop-bus728-belem');
+  assert.ok(stop728Belem, 'Carris Bus 728 must serve Belem');
+  engine.setPlayerPosition(stop728Belem.platformX, stop728Belem.platformY);
+  assert.equal(state.currentNeighborhoodId, 'cais-sodre-belem');
+  const board728 = engine.boardTransitAtStop(stop728Belem.stopId, { waitIfApproaching: true });
+  assert.equal(board728.ok, true);
+  assert.equal(engine.getRidingVehicle().routeNumber, '728');
+  // Ride across the waterfront and alight cleanly
+  engine.disembarkTransit({ immediateToNextStop: true });
+  assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true);
+
+  // 6. Ride Eletrico 15E (Belem Waterfront) and Eletrico 24E (Principe Real & Rato) and Buses 746, 706, 744!
+  const sampleStops = [
+    { stopId: 'stop-tram15-belem', expectedNum: '15E', expectedMode: 'tram' },
+    { stopId: 'stop-tram24-rato', expectedNum: '24E', expectedMode: 'tram' },
+    { stopId: 'stop-bus746-saoseb', expectedNum: '746', expectedMode: 'bus' },
+    { stopId: 'stop-bus706-alameda', expectedNum: '706', expectedMode: 'bus' },
+    { stopId: 'stop-bus744-oriente', expectedNum: '744', expectedMode: 'bus' }
   ];
-  for (const nextZone of legs) {
-    const walkRes = engine.walkCityAvenue(nextZone);
-    assert.equal(walkRes.ok, true, `Failed walking to ${nextZone}: ${walkRes.error}`);
-    assert.equal(state.cityWalk.active, true);
-    for (let i = 0; i < 12; i += 1) engine.tick(0.15, { x: 0, y: 0 });
-    assert.equal(state.cityWalk.active, false);
-    if (nextZone === 'overworld') {
-      assert.equal(state.mode, 'overworld');
-    } else {
-      assert.equal(state.mode, 'city-district');
-      assert.equal(state.cityDistrictId, nextZone);
-    }
+  for (const sample of sampleStops) {
+    const stObj = allStops.find((s) => s.stopId === sample.stopId);
+    assert.ok(stObj, `Missing Carris stop ${sample.stopId}`);
+    engine.setPlayerPosition(stObj.platformX, stObj.platformY);
+    const bRes = engine.boardTransitAtStop(stObj.stopId, { waitIfApproaching: true });
+    assert.equal(bRes.ok, true, `Failed boarding ${sample.expectedNum} at ${sample.stopId}: ${bRes.error}`);
+    const riding = engine.getRidingVehicle();
+    assert.equal(riding.routeNumber, sample.expectedNum);
+    assert.equal(riding.mode, sample.expectedMode);
+    engine.disembarkTransit({ immediateToNextStop: true });
+    assert.equal(isOverworldPositionValid(state.player.x, state.player.y), true, `Alighting ${sample.expectedNum} must land on valid sidewalk`);
   }
 
-  // Walking across the entire city is completely free (0 EUR spent) and records all visited districts!
-  assert.equal(state.euros, startEuros);
-  assert.ok(state.visitedCityDistricts.includes('district-rossio-restauradores'));
-  assert.ok(state.visitedCityDistricts.includes('district-rato-principe-real'));
-  assert.ok(state.visitedCityDistricts.includes('district-marques-pombal-avenida'));
-  assert.ok(state.visitedCityDistricts.includes('district-saldanha-campo-pequeno'));
-  assert.ok(state.visitedCityDistricts.includes('district-alameda-arroios'));
-  assert.ok(state.visitedCityDistricts.includes('district-oriente-parque-nacoes'));
+  // 7. Verify 2D neighborhood lookup covers Belem, Campo Grande, Oriente, and Historic Core accurately
+  assert.equal(getNeighborhoodAt(-1180, 878).id, 'cais-sodre-belem');
+  assert.equal(getNeighborhoodAt(1094, -1814).id, 'campo-grande-alvalade');
+  assert.equal(getNeighborhoodAt(3094, -454).id, 'oriente-parque-nacoes');
+  assert.equal(getNeighborhoodAt(1151, 546).id, 'chiado');
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {

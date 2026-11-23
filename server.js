@@ -214,12 +214,13 @@ export function createMultiplayerServer({
     lastEncore: null
   }));
   const transitVehicles = TRANSIT_LINES.map((line, i) => {
-    const startIdx = i === 0 ? 1 : 2;
+    const startIdx = i === 0 ? 1 : i === 1 ? 2 : Math.min(1, line.waypoints.length - 1);
     const wp = line.waypoints[startIdx];
     const nextStep = getNextWaypointStep(line, startIdx, 1);
     const nextWp = line.waypoints[nextStep.nextIndex];
     return {
       id: line.id,
+      routeNumber: line.routeNumber || line.badge,
       mode: line.mode,
       x: wp.x,
       y: wp.y,

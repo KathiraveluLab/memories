@@ -1,4 +1,4 @@
-import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, LISBOA_CITY_DISTRICTS, REST_SPOTS, getMonthInfo, isBairroAltoPartyTime } from './data.js';
+import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, LISBOA_CITY_DISTRICTS, REST_SPOTS, TRANSIT_LINES, getMonthInfo, isBairroAltoPartyTime } from './data.js';
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -209,14 +209,25 @@ export function computeSoundscapeProfile(state) {
     };
   }
 
+  const px = Number.isFinite(state.player?.x) ? state.player.x : 950;
   const py = Number.isFinite(state.player?.y) ? state.player.y : 544;
   const riverStartY = WATERFRONT_Y - 240; // y = 790
   const riverPeakY = WATERFRONT_Y - 38;   // y = 992
   const rawRiver = clamp((py - riverStartY) / (riverPeakY - riverStartY), 0, 1);
-  const riverWater = Math.round(Math.pow(rawRiver, 1.35) * 1000) / 1000;
+  let riverWater = Math.round(Math.pow(rawRiver, 1.35) * 1000) / 1000;
+  // Eastern Tagus Estuary waterfront along Parque das Nacoes & Gare do Oriente
+  if (px >= 2700 && py >= -780) {
+    riverWater = Math.max(riverWater, 0.58);
+  }
+  // Monumental Fonte Luminosa water cascade in Alameda Dom Afonso Henriques
+  if (px >= 1650 && px <= 2320 && py >= -700 && py <= -240) {
+    riverWater = Math.max(riverWater, 0.35);
+  }
 
   if (state.ridingVehicleId) {
-    const isTram = state.ridingVehicleId === 'tram-28e';
+    const line = TRANSIT_LINES.find((l) => l.id === state.ridingVehicleId);
+    const isTram = line ? line.mode === 'tram' : state.ridingVehicleId.startsWith('tram-');
+    const routeTag = line?.routeNumber || (isTram ? '28E' : '737');
     return {
       ...EMPTY_PROFILE,
       metroRumble: isTram ? 0.42 : 0.48,
@@ -224,12 +235,11 @@ export function computeSoundscapeProfile(state) {
       riverWater,
       rainLevel: Math.round(outdoorRain * 0.4 * 100) / 100,
       badgeTone: riverWater >= 0.35 ? 'water' : 'metro',
-      activeLabel: isTram ? 'Tram 28E Rail Hum' : 'Carris Bus Coach'
+      activeLabel: isTram ? `Tram ${routeTag} Rail Hum` : `Carris Bus ${routeTag} Coach`
     };
   }
 
   let miradouroGuitar = 0;
-  const px = Number.isFinite(state.player?.x) ? state.player.x : 950;
   for (const spot of REST_SPOTS) {
     const d = Math.hypot(px - spot.x, py - spot.y);
     if (d <= 120) {
@@ -240,7 +250,7 @@ export function computeSoundscapeProfile(state) {
     miradouroGuitar = Math.max(miradouroGuitar, 0.78);
   }
 
-  const inBairroPartyZone = px <= 840 && py <= 285 && isBairroAltoPartyTime(state.minutesOfDay);
+  const inBairroPartyZone = px >= 0 && px <= 840 && py >= 0 && py <= 285 && isBairroAltoPartyTime(state.minutesOfDay);
   if (inBairroPartyZone) {
     return {
       ...EMPTY_PROFILE,

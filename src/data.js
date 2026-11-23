@@ -1,4 +1,7 @@
-export const WORLD_WIDTH = 2400;
+export const WORLD_MIN_X = -1600;
+export const WORLD_MAX_X = 4000;
+export const WORLD_MIN_Y = -2000;
+export const WORLD_WIDTH = 4000;
 export const WORLD_HEIGHT = 1200;
 
 export const INTERIOR_WIDTH = 760;
@@ -34,34 +37,142 @@ export const NEIGHBORHOODS = [
   }
 ];
 
+export const ALL_LISBOA_NEIGHBORHOODS = [
+  ...NEIGHBORHOODS,
+  {
+    id: 'cais-sodre-belem',
+    districtId: 'district-cais-sodre-belem',
+    name: 'Cais do Sodre & Belem',
+    accent: '#16a34a',
+    groundTint: '#e8e4d8',
+    subtitle: 'Tagus riverfront avenue served by Eletrico 15E, Bus 728, Bus 706, and Linha Verde toward Torre de Belem.'
+  },
+  {
+    id: 'rato-principe-real',
+    districtId: 'district-rato-principe-real',
+    name: 'Rato & Principe Real',
+    accent: '#ca8a04',
+    groundTint: '#ebe5d5',
+    subtitle: 'Hilltop gardens, Mae d Agua aqueduct reservoir, Eletrico 24E, Bus 706, and Linha Amarela.'
+  },
+  {
+    id: 'rossio-restauradores',
+    districtId: 'district-rossio-restauradores',
+    name: 'Rossio & Restauradores',
+    accent: '#15803d',
+    groundTint: '#ede7dc',
+    subtitle: 'Pombaline plazas, baroque fountains, Bus 736, Bus 744, and Linha Verde downtown interchange.'
+  },
+  {
+    id: 'marques-pombal-avenida',
+    districtId: 'district-marques-pombal-avenida',
+    name: 'Marques de Pombal & Avenida',
+    accent: '#1d4ed8',
+    groundTint: '#eae5da',
+    subtitle: 'Avenida da Liberdade grand boulevard, Parque Eduardo VII, Bus 736, Bus 746, and Blue/Yellow Metro hub.'
+  },
+  {
+    id: 'sao-sebastiao-sete-rios',
+    districtId: 'district-sao-sebastiao-sete-rios',
+    name: 'Sao Sebastiao, Gulbenkian & Zoo',
+    accent: '#2563eb',
+    groundTint: '#e6eadf',
+    subtitle: 'Gulbenkian water gardens, Sete Rios Zoo Teleferico, Bus 746, and Blue/Red Metro interchange.'
+  },
+  {
+    id: 'saldanha-campo-pequeno',
+    districtId: 'district-saldanha-campo-pequeno',
+    name: 'Saldanha & Campo Pequeno',
+    accent: '#d97706',
+    groundTint: '#efe5d8',
+    subtitle: 'Avenidas Novas boulevards, 1892 Neo-Moorish brick rotunda, Bus 736, Bus 744, and Yellow/Red Metro hub.'
+  },
+  {
+    id: 'campo-grande-alvalade',
+    districtId: 'district-campo-grande-alvalade',
+    name: 'Campo Grande & Alvalade',
+    accent: '#15803d',
+    groundTint: '#e4ebe2',
+    subtitle: 'Cidade Universitaria campus, Jardim do Campo Grande, Bus 736, Bus 746, and Yellow/Green Metro hub.'
+  },
+  {
+    id: 'alameda-arroios',
+    districtId: 'district-alameda-arroios',
+    name: 'Alameda & Arroios',
+    accent: '#b91c1c',
+    groundTint: '#ece2dc',
+    subtitle: 'Avenida Almirante Reis, 1948 Fonte Luminosa, Bus 706, Bus 744, and Green/Red Metro interchange.'
+  },
+  {
+    id: 'oriente-parque-nacoes',
+    districtId: 'district-oriente-parque-nacoes',
+    name: 'Oriente & Parque das Nacoes',
+    accent: '#dc2626',
+    groundTint: '#e4eaf0',
+    subtitle: 'Calatrava Gare do Oriente, Oceanario waterfront, Bus 728, Bus 744, and Linha Vermelha to Aeroporto.'
+  }
+];
+
 export const WATERFRONT_Y = 1030;
 
 /**
- * Authentic Lisbon Seven-Hills topographic elevation (world Z units; 1 unit ~ 0.65m elevation):
- * - Tagus Waterfront Promenade (y >= 972): sea level (0)
- * - Chiado / Baixa basin (x: 920..1620): gentle terrace rising northward (0..22)
- * - Bairro Alto ("Upper Quarter", x <= 840): steep high hilltop plateau climbing up to ~86 units (~56m)
- * - Alfama eastern hillside (x >= 1660): rises eastward toward Portas do Sol & Castelo ridge (~52 units)
+ * Authentic Lisbon Seven-Hills topographic elevation across the entire unified city (world Z units):
+ * - Tagus Waterfront Promenade (y >= 972, Belem to Parque das Nacoes): sea level (0)
+ * - Historic Core (x: 0..2400, y: 0..1030): exact Bairro Alto hilltop (~86), Chiado basin (0..22), Alfama ridge (~52)
+ * - Western Belem slopes gently to sea level; Principe Real / Rato stays elevated on the western hill (~48)
+ * - Rossio valley rises north up Avenida da Liberdade to Marques de Pombal / Parque Eduardo VII / Gulbenkian (~44)
+ * - Alameda / IST sits on an eastern hill (~42) sloping smoothly down to modern flat Parque das Nacoes riverfront (0..10)
  */
 export function getTerrainElevation(wx, wy) {
   if (wy >= WATERFRONT_Y - 36) return 0;
-  const clampedY = Math.max(36, Math.min(WATERFRONT_Y - 36, wy));
-  const northT = (WATERFRONT_Y - 36 - clampedY) / (WATERFRONT_Y - 36 - 36); // Continuous 0 at waterfront -> 1 at top ridge
-  const wfRamp = Math.max(0, Math.min(1, (WATERFRONT_Y - 42 - clampedY) / 220));
+
+  // Preserve exact historic central Lisboa elevation profile in x: [0..2400], y: [36..WATERFRONT_Y]
+  if (wx >= 0 && wx <= 2400 && wy >= 36) {
+    const clampedY = Math.max(36, Math.min(WATERFRONT_Y - 36, wy));
+    const northT = (WATERFRONT_Y - 36 - clampedY) / (WATERFRONT_Y - 36 - 36);
+    const wfRamp = Math.max(0, Math.min(1, (WATERFRONT_Y - 42 - clampedY) / 220));
+    const wfSmooth = wfRamp * wfRamp * (3 - 2 * wfRamp);
+
+    const baT = Math.max(0, Math.min(1, (980 - wx) / 760));
+    const baSmooth = baT * (1.55 - 0.55 * baT);
+
+    const alfT = Math.max(0, Math.min(1, (wx - 1580) / 680));
+    const alfSmooth = alfT * (1.45 - 0.45 * alfT);
+
+    const chiadoBaseRise = northT * 22;
+    const bairroAltoLift = baSmooth * wfSmooth * (18 + northT * 68);
+    const alfamaLift = alfSmooth * wfSmooth * (12 + northT * 36);
+    return chiadoBaseRise + bairroAltoLift + alfamaLift;
+  }
+
+  // Smooth continuous elevation across Greater Lisboa (Belem, Rato, Rossio, Marques, Saldanha, Campo Grande, Alameda, Oriente)
+  const wfRamp = Math.max(0, Math.min(1, (WATERFRONT_Y - 42 - wy) / 240));
   const wfSmooth = wfRamp * wfRamp * (3 - 2 * wfRamp);
+  const clampedY = Math.max(36, Math.min(WATERFRONT_Y - 36, wy));
+  const coreNorthT = (WATERFRONT_Y - 36 - clampedY) / (WATERFRONT_Y - 36 - 36);
 
-  // Bairro Alto continuous hillside rise westward from Chiado all the way to the western ridge
-  const baT = Math.max(0, Math.min(1, (980 - wx) / 760));
+  // Eastern Parque das Nacoes fades smoothly down toward modern flat riverfront
+  const eastFade = wx > 2400 ? Math.max(0, 1 - (wx - 2400) / 720) : 1;
+  // Western Belem riverfront slopes smoothly down westward from Bairro Alto ridge
+  const westBelemFade = wx < 0 && wy > 180 ? Math.max(0.08, 1 - (-wx) / 760) : 1;
+
+  const baT = Math.max(0, Math.min(1, (980 - Math.max(0, wx)) / 760));
   const baSmooth = baT * (1.55 - 0.55 * baT);
-
-  // Alfama continuous hillside rise eastward toward Portas do Sol & Castelo ridge
-  const alfT = Math.max(0, Math.min(1, (wx - 1580) / 680));
+  const alfT = Math.max(0, Math.min(1, (Math.min(2400, wx) - 1580) / 680));
   const alfSmooth = alfT * (1.45 - 0.45 * alfT);
 
-  const chiadoBaseRise = northT * 22;
-  const bairroAltoLift = baSmooth * wfSmooth * (18 + northT * 68);
-  const alfamaLift = alfSmooth * wfSmooth * (12 + northT * 36);
-  return chiadoBaseRise + bairroAltoLift + alfamaLift;
+  let base =
+    coreNorthT * 22 * eastFade +
+    baSmooth * wfSmooth * (18 + coreNorthT * 68) * westBelemFade * (wy < 36 ? Math.max(0.45, 1 - (36 - wy) / 900) : 1) +
+    alfSmooth * wfSmooth * (12 + coreNorthT * 36) * eastFade * (wy < 36 ? Math.max(0.55, 1 - (36 - wy) / 1100) : 1);
+
+  // Gentle Parque Eduardo VII / Avenidas Novas northern plateau when walking north of Rossio
+  if (wy < 36) {
+    const northDist = Math.min(1, (36 - wy) / 1400);
+    const eastPlateauFade = wx > 2600 ? Math.max(0.15, 1 - (wx - 2600) / 800) : 1;
+    base = Math.max(base * 0.72 + 12 * northDist, 14 + 26 * northDist * eastPlateauFade);
+  }
+  return Math.max(0, base * wfSmooth);
 }
 
 export function getTerrainSlope(wx, wy) {
@@ -72,35 +183,35 @@ export function getTerrainSlope(wx, wy) {
 }
 
 export const STREETS = [
-  // Horizontal avenues
-  { id: 'ave-north', x: 110, y: 230, w: 2180, h: 110, style: 'bus-road', name: 'Rua de Sao Pedro / Rua Garrett / Santa Luzia' },
-  { id: 'ave-tram', x: 110, y: 555, w: 2180, h: 110, style: 'tram-avenue', name: 'Rua do Loreto / Largo do Chiado / Calcada da Se' },
-  { id: 'ave-south', x: 110, y: 875, w: 2180, h: 115, style: 'bus-road', name: 'Avenida Ribeira / Cais de Alfama' },
-  // Vertical connecting streets
+  // Continuous City-Wide Horizontal Boulevards (Belem x=-1520 to Parque das Nacoes x=3920)
+  { id: 'ave-campo-grande', x: -1520, y: -1800, w: 5440, h: 110, style: 'bus-road', name: 'Av. das Forcas Armadas / Campo Grande / Av. Marechal Gomes da Costa' },
+  { id: 'ave-marques-saldanha', x: -1520, y: -1120, w: 5440, h: 110, style: 'bus-road', name: 'Av. Antonio Augusto de Aguiar / Marques de Pombal / Saldanha / Aeroporto' },
+  { id: 'ave-rossio-alameda', x: -1520, y: -440, w: 5440, h: 110, style: 'bus-road', name: 'Rua da Escola Politecnica / Rossio / Alameda / Gare do Oriente' },
+  { id: 'ave-north', x: -1520, y: 230, w: 5440, h: 110, style: 'bus-road', name: 'Rua de Sao Pedro / Rua Garrett / Santa Luzia' },
+  { id: 'ave-tram', x: -1520, y: 555, w: 5440, h: 110, style: 'tram-avenue', name: 'Calcada da Ajuda / Rua do Loreto / Largo do Chiado / Calcada da Se' },
+  { id: 'ave-south', x: -1520, y: 875, w: 5440, h: 115, style: 'bus-road', name: 'Av. da India (Belem) / Av. 24 de Julho / Ribeira / Av. Infante Dom Henrique' },
+  // Continuous City-Wide Vertical Connecting Avenues
+  { id: 'st-belem-west', x: -1512, y: -1800, w: 105, h: 2790, style: 'bus-road', name: 'Avenida da Torre de Belem' },
+  { id: 'st-rato-cais', x: -612, y: -1800, w: 105, h: 2790, style: 'bus-road', name: 'Av. Dom Carlos I / Rua de Sao Bento / Sao Sebastiao' },
   { id: 'st-west-edge', x: 110, y: 230, w: 105, h: 760, style: 'bus-road', name: 'Rua da Misericordia Oeste' },
-  { id: 'st-bairro-mid', x: 465, y: 120, w: 95, h: 870, style: 'cobble', name: 'Rua da Rosa' },
-  { id: 'st-camoes', x: 865, y: 230, w: 170, h: 760, style: 'plaza', name: 'Praca Luis de Camoes' },
-  { id: 'st-carmo', x: 1334, y: 230, w: 98, h: 760, style: 'cobble', name: 'Rua do Carmo' },
-  { id: 'st-se', x: 1675, y: 230, w: 110, h: 760, style: 'cobble', name: 'Escadinhas da Se' },
-  { id: 'st-east-edge', x: 2145, y: 230, w: 145, h: 760, style: 'bus-road', name: 'Largo das Portas do Sol' }
+  { id: 'st-bairro-mid', x: 465, y: -440, w: 95, h: 1430, style: 'cobble', name: 'Rua da Rosa / Rua Dom Pedro V (Principe Real)' },
+  { id: 'st-av-liberdade', x: 865, y: -1800, w: 170, h: 2790, style: 'plaza', name: 'Avenida da Liberdade / Praca Luis de Camoes' },
+  { id: 'st-carmo', x: 1334, y: -440, w: 98, h: 1430, style: 'cobble', name: 'Rua do Carmo / Rua Augusta' },
+  { id: 'st-almirante-reis', x: 1680, y: -1800, w: 130, h: 2790, style: 'bus-road', name: 'Av. da Republica / Av. Almirante Reis / Escadinhas da Se' },
+  { id: 'st-east-edge', x: 2145, y: -440, w: 145, h: 1430, style: 'bus-road', name: 'Largo das Portas do Sol / Olaias' },
+  { id: 'st-parque-nacoes', x: 3308, y: -1800, w: 112, h: 2790, style: 'bus-road', name: 'Alameda dos Oceanos (Parque das Nacoes)' }
 ];
 
 export const CROSSWALKS = [
-  // Crosswalks across North Bus Road (y: 252..318)
-  { x: 488, y: 250, w: 48, h: 70, orientation: 'vertical' },
-  { x: 882, y: 250, w: 54, h: 70, orientation: 'vertical' },
-  { x: 1358, y: 250, w: 50, h: 70, orientation: 'vertical' },
-  { x: 1702, y: 250, w: 50, h: 70, orientation: 'vertical' },
-  // Crosswalks across Tram 28E Corridor (y: 576..644)
-  { x: 488, y: 575, w: 48, h: 70, orientation: 'vertical' },
-  { x: 882, y: 575, w: 54, h: 70, orientation: 'vertical' },
-  { x: 1358, y: 575, w: 50, h: 70, orientation: 'vertical' },
-  { x: 1702, y: 575, w: 50, h: 70, orientation: 'vertical' },
-  // Crosswalks across South Bus Road (y: 896..966)
-  { x: 488, y: 896, w: 48, h: 70, orientation: 'vertical' },
-  { x: 882, y: 896, w: 54, h: 70, orientation: 'vertical' },
-  { x: 1358, y: 896, w: 50, h: 70, orientation: 'vertical' },
-  { x: 1702, y: 896, w: 50, h: 70, orientation: 'vertical' }
+  // Crosswalks across all 6 horizontal roads at every major vertical corridor
+  ...[-1484, -584, 488, 882, 1358, 1720, 2190, 3336].flatMap((cx) => [
+    { x: cx, y: -1778, w: 50, h: 70, orientation: 'vertical' },
+    { x: cx, y: -1098, w: 50, h: 70, orientation: 'vertical' },
+    { x: cx, y: -418, w: 50, h: 70, orientation: 'vertical' },
+    { x: cx, y: 250, w: 50, h: 70, orientation: 'vertical' },
+    { x: cx, y: 575, w: 50, h: 70, orientation: 'vertical' },
+    { x: cx, y: 896, w: 50, h: 70, orientation: 'vertical' }
+  ])
 ];
 
 export const DECORATIVE_STRUCTURES = [
@@ -2006,7 +2117,92 @@ export const LISBOA_CITY_DISTRICTS = [
   }
 ];
 
-// Walkable perimeter avenue portal coordinates inside every Greater Lisboa City District plaza (valid x: 77..683, y: 169..269)
+// Geographic unified open-world layout coordinates for all 9 Greater Lisboa Metro entrances & 27 landmarks/eateries/shops!
+// Every district sits directly on the continuous Lisboa street grid with zero portals and zero teleporting.
+export const CITY_METRO_WORLD_COORDS = {
+  'metro-cais-sodre': { x: -360, y: 782, w: 68, h: 66, doorX: -326, doorY: 848, spawnOutside: { x: -326, y: 878 } },
+  'metro-rato': { x: -440, y: -556, w: 68, h: 72, doorX: -406, doorY: -484, spawnOutside: { x: -406, y: -454 } },
+  'metro-rossio': { x: 1060, y: -556, w: 68, h: 72, doorX: 1094, doorY: -484, spawnOutside: { x: 1094, y: -454 } },
+  'metro-marques-pombal': { x: 1060, y: -1236, w: 68, h: 72, doorX: 1094, doorY: -1164, spawnOutside: { x: 1094, y: -1134 } },
+  'metro-saldanha-campo-pequeno': { x: 1860, y: -1236, w: 68, h: 72, doorX: 1894, doorY: -1164, spawnOutside: { x: 1894, y: -1134 } },
+  'metro-sao-sebastiao-zoologico': { x: -440, y: -1236, w: 68, h: 72, doorX: -406, doorY: -1164, spawnOutside: { x: -406, y: -1134 } },
+  'metro-campo-grande-alvalade': { x: 1060, y: -1916, w: 68, h: 72, doorX: 1094, doorY: -1844, spawnOutside: { x: 1094, y: -1814 } },
+  'metro-alameda': { x: 1860, y: -556, w: 68, h: 72, doorX: 1894, doorY: -484, spawnOutside: { x: 1894, y: -454 } },
+  'metro-oriente-aeroporto': { x: 3060, y: -556, w: 68, h: 72, doorX: 3094, doorY: -484, spawnOutside: { x: 3094, y: -454 } }
+};
+
+for (const st of CITY_METRO_STATIONS) {
+  const wc = CITY_METRO_WORLD_COORDS[st.id];
+  if (wc) {
+    Object.assign(st, wc);
+  }
+}
+
+export const CITY_DISTRICT_SPOT_LAYOUT = {
+  // Cais do Sodre & Belem Waterfront (Row 0 West, facing Av. da India / Av. 24 de Julho)
+  'belem-confeitaria': { x: -240, y: 710, w: 196, h: 140, spawnOutside: { x: -142, y: 878 } },
+  'belem-torre-15e': { x: -1290, y: 700, w: 185, h: 150, spawnOutside: { x: -1198, y: 878 } },
+  'belem-maritime-shop': { x: -990, y: 710, w: 196, h: 140, spawnOutside: { x: -892, y: 878 } },
+  // Rato & Principe Real (Row 3 West, facing Rua da Escola Politecnica)
+  'principe-real-esplanada': { x: -1020, y: -624, w: 196, h: 140, spawnOutside: { x: -922, y: -454 } },
+  'rato-mae-dagua-24e': { x: -780, y: -624, w: 170, h: 140, spawnOutside: { x: -695, y: -454 } },
+  'rato-ceramica-amalia': { x: -290, y: -624, w: 196, h: 140, spawnOutside: { x: -192, y: -454 } },
+  // Rossio & Restauradores (Row 3 Center, facing Praca Dom Pedro IV)
+  'rossio-ginjinha-cafe': { x: 620, y: -624, w: 196, h: 140, spawnOutside: { x: 718, y: -454 } },
+  'rossio-santa-justa-lift': { x: 1180, y: -624, w: 180, h: 140, spawnOutside: { x: 1270, y: -454 } },
+  'rossio-chapelaria': { x: 1420, y: -624, w: 196, h: 140, spawnOutside: { x: 1518, y: -454 } },
+  // Marques de Pombal & Parque Eduardo VII (Row 4 Center, top of Avenida da Liberdade)
+  'avenida-quiosque-ribeira': { x: 620, y: -1304, w: 196, h: 140, spawnOutside: { x: 718, y: -1134 } },
+  'pombal-monument-lavra': { x: 1180, y: -1304, w: 180, h: 140, spawnOutside: { x: 1270, y: -1134 } },
+  'estufa-fria-boutique': { x: 1420, y: -1304, w: 196, h: 140, spawnOutside: { x: 1518, y: -1134 } },
+  // Sao Sebastiao, Gulbenkian & Sete Rios Zoo (Row 4 West)
+  'gulbenkian-garden-cafe': { x: -1040, y: -1304, w: 196, h: 140, spawnOutside: { x: -942, y: -1134 } },
+  'gulbenkian-zoo-teleferico': { x: -790, y: -1304, w: 180, h: 140, spawnOutside: { x: -700, y: -1134 } },
+  'gulbenkian-museum-shop': { x: -290, y: -1304, w: 196, h: 140, spawnOutside: { x: -192, y: -1134 } },
+  // Saldanha & Campo Pequeno 1892 (Row 4 East)
+  'saldanha-cervejaria': { x: 1980, y: -1304, w: 196, h: 140, spawnOutside: { x: 2078, y: -1134 } },
+  'campo-pequeno-dome': { x: 2230, y: -1304, w: 185, h: 140, spawnOutside: { x: 2322, y: -1134 } },
+  'avenidas-art-nouveau-shop': { x: 2470, y: -1304, w: 196, h: 140, spawnOutside: { x: 2568, y: -1134 } },
+  // Campo Grande, Cidade Universitaria & Alvalade (Row 5 North)
+  'alvalade-pastelaria-universitaria': { x: 620, y: -1984, w: 196, h: 140, spawnOutside: { x: 718, y: -1814 } },
+  'campo-grande-reitoria-lake': { x: 1180, y: -1984, w: 196, h: 140, spawnOutside: { x: 1278, y: -1814 } },
+  'alvalade-livraria-academica': { x: 1430, y: -1984, w: 196, h: 140, spawnOutside: { x: 1528, y: -1814 } },
+  // Alameda, Arroios & Fonte Luminosa 1948 (Row 3 East)
+  'alameda-esplanada-luminosa': { x: 1960, y: -624, w: 180, h: 140, spawnOutside: { x: 2050, y: -454 } },
+  'alameda-fonte-luminosa-monument': { x: 2340, y: -624, w: 190, h: 140, spawnOutside: { x: 2435, y: -454 } },
+  'olaias-galeria-arquitetura': { x: 2590, y: -624, w: 196, h: 140, spawnOutside: { x: 2688, y: -454 } },
+  // Oriente, Parque das Nacoes & Oceanario (East Riverfront & Gare do Oriente)
+  'oriente-marina-restaurante': { x: 2920, y: 710, w: 196, h: 140, spawnOutside: { x: 3018, y: 878 } },
+  'oriente-calatrava-telecabine': { x: 3480, y: -624, w: 220, h: 140, spawnOutside: { x: 3590, y: -454 } },
+  'oriente-oceanario-loja': { x: 3500, y: 710, w: 196, h: 140, spawnOutside: { x: 3598, y: 878 } }
+};
+
+export const CITY_DISTRICT_SPOTS = [];
+for (const district of LISBOA_CITY_DISTRICTS) {
+  const stationWc = CITY_METRO_WORLD_COORDS[district.stationId];
+  if (stationWc) {
+    district.worldCenter = { x: stationWc.spawnOutside.x, y: stationWc.spawnOutside.y };
+  }
+  for (const spot of district.townSpots || []) {
+    const lay = CITY_DISTRICT_SPOT_LAYOUT[spot.id];
+    if (lay) {
+      spot.worldX = lay.x;
+      spot.worldY = lay.y;
+      spot.w = lay.w;
+      spot.h = lay.h;
+      spot.doorX = lay.x + lay.w * 0.5;
+      spot.doorY = lay.y + lay.h;
+      spot.spawnOutside = lay.spawnOutside;
+      spot.districtId = district.id;
+      spot.districtName = district.shortName;
+      spot.accentColor = district.accentColor;
+      spot.skylineStyle = district.skylineStyle;
+      CITY_DISTRICT_SPOTS.push(spot);
+    }
+  }
+}
+
+// Legacy portal structures retained for metadata reference (zero portal teleporting in unified open-world Lisboa!)
 export const CITY_DISTRICT_PORTALS = {
   west: { slot: 'west', label: 'W', x: 78, y: 214, spawnX: 112, spawnY: 214, arriveFacing: 'right', arriveYaw: 0 },
   east: { slot: 'east', label: 'E', x: 682, y: 214, spawnX: 648, spawnY: 214, arriveFacing: 'left', arriveYaw: Math.PI },
@@ -2534,18 +2730,18 @@ export const LISBOA_WALKING_NETWORK = {
   ]
 };
 
-// Geographic schematic coordinates (0..100%) for the interactive Full-City Lisboa Walking & Metro Map
+// Geographic schematic coordinates (0..100%) & continuous open-world anchors for the interactive Full-City Lisboa Map
 export const LISBOA_CITY_MAP_NODES = [
-  { id: 'district-sao-sebastiao-sete-rios', shortName: 'Sao Sebastiao & Zoo', x: 24, y: 18, color: '#2563eb' },
-  { id: 'district-campo-grande-alvalade', shortName: 'Campo Grande', x: 54, y: 14, color: '#16a34a' },
-  { id: 'district-oriente-parque-nacoes', shortName: 'Oriente & Expo', x: 88, y: 26, color: '#dc2626' },
-  { id: 'district-rato-principe-real', shortName: 'Rato & Pr. Real', x: 22, y: 50, color: '#eab308' },
-  { id: 'district-marques-pombal-avenida', shortName: 'Marques de Pombal', x: 38, y: 38, color: '#eab308' },
-  { id: 'district-saldanha-campo-pequeno', shortName: 'Saldanha', x: 54, y: 34, color: '#dc2626' },
-  { id: 'district-alameda-arroios', shortName: 'Alameda', x: 70, y: 42, color: '#dc2626' },
-  { id: 'district-rossio-restauradores', shortName: 'Rossio & Baixa', x: 46, y: 58, color: '#16a34a' },
-  { id: 'district-cais-sodre-belem', shortName: 'Cais do Sodre & Belem', x: 14, y: 80, color: '#16a34a' },
-  { id: 'overworld', shortName: 'Chiado, Bairro Alto & Alfama', x: 50, y: 80, color: '#1d4ed8' }
+  { id: 'district-sao-sebastiao-sete-rios', shortName: 'Sao Sebastiao & Zoo', x: 24, y: 18, worldX: -406, worldY: -1134, color: '#2563eb' },
+  { id: 'district-campo-grande-alvalade', shortName: 'Campo Grande', x: 54, y: 14, worldX: 1094, worldY: -1814, color: '#16a34a' },
+  { id: 'district-oriente-parque-nacoes', shortName: 'Oriente & Expo', x: 88, y: 26, worldX: 3094, worldY: -454, color: '#dc2626' },
+  { id: 'district-rato-principe-real', shortName: 'Rato & Pr. Real', x: 22, y: 50, worldX: -406, worldY: -454, color: '#eab308' },
+  { id: 'district-marques-pombal-avenida', shortName: 'Marques de Pombal', x: 38, y: 38, worldX: 1094, worldY: -1134, color: '#eab308' },
+  { id: 'district-saldanha-campo-pequeno', shortName: 'Saldanha', x: 54, y: 34, worldX: 1894, worldY: -1134, color: '#dc2626' },
+  { id: 'district-alameda-arroios', shortName: 'Alameda', x: 70, y: 42, worldX: 1894, worldY: -454, color: '#dc2626' },
+  { id: 'district-rossio-restauradores', shortName: 'Rossio & Baixa', x: 46, y: 58, worldX: 1094, worldY: -454, color: '#16a34a' },
+  { id: 'district-cais-sodre-belem', shortName: 'Cais do Sodre & Belem', x: 14, y: 80, worldX: -326, worldY: 878, color: '#16a34a' },
+  { id: 'overworld', shortName: 'Chiado, Bairro Alto & Alfama', x: 50, y: 80, worldX: 1151, worldY: 546, color: '#1d4ed8' }
 ];
 
 export function getLisboaZoneLabel(zoneId) {
@@ -4124,6 +4320,7 @@ export const REST_SPOTS = [
 export const TRANSIT_LINES = [
   {
     id: 'tram-28e',
+    routeNumber: '28E',
     mode: 'tram',
     name: 'Eletrico 28E',
     operator: 'Carris',
@@ -4156,6 +4353,7 @@ export const TRANSIT_LINES = [
   },
   {
     id: 'bus-737-758',
+    routeNumber: '737',
     mode: 'bus',
     name: 'Carris Bus 737 / 758',
     operator: 'Carris',
@@ -4188,6 +4386,199 @@ export const TRANSIT_LINES = [
       { x: 1900, y: 932, stopId: 'stop-bus-cais-alfama', stopName: 'Cais de Alfama (Waterfront)', platformY: 880 },
       { x: 950, y: 932, stopId: 'stop-bus-camoes-sul', stopName: 'Camoes Sul (Waterfront)', platformY: 880 },
       { x: 162, y: 932 }
+    ]
+  },
+  {
+    id: 'tram-15e',
+    routeNumber: '15E',
+    mode: 'tram',
+    name: 'Eletrico 15E (Belem - Cais do Sodre - Praca do Comercio)',
+    operator: 'Carris',
+    badge: '[TRAM 15E]',
+    fareEur: 3.1,
+    speedPxPerSec: 132,
+    dwellSeconds: 3.0,
+    color: '#d97706',
+    trimColor: '#f8fafc',
+    loopType: 'pingpong',
+    phrase: {
+      pt: 'O eletrico quinze vai direto para os Jeronimos e a Torre de Belem.',
+      pronunciation: 'Oo eh-leh-tree-koo keen-zeh vah-ee dee-reh-too pah-rah oosh Zheh-roh-nee-moosh ee ah Toh-reh deh Beh-leym.',
+      en: 'Tram 15 goes straight to Jeronimos and Belem Tower.'
+    },
+    waypoints: [
+      { x: -1200, y: 932, stopId: 'stop-tram15-belem', stopName: 'Torre de Belem / Jeronimos (15E)', platformY: 878 },
+      { x: -890, y: 932, stopId: 'stop-tram15-maat', stopName: 'MAAT & Alcantara Waterfront (15E)', platformY: 878 },
+      { x: -326, y: 932, stopId: 'stop-tram15-cais', stopName: 'Cais do Sodre / Mercado da Ribeira (15E)', platformY: 878 },
+      { x: 1550, y: 932, stopId: 'stop-tram15-comercio', stopName: 'Praca do Comercio / Terreiro do Paco (15E)', platformY: 878 }
+    ]
+  },
+  {
+    id: 'tram-24e',
+    routeNumber: '24E',
+    mode: 'tram',
+    name: 'Eletrico 24E (Camoes - Principe Real - Rato)',
+    operator: 'Carris',
+    badge: '[TRAM 24E]',
+    fareEur: 3.1,
+    speedPxPerSec: 122,
+    dwellSeconds: 3.0,
+    color: '#ca8a04',
+    trimColor: '#fef9c3',
+    loopType: 'pingpong',
+    phrase: {
+      pt: 'O eletrico vinte e quatro sobe do Chiado ao Principe Real e ao Rato.',
+      pronunciation: 'Oo eh-leh-tree-koo veen-teh ee kwah-troo soh-beh doo Shee-ah-doo ow Preen-see-peh Heh-ahl ee ow Hah-too.',
+      en: 'Tram 24 climbs from Chiado to Principe Real and Rato.'
+    },
+    waypoints: [
+      { x: 892, y: 285, stopId: 'stop-tram24-camoes', stopName: 'Chiado / Camoes Norte (24E)', platformX: 892, platformY: 224 },
+      { x: -560, y: 285 },
+      { x: -560, y: -384 },
+      { x: -406, y: -384, stopId: 'stop-tram24-rato', stopName: 'Largo do Rato / Metro Rato (24E)', platformY: -454 },
+      { x: -700, y: -384, stopId: 'stop-tram24-principe', stopName: 'Principe Real / Mae d Agua (24E)', platformY: -454 }
+    ]
+  },
+  {
+    id: 'bus-736',
+    routeNumber: '736',
+    mode: 'bus',
+    name: 'Carris Bus 736 (Baixa - Rossio - Marques - Saldanha - Campo Grande)',
+    operator: 'Carris',
+    badge: '[BUS 736]',
+    fareEur: 2.1,
+    speedPxPerSec: 158,
+    dwellSeconds: 3.0,
+    color: '#0f766e',
+    trimColor: '#facc15',
+    loopType: 'cycle',
+    phrase: {
+      pt: 'O autocarro sete tres seis sobe a Avenida da Liberdade ate ao Campo Grande.',
+      pronunciation: 'Oo ow-too-kah-roo seh-teh trehsh saysh soh-beh ah Ah-veh-nee-dah dah Lee-behr-dah-deh ah-teh ow Kahm-poo Grahn-deh.',
+      en: 'Bus 736 climbs Avenida da Liberdade all the way to Campo Grande.'
+    },
+    waypoints: [
+      { x: 935, y: 285 },
+      { x: 1090, y: 285, stopId: 'stop-bus736-baixa', stopName: 'Baixa-Chiado / Rua Garrett (736)', platformY: 224 },
+      { x: 1745, y: 285 },
+      { x: 1745, y: -1064, stopId: 'stop-bus736-saldanha', stopName: 'Saldanha / Av. da Republica (736)', platformX: 1824, platformY: -1134 },
+      { x: 1745, y: -1744 },
+      { x: 1120, y: -1744, stopId: 'stop-bus736-campo-grande', stopName: 'Campo Grande / Cidade Universitaria (736)', platformY: -1814 },
+      { x: 935, y: -1744 },
+      { x: 935, y: -1064, stopId: 'stop-bus736-marques', stopName: 'Marques de Pombal / Av. Liberdade (736)', platformX: 1014, platformY: -1134 },
+      { x: 935, y: -384, stopId: 'stop-bus736-rossio', stopName: 'Rossio / Restauradores (736)', platformX: 1014, platformY: -454 }
+    ]
+  },
+  {
+    id: 'bus-728',
+    routeNumber: '728',
+    mode: 'bus',
+    name: 'Carris Bus 728 (Belem - Cais do Sodre - Santa Apolonia - Oriente)',
+    operator: 'Carris',
+    badge: '[BUS 728]',
+    fareEur: 2.1,
+    speedPxPerSec: 164,
+    dwellSeconds: 3.0,
+    color: '#166534',
+    trimColor: '#fde047',
+    loopType: 'pingpong',
+    phrase: {
+      pt: 'O sete dois oito percorre toda a marginal do Tejo de Belem ao Oriente.',
+      pronunciation: 'Oo seh-teh doysh oy-too pehr-koh-reh toh-dah ah mahr-zhee-nahl doo Teh-zhoo deh Beh-leym ow Oh-ree-eyn-teh.',
+      en: 'Bus 728 runs along the entire Tagus waterfront from Belem to Oriente.'
+    },
+    waypoints: [
+      { x: -1310, y: 932, stopId: 'stop-bus728-belem', stopName: 'Belem / Mosteiro dos Jeronimos (728)', platformY: 878 },
+      { x: -160, y: 932, stopId: 'stop-bus728-cais', stopName: 'Cais do Sodre Waterfront (728)', platformY: 878 },
+      { x: 1460, y: 932, stopId: 'stop-bus728-terreiro', stopName: 'Terreiro do Paco (728)', platformY: 878 },
+      { x: 2040, y: 932, stopId: 'stop-bus728-santa-apolonia', stopName: 'Santa Apolonia Rail Hub (728)', platformY: 878 },
+      { x: 3020, y: 932, stopId: 'stop-bus728-oceanario', stopName: 'Doca das Nacoes / Oceanario (728)', platformY: 878 },
+      { x: 3360, y: 932 },
+      { x: 3360, y: -384 },
+      { x: 3110, y: -384, stopId: 'stop-bus728-oriente', stopName: 'Gare do Oriente / Parque das Nacoes (728)', platformY: -454 }
+    ]
+  },
+  {
+    id: 'bus-746',
+    routeNumber: '746',
+    mode: 'bus',
+    name: 'Carris Bus 746 (Marques de Pombal - Sao Sebastiao - Sete Rios Zoo - Campo Grande)',
+    operator: 'Carris',
+    badge: '[BUS 746]',
+    fareEur: 2.1,
+    speedPxPerSec: 154,
+    dwellSeconds: 3.0,
+    color: '#1e40af',
+    trimColor: '#fde047',
+    loopType: 'pingpong',
+    phrase: {
+      pt: 'O autocarro sete quatro seis liga o Marques de Pombal a Sao Sebastiao e ao Zoo.',
+      pronunciation: 'Oo ow-too-kah-roo seh-teh kwah-troo saysh lee-gah oo Mahr-kehsh deh Pohm-bahl ah Sow Seh-bahsh-tee-ow ee ow Zoh-oh.',
+      en: 'Bus 746 links Marques de Pombal to Sao Sebastiao and the Zoo.'
+    },
+    waypoints: [
+      { x: 1270, y: -1064, stopId: 'stop-bus746-marques', stopName: 'Marques de Pombal / Parque Eduardo VII (746)', platformY: -1134 },
+      { x: -406, y: -1064, stopId: 'stop-bus746-saoseb', stopName: 'Metro Sao Sebastiao / Gulbenkian (746)', platformY: -1134 },
+      { x: -940, y: -1064, stopId: 'stop-bus746-zoo', stopName: 'Sete Rios / Jardim Zoologico (746)', platformY: -1134 },
+      { x: -560, y: -1064 },
+      { x: -560, y: -1744 },
+      { x: 740, y: -1744, stopId: 'stop-bus746-universidade', stopName: 'Cidade Universitaria / Alvalade (746)', platformY: -1814 }
+    ]
+  },
+  {
+    id: 'bus-706',
+    routeNumber: '706',
+    mode: 'bus',
+    name: 'Carris Bus 706 (Cais do Sodre - Rato - Rossio - Alameda - Santa Apolonia)',
+    operator: 'Carris',
+    badge: '[BUS 706]',
+    fareEur: 2.1,
+    speedPxPerSec: 152,
+    dwellSeconds: 3.0,
+    color: '#047857',
+    trimColor: '#fef08a',
+    loopType: 'pingpong',
+    phrase: {
+      pt: 'O autocarro sete zero seis liga o Cais do Sodre ao Rato e a Alameda.',
+      pronunciation: 'Oo ow-too-kah-roo seh-teh zeh-roo saysh lee-gah oo Kah-eesh doo Soh-dreh ow Hah-too ee ah Ah-lah-meh-dah.',
+      en: 'Bus 706 connects Cais do Sodre to Rato and Alameda.'
+    },
+    waypoints: [
+      { x: -560, y: 932, stopId: 'stop-bus706-cais', stopName: 'Cais do Sodre / Santos (706)', platformX: -486, platformY: 878 },
+      { x: -560, y: -384, stopId: 'stop-bus706-rato', stopName: 'Metro Rato / Sao Bento (706)', platformX: -486, platformY: -454 },
+      { x: 720, y: -384, stopId: 'stop-bus706-rossio', stopName: 'Rossio Oeste / Avenida (706)', platformY: -454 },
+      { x: 1910, y: -384, stopId: 'stop-bus706-alameda', stopName: 'Metro Alameda / Fonte Luminosa (706)', platformY: -454 },
+      { x: 2215, y: -384 },
+      { x: 2215, y: 932, stopId: 'stop-bus706-santa-apolonia', stopName: 'Santa Apolonia Leste (706)', platformX: 2140, platformY: 878 }
+    ]
+  },
+  {
+    id: 'bus-744',
+    routeNumber: '744',
+    mode: 'bus',
+    name: 'Carris Bus 744 (Restauradores - Saldanha - Aeroporto - Oriente)',
+    operator: 'Carris',
+    badge: '[BUS 744]',
+    fareEur: 2.1,
+    speedPxPerSec: 162,
+    dwellSeconds: 3.0,
+    color: '#b45309',
+    trimColor: '#fef3c7',
+    loopType: 'pingpong',
+    phrase: {
+      pt: 'O sete quatro quatro vai dos Restauradores ao Saldanha e a Gare do Oriente.',
+      pronunciation: 'Oo seh-teh kwah-troo kwah-troo vah-ee doosh Hehsh-tow-rah-doh-resh ow Sahl-dah-nyah ee ah Gah-reh doo Oh-ree-eyn-teh.',
+      en: 'Bus 744 runs from Restauradores to Saldanha and Gare do Oriente.'
+    },
+    waypoints: [
+      { x: 1270, y: -384, stopId: 'stop-bus744-rossio', stopName: 'Rossio / Restauradores (744)', platformY: -454 },
+      { x: 1745, y: -384 },
+      { x: 1745, y: -1064 },
+      { x: 2090, y: -1064, stopId: 'stop-bus744-saldanha', stopName: 'Saldanha / Campo Pequeno (744)', platformY: -1134 },
+      { x: 2560, y: -1064, stopId: 'stop-bus744-avenidas', stopName: 'Avenidas Novas / Olaias Norte (744)', platformY: -1134 },
+      { x: 3360, y: -1064 },
+      { x: 3360, y: -384 },
+      { x: 3580, y: -384, stopId: 'stop-bus744-oriente', stopName: 'Gare do Oriente / Calatrava (744)', platformY: -454 }
     ]
   }
 ];
@@ -4849,6 +5240,7 @@ export function getAllTransitStops() {
           stopId: wp.stopId,
           stopName: wp.stopName,
           lineId: line.id,
+          routeNumber: line.routeNumber || line.badge,
           lineName: line.name,
           mode: line.mode,
           badge: line.badge,
@@ -4856,8 +5248,8 @@ export function getAllTransitStops() {
           waypointIndex: index,
           x: wp.x,
           y: wp.y,
-          platformX: wp.x,
-          platformY: wp.platformY
+          platformX: Number.isFinite(wp.platformX) ? wp.platformX : wp.x,
+          platformY: Number.isFinite(wp.platformY) ? wp.platformY : wp.y
         });
       }
     });
@@ -4871,7 +5263,7 @@ export function getAllMemoryCatalog() {
     catalog.push(venue.memory);
   }
   for (const line of TRANSIT_LINES) {
-    catalog.push(line.memory);
+    if (line.memory) catalog.push(line.memory);
   }
   catalog.push(METRO_LINE.memory);
   for (const ferryDest of FERRY_DESTINATIONS) {
@@ -4885,11 +5277,31 @@ export function getAllMemoryCatalog() {
   return catalog;
 }
 
-export function getNeighborhoodForX(x) {
+export function getNeighborhoodAt(x, y = 500) {
+  const byId = (id) => ALL_LISBOA_NEIGHBORHOODS.find((n) => n.id === id) || NEIGHBORHOODS[1];
+  if (y < -1440) return byId('campo-grande-alvalade');
+  if (y < -760) {
+    if (x < 320) return byId('sao-sebastiao-sete-rios');
+    if (x < 1680) return byId('marques-pombal-avenida');
+    if (x < 2820) return byId('saldanha-campo-pequeno');
+    return byId('oriente-parque-nacoes');
+  }
+  if (y < -60) {
+    if (x < 320) return byId('rato-principe-real');
+    if (x < 1680) return byId('rossio-restauradores');
+    if (x < 2820) return byId('alameda-arroios');
+    return byId('oriente-parque-nacoes');
+  }
+  if (x < 0) return byId('cais-sodre-belem');
+  if (x >= 2460) return byId('oriente-parque-nacoes');
   for (const hood of NEIGHBORHOODS) {
     if (x >= hood.minX && x < hood.maxX) {
       return hood;
     }
   }
   return NEIGHBORHOODS[NEIGHBORHOODS.length - 1];
+}
+
+export function getNeighborhoodForX(x, y = 500) {
+  return getNeighborhoodAt(x, y);
 }

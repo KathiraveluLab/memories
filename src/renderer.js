@@ -1,10 +1,14 @@
 import {
+  WORLD_MIN_X,
+  WORLD_MAX_X,
+  WORLD_MIN_Y,
   WORLD_WIDTH,
   WORLD_HEIGHT,
   INTERIOR_WIDTH,
   INTERIOR_HEIGHT,
   WATERFRONT_Y,
   NEIGHBORHOODS,
+  ALL_LISBOA_NEIGHBORHOODS,
   STREETS,
   CROSSWALKS,
   DECORATIVE_STRUCTURES,
@@ -17,6 +21,7 @@ import {
   METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
+  CITY_DISTRICT_SPOTS,
   OVERWORLD_CITY_GATEWAYS,
   getWalkingAvenuesFrom,
   VENUES,
@@ -150,10 +155,15 @@ export class LisboaCanvasRenderer {
   updateCamera(state) {
     const targetX = state.player.x - this.viewWidth / 2;
     const targetY = state.player.y - this.viewHeight / 2;
-    const clampedX = clamp(targetX, 0, Math.max(0, WORLD_WIDTH - this.viewWidth));
-    const clampedY = clamp(targetY, 0, Math.max(0, WORLD_HEIGHT - this.viewHeight));
-    this.camera.x += (clampedX - this.camera.x) * 0.16;
-    this.camera.y += (clampedY - this.camera.y) * 0.16;
+    const clampedX = clamp(targetX, WORLD_MIN_X, Math.max(WORLD_MIN_X, WORLD_MAX_X - this.viewWidth));
+    const clampedY = clamp(targetY, WORLD_MIN_Y, Math.max(WORLD_MIN_Y, WORLD_HEIGHT - this.viewHeight));
+    if (Math.hypot(clampedX - this.camera.x, clampedY - this.camera.y) > 420) {
+      this.camera.x = clampedX;
+      this.camera.y = clampedY;
+    } else {
+      this.camera.x += (clampedX - this.camera.x) * 0.16;
+      this.camera.y += (clampedY - this.camera.y) * 0.16;
+    }
   }
 
   render(state, nearbyInteraction, dtSeconds = 0.016) {
@@ -208,18 +218,23 @@ export class LisboaCanvasRenderer {
         this.renderCityDistrict(ctx, state, nearbyInteraction);
         if (state.cityDistrictFeedback) this.drawSouthBankFeedbackCard(ctx, state.cityDistrictFeedback);
       }
-    } else if (state.ridingVehicleId === 'bus-737-758') {
-      this.renderBusInteriorView(ctx, state, nearbyInteraction);
-    } else if (state.ridingVehicleId === 'tram-28e') {
-      this.renderTramInteriorView(ctx, state, nearbyInteraction);
+    } else if (state.ridingVehicleId) {
+      const ridingVeh = state.vehicles.find((v) => v.id === state.ridingVehicleId);
+      if (ridingVeh?.mode === 'tram') {
+        this.renderTramInteriorView(ctx, state, nearbyInteraction);
+      } else {
+        this.renderBusInteriorView(ctx, state, nearbyInteraction);
+      }
     } else if (state.viewMode === 'street3d') {
       this.streetView.render(ctx, state, nearbyInteraction, this.animTime);
+      if (state.cityDistrictFeedback) this.drawSouthBankFeedbackCard(ctx, state.cityDistrictFeedback);
       if (nearbyInteraction) {
         this.drawInteractionBanner(ctx, nearbyInteraction);
       }
     } else {
       this.updateCamera(state);
       this.renderOverworld(ctx, state, nearbyInteraction);
+      if (state.cityDistrictFeedback) this.drawSouthBankFeedbackCard(ctx, state.cityDistrictFeedback);
     }
 
     this.drawSharedOverlays(ctx, state);
@@ -417,7 +432,16 @@ export class LisboaCanvasRenderer {
     ctx.save();
     ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
 
-    // 1. Limestone neighborhood base ground + hillside topographic elevation shading + sidewalk calcada cobblestones
+    // 1. Unified full-city Lisboa limestone ground + hillside topographic shading + sidewalk calcada cobblestones
+    ctx.fillStyle = '#eae3d6';
+    ctx.fillRect(WORLD_MIN_X, WORLD_MIN_Y, WORLD_MAX_X - WORLD_MIN_X, WATERFRONT_Y - WORLD_MIN_Y);
+    // Subtle district turf tints across Greater Lisboa parks & squares (Parque Eduardo VII, Campo Grande, Gulbenkian, Parque das Nacoes)
+    ctx.fillStyle = '#dfe9dc';
+    ctx.fillRect(320, -1440, 1360, 680); // Parque Eduardo VII & Marques
+    ctx.fillRect(-1080, -1440, 1400, 680); // Gulbenkian & Sete Rios Zoo
+    ctx.fillRect(320, -2000, 2100, 560); // Campo Grande & Cidade Universitaria
+    ctx.fillStyle = '#e3eaf0';
+    ctx.fillRect(2820, -1440, 1180, WATERFRONT_Y + 1440); // Modern Parque das Nacoes & Oriente
     for (const hood of NEIGHBORHOODS) {
       ctx.fillStyle = hood.groundTint;
       ctx.fillRect(hood.minX, 0, hood.maxX - hood.minX, WATERFRONT_Y);
@@ -454,9 +478,8 @@ export class LisboaCanvasRenderer {
     this.drawTransitInfrastructure(ctx);
     this.drawFunicularInfrastructure(ctx, nearbyInteraction);
 
-    // 5. Enamel Lisbon street plaques & Perimeter Greater Lisboa Walking Avenue Gateways
+    // 5. Enamel Lisbon street plaques across the unified city
     this.drawLisbonStreetPlaques(ctx);
-    this.drawOverworldCityGateways(ctx, nearbyInteraction);
 
     // 6. Jacaranda trees, bougainvillea pergolas, and tiled miradouro benches
     this.drawTreesAndBenches(ctx, state);
@@ -466,12 +489,21 @@ export class LisboaCanvasRenderer {
       this.drawDecorativeStructure(ctx, struct, isEvening);
     }
 
-    // 8. Authentic Lisbon Metro Stations (only where actually available: Baixa-Chiado, Terreiro do Paco, Santa Apolonia)
-    for (const station of METRO_STATIONS) {
+    // 8. All 12 Authentic Metropolitano de Lisboa Street Entrances (4 official lines across unified Lisboa!)
+    for (const station of ALL_METRO_STATIONS) {
+      if (!Number.isFinite(station.x)) continue;
       const isHighlighted =
         (nearbyInteraction?.type === 'metro' && nearbyInteraction.id === station.id) ||
         state.activeMetroStationId === station.id;
       this.drawMetroStation(ctx, station, isHighlighted, isEvening);
+    }
+
+    // 8B. Greater Lisboa Open-World Landmarks, Eateries & Cultural Shops (27 locations across 9 districts!)
+    for (const spot of CITY_DISTRICT_SPOTS) {
+      const isHi =
+        (nearbyInteraction?.type === 'city-district-spot' && nearbyInteraction.spotId === spot.id) ||
+        state.activeCityDistrictSpotId === spot.id;
+      this.drawCityDistrictSpotOverworld(ctx, spot, isHi, isEvening);
     }
 
     // 9. Bespoke Enterable Shops, Cafes & Restaurants
@@ -613,14 +645,19 @@ export class LisboaCanvasRenderer {
       ctx.save();
       ctx.globalAlpha = 0.72;
       ctx.fillStyle = this.patterns.sidewalk;
-      ctx.fillRect(0, 0, WORLD_WIDTH, WATERFRONT_Y);
+      ctx.fillRect(
+        Math.max(WORLD_MIN_X, this.camera.x - 40),
+        Math.max(WORLD_MIN_Y, this.camera.y - 40),
+        this.viewWidth + 80,
+        Math.min(WATERFRONT_Y, this.camera.y + this.viewHeight + 40) - Math.max(WORLD_MIN_Y, this.camera.y - 40)
+      );
       ctx.restore();
       return;
     }
 
-    const startX = Math.max(0, Math.floor(this.camera.x / 32) * 32 - 32);
-    const endX = Math.min(WORLD_WIDTH, this.camera.x + this.viewWidth + 64);
-    const startY = Math.max(0, Math.floor(this.camera.y / 24) * 24 - 24);
+    const startX = Math.max(WORLD_MIN_X, Math.floor(this.camera.x / 32) * 32 - 32);
+    const endX = Math.min(WORLD_MAX_X, this.camera.x + this.viewWidth + 64);
+    const startY = Math.max(WORLD_MIN_Y, Math.floor(this.camera.y / 24) * 24 - 24);
     const endY = Math.min(WATERFRONT_Y, this.camera.y + this.viewHeight + 48);
 
     ctx.strokeStyle = 'rgba(118, 106, 88, 0.13)';
@@ -722,24 +759,29 @@ export class LisboaCanvasRenderer {
   }
 
   drawTagusWaterfront(ctx, state = null, nearbyInteraction = null) {
-    // Authentic Mar Largo black-and-white Calcada Portuguesa wave promenade along Ribeira das Naus (y: 974..1012)
+    const fullW = WORLD_MAX_X - WORLD_MIN_X;
+    // Authentic Mar Largo black-and-white Calcada Portuguesa wave promenade along Ribeira das Naus (Belem to Oriente)
     if (this.patterns.plaza) {
       ctx.fillStyle = this.patterns.plaza;
-      ctx.fillRect(0, 974, WORLD_WIDTH, WATERFRONT_Y - 990);
+      ctx.fillRect(WORLD_MIN_X, 974, fullW, WATERFRONT_Y - 990);
       ctx.fillStyle = '#2e3540';
-      ctx.fillRect(0, 974, WORLD_WIDTH, 3);
-      ctx.fillRect(0, WATERFRONT_Y - 19, WORLD_WIDTH, 3);
+      ctx.fillRect(WORLD_MIN_X, 974, fullW, 3);
+      ctx.fillRect(WORLD_MIN_X, WATERFRONT_Y - 19, fullW, 3);
     }
     ctx.fillStyle = '#d5ccbc';
-    ctx.fillRect(0, WATERFRONT_Y - 18, WORLD_WIDTH, 18);
+    ctx.fillRect(WORLD_MIN_X, WATERFRONT_Y - 18, fullW, 18);
     ctx.fillStyle = '#1b4d89';
-    for (let ax = 12; ax < WORLD_WIDTH; ax += 28) {
+    const tileMinX = Math.max(WORLD_MIN_X, Math.floor((this.camera.x - 40) / 28) * 28);
+    const tileMaxX = Math.min(WORLD_MAX_X, this.camera.x + this.viewWidth + 40);
+    for (let ax = tileMinX; ax < tileMaxX; ax += 28) {
       ctx.fillRect(ax, WATERFRONT_Y - 14, 14, 4);
     }
     ctx.fillStyle = '#8b8274';
-    ctx.fillRect(0, WATERFRONT_Y - 4, WORLD_WIDTH, 5);
+    ctx.fillRect(WORLD_MIN_X, WATERFRONT_Y - 4, fullW, 5);
 
-    for (let bx = 60; bx < WORLD_WIDTH - 40; bx += 110) {
+    const bollardMinX = Math.max(WORLD_MIN_X + 60, Math.floor((this.camera.x - 110) / 110) * 110);
+    const bollardMaxX = Math.min(WORLD_MAX_X - 40, this.camera.x + this.viewWidth + 110);
+    for (let bx = bollardMinX; bx < bollardMaxX; bx += 110) {
       ctx.fillStyle = '#a89f8e';
       ctx.fillRect(bx - 5, WATERFRONT_Y - 16, 10, 12);
       ctx.fillStyle = '#e5ded0';
@@ -756,7 +798,7 @@ export class LisboaCanvasRenderer {
     grad.addColorStop(0.45, '#1e5b82');
     grad.addColorStop(1, '#123d5a');
     ctx.fillStyle = grad;
-    ctx.fillRect(0, WATERFRONT_Y, WORLD_WIDTH, WORLD_HEIGHT - WATERFRONT_Y);
+    ctx.fillRect(WORLD_MIN_X, WATERFRONT_Y, fullW, WORLD_HEIGHT - WATERFRONT_Y);
 
     // Subtle sunlit coastal shallow shelf & seawall shadow along the northern quay
     const shelfGrad = ctx.createLinearGradient(0, WATERFRONT_Y, 0, WATERFRONT_Y + 26);
@@ -764,7 +806,7 @@ export class LisboaCanvasRenderer {
     shelfGrad.addColorStop(0.35, 'rgba(56, 189, 248, 0.14)');
     shelfGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
     ctx.fillStyle = shelfGrad;
-    ctx.fillRect(0, WATERFRONT_Y, WORLD_WIDTH, 26);
+    ctx.fillRect(WORLD_MIN_X, WATERFRONT_Y, fullW, 26);
 
     // Shimmering Ponte 25 de Abril red suspension tower reflection on the western Tagus waters
     ctx.save();
@@ -885,19 +927,50 @@ export class LisboaCanvasRenderer {
   }
 
   drawTransitInfrastructure(ctx) {
-    const busLine = TRANSIT_LINES.find((l) => l.mode === 'bus');
-    if (busLine) {
+    // Draw dashed Carris Bus corridors for all 6 factual Lisbon Bus routes (737, 736, 728, 746, 706, 744)
+    for (const line of TRANSIT_LINES) {
+      if (line.mode !== 'bus') continue;
       ctx.save();
-      ctx.strokeStyle = 'rgba(27, 122, 92, 0.45)';
+      ctx.strokeStyle = line.color || 'rgba(27, 122, 92, 0.45)';
+      ctx.globalAlpha = 0.44;
       ctx.lineWidth = 3;
       ctx.setLineDash([12, 10]);
       ctx.beginPath();
-      busLine.waypoints.forEach((wp, idx) => {
+      line.waypoints.forEach((wp, idx) => {
         if (idx === 0) ctx.moveTo(wp.x, wp.y);
         else ctx.lineTo(wp.x, wp.y);
       });
-      ctx.closePath();
+      if (line.loopType === 'cycle') ctx.closePath();
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw steel Lisbon streetcar rails for all 3 Carris Tram routes (28E, 15E Belem, 24E Rato)
+    for (const line of TRANSIT_LINES) {
+      if (line.mode !== 'tram') continue;
+      ctx.save();
+      ctx.strokeStyle = '#535e6b';
+      ctx.lineWidth = 2.4;
+      for (let i = 0; i < line.waypoints.length - 1; i += 1) {
+        const a = line.waypoints[i];
+        const b = line.waypoints[i + 1];
+        const horiz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
+        if (horiz) {
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y - 7);
+          ctx.lineTo(b.x, b.y - 7);
+          ctx.moveTo(a.x, a.y + 7);
+          ctx.lineTo(b.x, b.y + 7);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(a.x - 7, a.y);
+          ctx.lineTo(b.x - 7, b.y);
+          ctx.moveTo(a.x + 7, a.y);
+          ctx.lineTo(b.x + 7, b.y);
+          ctx.stroke();
+        }
+      }
       ctx.restore();
     }
 
@@ -910,20 +983,6 @@ export class LisboaCanvasRenderer {
       ctx.lineTo(tx, tramY + 10);
       ctx.stroke();
     }
-    ctx.strokeStyle = '#535e6b';
-    ctx.lineWidth = 2.6;
-    ctx.beginPath();
-    ctx.moveTo(195, tramY - 7);
-    ctx.lineTo(2205, tramY - 7);
-    ctx.moveTo(195, tramY + 7);
-    ctx.lineTo(2205, tramY + 7);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(195, tramY - 8);
-    ctx.lineTo(2205, tramY - 8);
-    ctx.stroke();
   }
 
   drawFunicularInfrastructure(ctx, nearbyInteraction) {
@@ -1074,6 +1133,108 @@ export class LisboaCanvasRenderer {
       ctx.fillText(p.sub, p.x, py + 22);
     }
     ctx.textAlign = 'left';
+  }
+
+  drawCityDistrictSpotOverworld(ctx, spot, isHighlighted, isEvening) {
+    const x = spot.worldX;
+    const y = spot.worldY;
+    const w = spot.w;
+    const h = spot.h;
+    const accent = spot.accentColor || '#1b4d89';
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(18, 25, 36, 0.22)';
+    ctx.fillRect(x + 6, y + 8, w, h);
+
+    if (isHighlighted) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(x - 4, y - 4, w + 8, h + 8);
+    }
+
+    if (spot.kind === 'landmark') {
+      // Iconic Greater Lisboa open-world monument block (Torre de Belem, Marques de Pombal, Campo Pequeno, Fonte Luminosa, Calatrava Oriente, etc.)
+      ctx.fillStyle = spot.skylineStyle === 'campo-pequeno' ? '#9a3412' : spot.skylineStyle === 'oriente-calatrava' ? '#e2e8f0' : '#ebe3d3';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2.6;
+      ctx.strokeRect(x, y, w, h);
+
+      // Architectural silhouette badge inside roof
+      ctx.fillStyle = accent;
+      ctx.fillRect(x + 6, y + 6, w - 12, 24);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 8.5px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(spot.badge || '[LANDMARK]', x + w * 0.5, y + 21, w - 18);
+
+      // Decorative monument centerpiece
+      if (spot.skylineStyle === 'alameda-fountain' || spot.skylineStyle === 'rossio-santa-justa') {
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath();
+        ctx.ellipse(x + w * 0.5, y + h * 0.56, 34, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#e0f2fe';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (spot.skylineStyle === 'campo-pequeno') {
+        ctx.fillStyle = '#c2410c';
+        ctx.beginPath();
+        ctx.arc(x + w * 0.5, y + h * 0.58, 30, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (spot.skylineStyle === 'oriente-calatrava') {
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2.4;
+        for (const ox of [-44, 0, 44]) {
+          ctx.beginPath();
+          ctx.arc(x + w * 0.5 + ox, y + h * 0.58, 18, Math.PI, 0);
+          ctx.stroke();
+        }
+      } else {
+        ctx.fillStyle = '#d6cbb8';
+        ctx.fillRect(x + w * 0.5 - 24, y + h * 0.38, 48, 44);
+        ctx.strokeStyle = '#57534e';
+        ctx.lineWidth = 1.6;
+        ctx.strokeRect(x + w * 0.5 - 24, y + h * 0.38, 48, 44);
+      }
+    } else {
+      // Greater Lisboa Eatery or Cultural Shop facade with terracotta roof & striped awning
+      const roofH = 42;
+      ctx.fillStyle = spot.kind === 'eatery' ? '#f5ead6' : '#eaf2fb';
+      ctx.fillRect(x, y + roofH, w, h - roofH);
+      this.drawTerracottaRoof(ctx, x, y, w, roofH, spot.kind === 'eatery' ? '#b84a32' : '#1b4d89', false);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(x, y, w, h);
+
+      // Striped Portuguese storefront awning
+      for (let i = 0; i < 6; i += 1) {
+        ctx.fillStyle = i % 2 === 0 ? accent : '#fef9c3';
+        ctx.fillRect(x + 12 + i * ((w - 24) / 6), y + roofH + 4, (w - 24) / 6, 12);
+      }
+      // Glowing storefront windows & entrance door
+      ctx.fillStyle = isEvening ? '#fde68a' : '#dbeafe';
+      ctx.fillRect(x + 18, y + roofH + 26, 44, 34);
+      ctx.fillRect(x + w - 62, y + roofH + 26, 44, 34);
+      ctx.fillStyle = '#5c3a21';
+      ctx.fillRect(x + w * 0.5 - 16, y + h - 42, 32, 42);
+    }
+
+    // Crisp Lisbon enamel plaque above doorway
+    drawRoundedRect(ctx, x + 8, y + h - 22, w - 16, 18, 4);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = isHighlighted ? '#facc15' : accent;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 8.5px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(spot.name, x + w * 0.5, y + h - 10, w - 24);
+    ctx.restore();
   }
 
   drawOverworldCityGateways(ctx, nearbyInteraction) {
@@ -3097,7 +3258,8 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 8.5px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(isTram ? '28E' : 'BUS', px + 20, py - 23);
+    const routeTag = stop.routeNumber || (isTram ? '28E' : 'BUS');
+    ctx.fillText(routeTag, px + 20, py - 23);
 
     if (isEvening) {
       ctx.fillStyle = 'rgba(255, 232, 158, 0.24)';
@@ -3185,7 +3347,7 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#1e293b';
       ctx.font = '700 9.5px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('28E', 14, 3.5);
+      ctx.fillText(vehicle.routeNumber || '28E', 14, 3.5);
     } else {
       ctx.fillStyle = vehicle.color;
       drawRoundedRect(ctx, -len / 2, -wid / 2, len, wid, 7);
@@ -3209,7 +3371,7 @@ export class LisboaCanvasRenderer {
       ctx.fillStyle = '#124a38';
       ctx.font = '700 10px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('737', 0, 3.5);
+      ctx.fillText(vehicle.routeNumber || '737', 0, 3.5);
     }
 
     // Brake taillights glowing red when yielding to a pedestrian
@@ -3706,75 +3868,67 @@ export class LisboaCanvasRenderer {
   }
 
   drawMiniMap(ctx, state) {
-    const mw = 156;
-    const mh = 76;
+    const mw = 178;
+    const mh = 102;
     const mx = this.viewWidth - mw - 10;
     const my = 10;
-    const sx = mw / WORLD_WIDTH;
-    const sy = mh / WORLD_HEIGHT;
+    const spanW = WORLD_MAX_X - WORLD_MIN_X;
+    const spanH = WORLD_HEIGHT - WORLD_MIN_Y;
+    const pxMap = (wx) => mx + ((wx - WORLD_MIN_X) / spanW) * mw;
+    const pyMap = (wy) => my + ((wy - WORLD_MIN_Y) / spanH) * mh;
 
     ctx.save();
     drawRoundedRect(ctx, mx - 4, my - 4, mw + 8, mh + 22, 8);
-    ctx.fillStyle = 'rgba(18, 31, 48, 0.84)';
+    ctx.fillStyle = 'rgba(18, 31, 48, 0.88)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    for (const hood of NEIGHBORHOODS) {
-      ctx.fillStyle = hood.groundTint;
-      ctx.globalAlpha = 0.25;
-      ctx.fillRect(mx + hood.minX * sx, my, (hood.maxX - hood.minX) * sx, WATERFRONT_Y * sy);
-    }
-    ctx.globalAlpha = 1;
-
+    ctx.fillStyle = 'rgba(232, 224, 210, 0.16)';
+    ctx.fillRect(mx, my, mw, pyMap(WATERFRONT_Y) - my);
     ctx.fillStyle = '#256c94';
-    ctx.fillRect(mx, my + WATERFRONT_Y * sy, mw, (WORLD_HEIGHT - WATERFRONT_Y) * sy);
+    ctx.fillRect(mx, pyMap(WATERFRONT_Y), mw, my + mh - pyMap(WATERFRONT_Y));
 
-    ctx.strokeStyle = '#f3c623';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(mx + 220 * sx, my + 610 * sy);
-    ctx.lineTo(mx + 2160 * sx, my + 610 * sy);
-    ctx.stroke();
-
-    // Underground Metro Blue Line dashed link on minimap
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1.3;
-    ctx.setLineDash([3, 2]);
-    ctx.beginPath();
-    METRO_STATIONS.forEach((st, idx) => {
-      const px = mx + st.doorX * sx;
-      const py = my + st.doorY * sy;
-      if (idx === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    for (const line of TRANSIT_LINES) {
+      ctx.strokeStyle = line.mode === 'tram' ? 'rgba(250, 204, 21, 0.72)' : 'rgba(52, 211, 153, 0.45)';
+      ctx.lineWidth = line.mode === 'tram' ? 1.3 : 1;
+      ctx.beginPath();
+      line.waypoints.forEach((wp, idx) => {
+        if (idx === 0) ctx.moveTo(pxMap(wp.x), pyMap(wp.y));
+        else ctx.lineTo(pxMap(wp.x), pyMap(wp.y));
+      });
+      if (line.loopType === 'cycle') ctx.closePath();
+      ctx.stroke();
+    }
 
     for (const venue of VENUES) {
       const visited = state.visitedVenues.includes(venue.id);
       ctx.fillStyle = visited ? '#34d399' : '#fbbf24';
-      ctx.fillRect(mx + venue.x * sx, my + venue.y * sy, Math.max(4, venue.w * sx), Math.max(4, venue.h * sy));
+      ctx.fillRect(pxMap(venue.x), pyMap(venue.y), 2.8, 2.8);
     }
 
-    for (const st of METRO_STATIONS) {
+    for (const spot of CITY_DISTRICT_SPOTS) {
+      ctx.fillStyle = spot.kind === 'landmark' ? '#38bdf8' : '#f59e0b';
+      ctx.fillRect(pxMap(spot.worldX), pyMap(spot.worldY), 3, 3);
+    }
+
+    for (const st of ALL_METRO_STATIONS) {
+      if (!Number.isFinite(st.doorX)) continue;
       ctx.fillStyle = '#e11d48';
-      ctx.fillRect(mx + st.doorX * sx - 2.5, my + st.doorY * sy - 2.5, 5, 5);
+      ctx.fillRect(pxMap(st.doorX) - 2, pyMap(st.doorY) - 2, 4, 4);
     }
 
-    // Cais do Sodre Transtejo Ferry Terminal marker on waterfront
     ctx.fillStyle = '#0ea5e9';
-    ctx.fillRect(mx + FERRY_TERMINAL.doorX * sx - 3, my + FERRY_TERMINAL.doorY * sy - 2.5, 6, 5);
+    ctx.fillRect(pxMap(FERRY_TERMINAL.doorX) - 2.5, pyMap(FERRY_TERMINAL.doorY) - 2, 5, 4);
 
     for (const v of state.vehicles) {
       ctx.fillStyle = v.mode === 'tram' ? '#fde047' : '#34d399';
       ctx.beginPath();
-      ctx.arc(mx + v.x * sx, my + v.y * sy, 3.2, 0, Math.PI * 2);
+      ctx.arc(pxMap(v.x), pyMap(v.y), 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Connected remote multiplayer travelers on mini-map
     if (Array.isArray(state.remotePlayers)) {
       for (const rp of state.remotePlayers) {
         const outfit = getOutfitById(rp.outfitId);
@@ -3787,8 +3941,8 @@ export class LisboaCanvasRenderer {
             ry = v.doorY;
           }
         } else if (rp.mode === 'metro' && rp.metroStationId) {
-          const st = METRO_STATIONS.find((item) => item.id === rp.metroStationId);
-          if (st) {
+          const st = ALL_METRO_STATIONS.find((item) => item.id === rp.metroStationId);
+          if (st && Number.isFinite(st.doorX)) {
             rx = st.doorX;
             ry = st.doorY;
           }
@@ -3798,10 +3952,10 @@ export class LisboaCanvasRenderer {
         }
         ctx.fillStyle = outfit.ringColor;
         ctx.beginPath();
-        ctx.arc(mx + rx * sx, my + ry * sy, 3.8, 0, Math.PI * 2);
+        ctx.arc(pxMap(rx), pyMap(ry), 3.2, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.1;
+        ctx.lineWidth = 1;
         ctx.stroke();
       }
     }
@@ -3809,17 +3963,19 @@ export class LisboaCanvasRenderer {
     const myOutfit = getOutfitById(state.player.outfitId);
     ctx.fillStyle = myOutfit.ringColor;
     ctx.beginPath();
-    ctx.arc(mx + state.player.x * sx, my + state.player.y * sy, 4.2, 0, Math.PI * 2);
+    ctx.arc(pxMap(state.player.x), pyMap(state.player.y), 3.8, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.3;
+    ctx.lineWidth = 1.4;
     ctx.stroke();
 
+    ctx.fillStyle = '#fde68a';
+    ctx.font = '700 8px "Segoe UI", sans-serif';
+    ctx.fillText('BELEM', mx + 4, my + mh + 12);
     ctx.fillStyle = '#e2e8f0';
-    ctx.font = '600 8.5px "Segoe UI", sans-serif';
-    ctx.fillText('B. ALTO', mx + 6, my + mh + 12);
-    ctx.fillText('CHIADO', mx + 58, my + mh + 12);
-    ctx.fillText('ALFAMA', mx + 112, my + mh + 12);
+    ctx.fillText('CIDADE DE LISBOA', mx + 52, my + mh + 12);
+    ctx.fillStyle = '#bae6fd';
+    ctx.fillText('ORIENTE', mx + 138, my + mh + 12);
     ctx.restore();
   }
 
@@ -6628,7 +6784,9 @@ export class LisboaCanvasRenderer {
     }
 
     const busBellLit = state.alightAtNextStop || Boolean(vehicle?.stopBellRung);
-    const busCompanionsHeader = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === 'bus-737-758');
+    const activeBusId = vehicle?.id || 'bus-737-758';
+    const busRouteNum = vehicle?.routeNumber || '737';
+    const busCompanionsHeader = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === activeBusId);
     // Vertical yellow Carris stanchion pole with glowing red STOP bell button
     ctx.fillStyle = '#eab308';
     ctx.fillRect(310, 72, 10, 340);
@@ -6655,10 +6813,10 @@ export class LisboaCanvasRenderer {
     ctx.textAlign = 'center';
     const cleanNextStop = String(vehicle?.nextStopName || 'Next Stop').split(' (')[0].toUpperCase();
     const ledText = vehicle?.currentStopId
-      ? `CARRIS 737  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
+      ? `CARRIS ${busRouteNum}  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
       : busBellLit
         ? `STOP BELL  |  PROXIMA PARAGEM: ${cleanNextStop}`
-        : `CARRIS 737  |  PROXIMA PARAGEM: ${cleanNextStop}`;
+        : `CARRIS ${busRouteNum}  |  PROXIMA PARAGEM: ${cleanNextStop}`;
     ctx.fillText(ledText, this.viewWidth / 2, 31, 480);
     ctx.fillStyle = state.transitAnnouncement ? '#fde68a' : '#94a3b8';
     ctx.font = '600 10px "Segoe UI", sans-serif';
@@ -6667,8 +6825,8 @@ export class LisboaCanvasRenderer {
       : busCompanionsHeader.length > 0
         ? `RIDING TOGETHER WITH: ${busCompanionsHeader.map((c) => c.name).join(', ')}`
         : onWaterfront
-          ? 'SCENIC TAGUS RIVERFRONT VIEW  -  AVENIDA RIBEIRA'
-          : 'HISTORIC LISBOA HILLSIDE CITYSCAPE VIEW';
+          ? `TAGUS RIVERFRONT VIEW  -  ${(state.currentNeighborhoodName || 'LISBOA').toUpperCase()}`
+          : `PASSING THROUGH ${(state.currentNeighborhoodName || 'LISBOA').toUpperCase()}`;
     ctx.fillText(busSub, this.viewWidth / 2, 47, 480);
 
     // Lower bus window sill & patterned Carris passenger seats
@@ -6692,7 +6850,7 @@ export class LisboaCanvasRenderer {
     }
 
     // Connected LAN companions riding the exact same Carris Bus seated right beside you!
-    const busCompanions = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === 'bus-737-758');
+    const busCompanions = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === activeBusId);
     busCompanions.slice(0, busSeatXs.length).forEach((rp, idx) => {
       const cx = busSeatXs[idx] + 46;
       this.drawCharacterSprite(ctx, cx, 392, {
@@ -6708,7 +6866,7 @@ export class LisboaCanvasRenderer {
     });
 
     // Bottom Bus Route Progress Strip cleanly positioned above the interaction prompt banner
-    const busLine = TRANSIT_LINES.find((l) => l.id === 'bus-737-758');
+    const busLine = TRANSIT_LINES.find((l) => l.id === activeBusId) || TRANSIT_LINES.find((l) => l.mode === 'bus');
     const busStops = busLine ? busLine.waypoints.filter((w) => w.stopId) : [];
     const stripY = 466;
     ctx.strokeStyle = '#10b981';
@@ -6742,7 +6900,9 @@ export class LisboaCanvasRenderer {
   }
 
   renderTramInteriorView(ctx, state, nearbyInteraction) {
-    const vehicle = state.vehicles.find((v) => v.id === 'tram-28e') || state.vehicles[0];
+    const vehicle = state.vehicles.find((v) => v.id === state.ridingVehicleId) || state.vehicles[0];
+    const activeTramId = vehicle?.id || 'tram-28e';
+    const tramRouteNum = vehicle?.routeNumber || '28E';
     const phase = getDayPhase(state.minutesOfDay);
     const isEvening = phase.id === 'evening';
     const isGolden = phase.id === 'golden';
@@ -6995,10 +7155,10 @@ export class LisboaCanvasRenderer {
     ctx.textAlign = 'center';
     const cleanNextStop = String(vehicle?.nextStopName || 'Next Stop').split(' (')[0].toUpperCase();
     const ledText = vehicle?.currentStopId
-      ? `ELETRICO 28E  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
+      ? `ELETRICO ${tramRouteNum}  |  DOORS OPEN: ${vehicle.currentStopName.split(' (')[0].toUpperCase()}`
       : tramBellLit
         ? `BELL RUNG  |  PROXIMA PARAGEM: ${cleanNextStop}`
-        : `ELETRICO 28E  |  PROXIMA PARAGEM: ${cleanNextStop}`;
+        : `ELETRICO ${tramRouteNum}  |  PROXIMA PARAGEM: ${cleanNextStop}`;
     ctx.fillText(ledText, this.viewWidth / 2, 30, 506);
     ctx.fillStyle = state.transitAnnouncement ? '#fde68a' : '#d6c4a8';
     ctx.font = '600 10px Georgia, serif';
@@ -7006,7 +7166,7 @@ export class LisboaCanvasRenderer {
       ? `${state.transitAnnouncement.ringerName ? `${state.transitAnnouncement.ringerName.toUpperCase()} RANG BELL: ` : 'ANNOUNCEMENT: '}"${state.transitAnnouncement.text}"`
       : tramCompanionsHeader.length > 0
         ? `RIDING TOGETHER WITH: ${tramCompanionsHeader.map((c) => c.name).join(', ')}`
-        : 'REMODELADO WOODEN STREETCAR  -  BAIRRO ALTO / CHIADO / ALFAMA';
+        : `CARRIS ELETRICO ${tramRouteNum}  -  ${(state.currentNeighborhoodName || 'LISBOA').toUpperCase()}`;
     ctx.fillText(tramSub, this.viewWidth / 2, 47, 506);
 
     // Lower wooden wainscoting & varnished slatted wooden tram bench seats
@@ -7030,8 +7190,8 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(sx + 10, 432, 142, 5);
     }
 
-    // Connected LAN companions riding the exact same Remodelado Eletrico 28E with you!
-    const tramCompanions = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === 'tram-28e');
+    // Connected LAN companions riding the exact same Carris Eletrico with you!
+    const tramCompanions = (state.remotePlayers || []).filter((rp) => rp.ridingVehicleId === activeTramId);
     tramCompanions.slice(0, tramBenchXs.length).forEach((rp, idx) => {
       const cx = tramBenchXs[idx] + 81;
       this.drawCharacterSprite(ctx, cx, 392, {
@@ -7046,8 +7206,8 @@ export class LisboaCanvasRenderer {
       });
     });
 
-    // Bottom Eletrico 28E 5-Stop Route Strip cleanly above interaction prompt banner
-    const tramLine = TRANSIT_LINES.find((l) => l.id === 'tram-28e');
+    // Bottom Eletrico Route Stop Strip cleanly above interaction prompt banner
+    const tramLine = TRANSIT_LINES.find((l) => l.id === activeTramId) || TRANSIT_LINES.find((l) => l.mode === 'tram');
     const tramStops = tramLine ? tramLine.waypoints.filter((w) => w.stopId) : [];
     const stripY = 466;
     ctx.strokeStyle = '#eab308';

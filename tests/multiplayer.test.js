@@ -211,8 +211,8 @@ test('LAN multiplayer server: independent movement, distinct outfits, global ser
       assert.equal(morningOnB.clock.day, 2);
       assert.equal(morningOnB.clock.minutesOfDay, 9 * 60);
 
-      // 4c. Server-Authoritative Shared Transit Sync (Tram 28E, Bus 737, Metro Linha Azul, Funiculars & Transtejo Ferries)
-      assert.ok(joinA.transit && Array.isArray(joinA.transit.vehicles) && joinA.transit.vehicles.length === 2);
+      // 4c. Server-Authoritative Shared Transit Sync (All 9 Carris Trams & Buses, Metro 4-Line Network, Funiculars & Transtejo Ferries)
+      assert.ok(joinA.transit && Array.isArray(joinA.transit.vehicles) && joinA.transit.vehicles.length === 9);
       assert.ok(Array.isArray(joinA.transit.funiculars) && joinA.transit.funiculars.length === 2);
       assert.ok(joinA.transit.metro && Array.isArray(joinA.transit.ferries) && joinA.transit.ferries.length === 3);
 

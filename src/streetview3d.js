@@ -1,5 +1,9 @@
 import {
+  WORLD_MIN_X,
+  WORLD_MAX_X,
+  WORLD_MIN_Y,
   WORLD_WIDTH,
+  WORLD_HEIGHT,
   WATERFRONT_Y,
   NEIGHBORHOODS,
   STREETS,
@@ -9,6 +13,9 @@ import {
   SANTA_JUSTA_LIFT,
   OVERWORLD_CITY_GATEWAYS,
   METRO_STATIONS,
+  ALL_METRO_STATIONS,
+  CITY_DISTRICT_SPOTS,
+  TRANSIT_LINES,
   VENUES,
   REST_SPOTS,
   RIVERSIDE_BENCHES,
@@ -736,12 +743,12 @@ export class LisboaStreetView3DRenderer {
     for (let cz = 14; cz <= 780; cz += 10) {
       const wx = cam.camX + rdx * cz;
       const wy = cam.camY + rdy * cz;
-      if (wx < 45 || wx > WORLD_WIDTH - 45 || wy < 45 || wy > WATERFRONT_Y - 22) continue;
+      if (wx < WORLD_MIN_X + 45 || wx > WORLD_MAX_X - 45 || wy < WORLD_MIN_Y + 12 || wy > WATERFRONT_Y - 22) continue;
       const gz = getTerrainElevation(wx, wy);
       const projY = cam.horizonY - ((gz - cam.camZ) * this.focal) / cz;
       const diff = projY - canvasY;
       if (prevDiff !== null && ((prevDiff >= 0 && diff <= 0) || Math.abs(diff) < 3)) {
-        return { x: clamp(wx, 55, WORLD_WIDTH - 55), y: clamp(wy, 55, WATERFRONT_Y - 26), cz };
+        return { x: clamp(wx, WORLD_MIN_X + 55, WORLD_MAX_X - 55), y: clamp(wy, WORLD_MIN_Y + 18, WATERFRONT_Y - 26), cz };
       }
       prevDiff = diff;
     }
@@ -749,8 +756,8 @@ export class LisboaStreetView3DRenderer {
     const cz = ((cam.camZ - cam.groundZ) * this.focal) / dy;
     if (cz < 10 || cz > 780) return null;
     const cx = ((canvasX - this.viewWidth * 0.5) * cz) / this.focal;
-    const wx = clamp(cam.camX + cam.fx * cz + cam.rx * cx, 55, WORLD_WIDTH - 55);
-    const wy = clamp(cam.camY + cam.fy * cz + cam.ry * cx, 55, WATERFRONT_Y - 26);
+    const wx = clamp(cam.camX + cam.fx * cz + cam.rx * cx, WORLD_MIN_X + 55, WORLD_MAX_X - 55);
+    const wy = clamp(cam.camY + cam.fy * cz + cam.ry * cx, WORLD_MIN_Y + 18, WATERFRONT_Y - 26);
     return { x: wx, y: wy, cz };
   }
 
@@ -808,8 +815,8 @@ export class LisboaStreetView3DRenderer {
         this.drawFerryTerminal3D(ctx, cam, item.highlighted, isEvening);
       } else if (item.kind === 'santa-justa') {
         this.drawSantaJustaTower3D(ctx, cam, item.highlighted, isEvening, animTime);
-      } else if (item.kind === 'city-gateway') {
-        this.drawCityGateway3D(ctx, cam, item.gateway, item.highlighted, isEvening);
+      } else if (item.kind === 'city-district-spot') {
+        this.drawCityDistrictSpot3D(ctx, cam, item.spot, item.highlighted, isEvening, animTime, state);
       } else if (item.kind === 'monument') {
         this.drawCamoesMonument3D(ctx, cam, item.struct, isEvening, animTime, item.highlighted);
       } else if (item.kind === 'vehicle') {
@@ -1578,22 +1585,22 @@ export class LisboaStreetView3DRenderer {
       }
     }
 
-    // Vertical stone seawall face dropping down to Tagus water & cast-iron mooring bollards along WATERFRONT_Y
+    // Vertical stone seawall face dropping down to Tagus water & cast-iron mooring bollards along WATERFRONT_Y (Belem to Parque das Nacoes)
     this.drawPoly3D(
       ctx,
       cam,
       [
-        [0, WATERFRONT_Y, -8],
-        [WORLD_WIDTH, WATERFRONT_Y, -8],
-        [WORLD_WIDTH, WATERFRONT_Y, 3],
-        [0, WATERFRONT_Y, 3]
+        [WORLD_MIN_X, WATERFRONT_Y, -8],
+        [WORLD_MAX_X, WATERFRONT_Y, -8],
+        [WORLD_MAX_X, WATERFRONT_Y, 3],
+        [WORLD_MIN_X, WATERFRONT_Y, 3]
       ],
       isEvening ? '#475569' : '#b8afa0',
       '#64748b',
       1
     );
-    const minBX = Math.max(80, Math.floor((cam.camX - 580) / 90) * 90);
-    const maxBX = Math.min(WORLD_WIDTH - 80, Math.ceil((cam.camX + 580) / 90) * 90);
+    const minBX = Math.max(WORLD_MIN_X + 80, Math.floor((cam.camX - 580) / 90) * 90);
+    const maxBX = Math.min(WORLD_MAX_X - 80, Math.ceil((cam.camX + 580) / 90) * 90);
     if (Math.abs(WATERFRONT_Y - cam.camY) < 680) {
       for (let bx = minBX; bx <= maxBX; bx += 90) {
         if (bx >= FERRY_TERMINAL.x - 16 && bx <= FERRY_TERMINAL.x + FERRY_TERMINAL.w + 16) continue;
@@ -1652,18 +1659,36 @@ export class LisboaStreetView3DRenderer {
       }
     }
 
-    // Glistening steel Tram 28E rails hugging the Bairro Alto / Chiado / Alfama hill elevation!
-    const railStart = Math.max(195, Math.floor((cam.camX - 720) / 36) * 36);
-    const railEnd = Math.min(2205, Math.ceil((cam.camX + 720) / 36) * 36);
-    for (let tx = railStart; tx < railEnd; tx += 36) {
-      const tx2 = Math.min(railEnd, tx + 36);
-      const zA1 = getTerrainElevation(tx, 603) + 0.35;
-      const zB1 = getTerrainElevation(tx2, 603) + 0.35;
-      const zA2 = getTerrainElevation(tx, 617) + 0.35;
-      const zB2 = getTerrainElevation(tx2, 617) + 0.35;
-      this.drawLine3D(ctx, cam, [tx, 603, zA1], [tx2, 603, zB1], isEvening ? '#7c8a9e' : '#4a5565', 2.4);
-      this.drawLine3D(ctx, cam, [tx, 617, zA2], [tx2, 617, zB2], isEvening ? '#7c8a9e' : '#4a5565', 2.4);
-      this.drawLine3D(ctx, cam, [tx, 602, zA1 + 0.1], [tx2, 602, zB1 + 0.1], 'rgba(255, 255, 255, 0.35)', 0.9);
+    // Glistening steel streetcar rails for Tram 28E, Tram 15E (Belem Waterfront) & Tram 24E (Principe Real / Rato)!
+    const drawHorizRails = (xMin, xMax, yCenter) => {
+      if (Math.abs(yCenter - cam.camY) > 740) return;
+      const rStart = Math.max(xMin, Math.floor((cam.camX - 720) / 36) * 36);
+      const rEnd = Math.min(xMax, Math.ceil((cam.camX + 720) / 36) * 36);
+      for (let tx = rStart; tx < rEnd; tx += 36) {
+        const tx2 = Math.min(rEnd, tx + 36);
+        const zA1 = getTerrainElevation(tx, yCenter - 7) + 0.35;
+        const zB1 = getTerrainElevation(tx2, yCenter - 7) + 0.35;
+        const zA2 = getTerrainElevation(tx, yCenter + 7) + 0.35;
+        const zB2 = getTerrainElevation(tx2, yCenter + 7) + 0.35;
+        this.drawLine3D(ctx, cam, [tx, yCenter - 7, zA1], [tx2, yCenter - 7, zB1], isEvening ? '#7c8a9e' : '#4a5565', 2.4);
+        this.drawLine3D(ctx, cam, [tx, yCenter + 7, zA2], [tx2, yCenter + 7, zB2], isEvening ? '#7c8a9e' : '#4a5565', 2.4);
+        this.drawLine3D(ctx, cam, [tx, yCenter - 8, zA1 + 0.1], [tx2, yCenter - 8, zB1 + 0.1], 'rgba(255, 255, 255, 0.35)', 0.9);
+      }
+    };
+    drawHorizRails(195, 2205, 610); // Eletrico 28E
+    drawHorizRails(-1240, 1580, 932); // Eletrico 15E (Belem - Cais do Sodre - Praca do Comercio)
+    drawHorizRails(-560, 880, 285); // Eletrico 24E lower approach
+    drawHorizRails(-740, -380, -384); // Eletrico 24E Rato & Principe Real
+    if (Math.abs(-560 - cam.camX) < 740) {
+      const yStart = Math.max(-384, Math.floor((cam.camY - 720) / 36) * 36);
+      const yEnd = Math.min(285, Math.ceil((cam.camY + 720) / 36) * 36);
+      for (let ty = yStart; ty < yEnd; ty += 36) {
+        const ty2 = Math.min(yEnd, ty + 36);
+        const z1 = getTerrainElevation(-560, ty) + 0.35;
+        const z2 = getTerrainElevation(-560, ty2) + 0.35;
+        this.drawLine3D(ctx, cam, [-567, ty, z1], [-567, ty2, z2], isEvening ? '#7c8a9e' : '#4a5565', 2.2);
+        this.drawLine3D(ctx, cam, [-553, ty, z1], [-553, ty2, z2], isEvening ? '#7c8a9e' : '#4a5565', 2.2);
+      }
     }
 
     // Historic Elevador da Bica & Elevador da Gloria Hillside Funicular Rails, Passing Loop & Central Traction Cable Slot!
@@ -1790,7 +1815,8 @@ export class LisboaStreetView3DRenderer {
       });
     }
 
-    for (const station of METRO_STATIONS) {
+    for (const station of ALL_METRO_STATIONS) {
+      if (!Number.isFinite(station.x)) continue;
       if (!inRange(station.x, station.y, station.x + station.w, station.y + station.h)) continue;
       list.push({
         kind: 'metro',
@@ -1827,17 +1853,19 @@ export class LisboaStreetView3DRenderer {
       });
     }
 
-    // Perimeter Greater Lisboa Walking Avenue Gateways (continuing streets to Rossio, Rato, Cais do Sodre, Alameda & Oriente!)
-    for (const gw of OVERWORLD_CITY_GATEWAYS) {
-      if (!inRange(gw.x - 18, gw.y - 18, gw.x + 18, gw.y + 18)) continue;
+    // All 27 Greater Lisboa Open-World Landmarks, Eateries & Cultural Shops directly on the continuous street grid!
+    for (const spot of CITY_DISTRICT_SPOTS) {
+      if (!inRange(spot.worldX, spot.worldY, spot.worldX + spot.w, spot.worldY + spot.h)) continue;
       list.push({
-        kind: 'city-gateway',
-        x0: gw.x - 10,
-        y0: gw.y - 10,
-        x1: gw.x + 10,
-        y1: gw.y + 10,
-        gateway: gw,
-        highlighted: nearbyInteraction?.type === 'city-avenue' && nearbyInteraction.targetZoneId === gw.toZoneId
+        kind: 'city-district-spot',
+        x0: spot.worldX,
+        y0: spot.worldY,
+        x1: spot.worldX + spot.w,
+        y1: spot.worldY + spot.h,
+        spot,
+        highlighted:
+          (nearbyInteraction?.type === 'city-district-spot' && nearbyInteraction.spotId === spot.id) ||
+          state.activeCityDistrictSpotId === spot.id
       });
     }
 
@@ -3263,6 +3291,39 @@ export class LisboaStreetView3DRenderer {
       );
       if (poly) this.lastHitTargets.push({ kind: 'metro', id: station.id, station, poly });
     }
+    // Descending Metro entrance doorway & glass balustrade ribs on the south facade
+    if (cam.camY > y1) {
+      const dx0 = x0 + station.w * 0.22;
+      const dx1 = x1 - station.w * 0.22;
+      const doorPoly = this.drawPoly3D(
+        ctx,
+        cam,
+        [[dx0, y1 + 0.5, gz - 2], [dx1, y1 + 0.5, gz - 2], [dx1, y1 + 0.5, gz + 28], [dx0, y1 + 0.5, gz + 28]],
+        '#0f172a',
+        '#38bdf8',
+        1.4
+      );
+      if (doorPoly) this.lastHitTargets.push({ kind: 'metro', id: station.id, station, poly: doorPoly });
+      // Illuminated descending escalator steps inside entrance
+      for (let st = 0; st < 4; st += 1) {
+        const syZ = gz + 4 + st * 4.5;
+        this.drawLine3D(ctx, cam, [dx0 + 3, y1 + 0.6, syZ], [dx1 - 3, y1 + 0.6, syZ], '#64748b', 1.3);
+      }
+      // Station line-color fascia lintel strip above doorway
+      const lineBadgeCol = station.lines?.includes('Linha Vermelha')
+        ? '#dc2626'
+        : station.lines?.includes('Linha Amarela')
+          ? '#eab308'
+          : station.lines?.includes('Linha Verde')
+            ? '#16a34a'
+            : '#2563eb';
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [[x0 + 2, y1 + 0.5, h - 7], [x1 - 2, y1 + 0.5, h - 7], [x1 - 2, y1 + 0.5, h - 1], [x0 + 2, y1 + 0.5, h - 1]],
+        lineBadgeCol
+      );
+    }
     // Glazed canopy roof
     this.drawPoly3D(
       ctx,
@@ -3273,7 +3334,7 @@ export class LisboaStreetView3DRenderer {
       1.4
     );
 
-    // Tall Lisbon Metro Red Diamond "M" street totem pole with Linha Azul / Linha Verde badges
+    // Tall Lisbon Metro Red Diamond "M" street totem pole with crisp station name plaque
     const mx = (x0 + x1) * 0.5;
     const my = y1 + 4;
     this.drawLine3D(ctx, cam, [mx, my, gz], [mx, my, gz + 70], '#334155', 3.2);
@@ -3297,14 +3358,28 @@ export class LisboaStreetView3DRenderer {
       ctx.textAlign = 'center';
       ctx.fillText('M', pt.x, pt.y + r * 0.36);
 
-      // Station line collar below the diamond totem
-      if (r >= 8) {
-        drawRoundedRect(ctx, pt.x - r * 1.4, pt.y + r + 2, r * 2.8, Math.max(9, r * 0.65), 3);
-        ctx.fillStyle = '#1d4ed8';
+      // Crisp Metropolitano de Lisboa station name collar below the red diamond totem
+      if (r >= 7.5) {
+        const cleanName = (station.name || 'METRO').replace(/^Metro\s+/i, '').toUpperCase();
+        const fs = Math.max(7, Math.round(r * 0.46));
+        ctx.font = `800 ${fs}px "Segoe UI", sans-serif`;
+        const colW = Math.max(r * 3.0, ctx.measureText(cleanName).width + 12);
+        const colH = Math.max(12, r * 0.8);
+        const borderCol = station.lines?.includes('Linha Vermelha')
+          ? '#ef4444'
+          : station.lines?.includes('Linha Amarela')
+            ? '#facc15'
+            : station.lines?.includes('Linha Verde')
+              ? '#22c55e'
+              : '#93c5fd';
+        drawRoundedRect(ctx, pt.x - colW * 0.5, pt.y + r + 3, colW, colH, 3);
+        ctx.fillStyle = '#1e3a8a';
         ctx.fill();
-        ctx.strokeStyle = station.lines?.includes('Linha Verde') ? '#22c55e' : '#ffffff';
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = borderCol;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(cleanName, pt.x, pt.y + r + 3 + colH * 0.68);
       }
       ctx.restore();
     }
@@ -3611,6 +3686,143 @@ export class LisboaStreetView3DRenderer {
       ctx.fillStyle = '#fef08a';
       ctx.textAlign = 'center';
       ctx.fillText(txt, signPt.x, signPt.y + fontSize * 0.34);
+      ctx.restore();
+    }
+  }
+
+  drawCityDistrictSpot3D(ctx, cam, spot, highlighted, isEvening, animTime = 0, state = null) {
+    const x0 = spot.worldX;
+    const y0 = spot.worldY;
+    const x1 = x0 + spot.w;
+    const y1 = y0 + spot.h;
+    const cx = (x0 + x1) * 0.5;
+    const cy = (y0 + y1) * 0.5;
+    const gz = getTerrainElevation(cx, y1);
+    const accent = spot.accentColor || '#1b4d89';
+    const hitMeta = { kind: 'city-district-spot', spotId: spot.id, spot };
+    const topH = spot.kind === 'landmark' ? 128 : 108;
+
+    const drawRectBox = (bx0, by0, bx1, by1, z0, z1, frontCol, sideCol, roofCol, strokeCol) => {
+      // Exact back-face culled solid architectural prism (never renders interior walls over front faces!)
+      const faces = [];
+      if (cam.camY > by1) {
+        faces.push({ pts: [[bx0, by1, z0], [bx1, by1, z0], [bx1, by1, z1], [bx0, by1, z1]], col: frontCol, shade: 1.0, hit: true });
+      }
+      if (cam.camY < by0) {
+        faces.push({ pts: [[bx1, by0, z0], [bx0, by0, z0], [bx0, by0, z1], [bx1, by0, z1]], col: sideCol, shade: 0.85, hit: true });
+      }
+      if (cam.camX < bx0) {
+        faces.push({ pts: [[bx0, by0, z0], [bx0, by1, z0], [bx0, by1, z1], [bx0, by0, z1]], col: sideCol, shade: 0.92, hit: true });
+      }
+      if (cam.camX > bx1) {
+        faces.push({ pts: [[bx1, by1, z0], [bx1, by0, z0], [bx1, by0, z1], [bx1, by1, z1]], col: sideCol, shade: 0.82, hit: true });
+      }
+      if (cam.camZ > z1) {
+        faces.push({ pts: [[bx0, by0, z1], [bx1, by0, z1], [bx1, by1, z1], [bx0, by1, z1]], col: roofCol, shade: 0.96, hit: false });
+      }
+      for (const f of faces) {
+        const poly = this.drawPoly3D(ctx, cam, f.pts, shadeColor(f.col, f.shade, isEvening), strokeCol, highlighted ? 2 : 1.1);
+        if (poly && f.hit) {
+          this.lastHitTargets.push({ ...hitMeta, poly });
+        }
+      }
+    };
+
+    if (spot.kind === 'landmark') {
+      const style = spot.skylineStyle;
+      if (style === 'belem-tower') {
+        // 1515 Manueline Torre de Belem limestone bastion, arched loggia, crenellations & keep tower
+        drawRectBox(x0 + 6, y0 + 18, x1 - 6, y1, gz, gz + 44, '#f2ead9', '#dfd4bf', '#e5dbc7', highlighted ? '#facc15' : '#645c50');
+        drawRectBox(x0 + 46, y0 + 8, x1 - 46, y1 - 24, gz + 44, gz + 128, '#f5efe2', '#e2d7c2', '#d6cbb5', highlighted ? '#facc15' : '#57534e');
+        if (cam.camY > y1) {
+          // Carved stone battlements along bastion parapet & Manueline arched loggia windows
+          for (let mx = x0 + 14; mx < x1 - 18; mx += 24) {
+            drawRectBox(mx, y1 - 8, mx + 12, y1, gz + 44, gz + 53, '#efe5d1', '#d6cbb5', '#e5dbc7', '#645c50');
+          }
+          for (const ox of [-24, 0, 24]) {
+            this.drawPoly3D(ctx, cam, [[cx + ox - 8, y1 - 23.4, gz + 62], [cx + ox + 8, y1 - 23.4, gz + 62], [cx + ox + 8, y1 - 23.4, gz + 86], [cx + ox - 8, y1 - 23.4, gz + 86]], isEvening ? '#fde68a' : '#2c4159', '#645c50', 1.2);
+          }
+          // Twin corner Moorish domed bartizan watchtowers
+          for (const bx of [x0 + 10, x1 - 26]) {
+            drawRectBox(bx, y1 - 16, bx + 16, y1 + 4, gz + 34, gz + 62, '#efe5d1', '#d6cbb5', '#9a3412', '#57534e');
+          }
+        }
+      } else if (style === 'marques-pombal') {
+        // Monumento ao Marques de Pombal stepped limestone plinth, fluted column & bronze statue with lion
+        drawRectBox(x0 + 12, y0 + 16, x1 - 12, y1, gz, gz + 34, '#e5ded0', '#cfc6b5', '#ece6da', highlighted ? '#facc15' : '#57534e');
+        drawRectBox(cx - 22, cy - 22, cx + 22, cy + 22, gz + 34, gz + 126, '#f5efe2', '#ded6c6', '#d6cbb5', highlighted ? '#facc15' : '#57534e');
+        // Bronze sculpture of Marques de Pombal and lion crowning the column
+        drawRectBox(cx - 12, cy - 12, cx + 12, cy + 12, gz + 126, gz + 148, '#365314', '#1a2e05', '#4d7c0f', '#14532d');
+      } else if (style === 'campo-pequeno') {
+        // 1892 Neo-Moorish Red-Brick Campo Pequeno Rotunda & twin towers
+        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz, gz + 94, '#b44123', '#8c2d17', '#7c2d12', highlighted ? '#facc15' : '#451a03');
+        drawRectBox(x0 + 18, y1 - 34, x0 + 48, y1 - 4, gz + 94, gz + 124, '#c2410c', '#9a3412', '#fde047', '#451a03');
+        drawRectBox(x1 - 48, y1 - 34, x1 - 18, y1 - 4, gz + 94, gz + 124, '#c2410c', '#9a3412', '#fde047', '#451a03');
+      } else if (style === 'alameda-fountain') {
+        // 1948 Monumental Fonte Luminosa limestone colonnade & sparkling water jets
+        drawRectBox(x0 + 4, y0 + 8, x1 - 4, y0 + 62, gz, gz + 96, '#f1f5f9', '#cbd5e1', '#94a3b8', highlighted ? '#facc15' : '#475569');
+        drawRectBox(x0 + 8, y0 + 62, x1 - 8, y1, gz, gz + 22, '#e2e8f0', '#cbd5e1', '#0284c7', '#475569');
+        for (const ox of [-52, -26, 0, 26, 52]) {
+          const jh = (ox === 0 ? 112 : 84) + Math.sin(animTime * 5 + ox) * 8;
+          this.drawLine3D(ctx, cam, [cx + ox, y1 - 24, gz + 22], [cx + ox, y1 - 24, gz + jh], '#e0f2fe', 3.4);
+        }
+      } else if (style === 'oriente-calatrava') {
+        // Santiago Calatrava soaring white steel gothic tree-arches at Gare do Oriente + Oceanario pavilion
+        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz, gz + 26, '#e2e8f0', '#cbd5e1', '#f1f5f9', highlighted ? '#facc15' : '#475569');
+        for (const ox of [-66, 0, 66]) {
+          this.drawLine3D(ctx, cam, [cx + ox, y1 - 24, gz + 26], [cx + ox, y1 - 24, gz + 96], '#ffffff', 4.6);
+          for (const dx of [-36, -18, 18, 36]) {
+            this.drawLine3D(ctx, cam, [cx + ox, y1 - 24, gz + 64], [cx + ox + dx, y1 - 24, gz + 128], '#f8fafc', 2.6);
+          }
+        }
+        this.drawPoly3D(ctx, cam, [[x0 + 8, y1 - 36, gz + 124], [x1 - 8, y1 - 36, gz + 124], [x1 - 8, y1 - 10, gz + 128], [x0 + 8, y1 - 10, gz + 128]], 'rgba(224, 242, 254, 0.72)', '#0284c7', 1.8);
+      } else {
+        // Classical Lisbon limestone landmark (Rossio, Mae d'Agua Aqueduct, Gulbenkian, Reitoria Universidade)
+        drawRectBox(x0 + 6, y0 + 10, x1 - 6, y1, gz, gz + 98, '#efe8da', '#d8cfc0', accent, highlighted ? '#facc15' : '#475569');
+        if (cam.camY > y1) {
+          for (const ox of [-48, 0, 48]) {
+            this.drawPoly3D(ctx, cam, [[cx + ox - 14, y1 + 0.5, gz + 6], [cx + ox + 14, y1 + 0.5, gz + 6], [cx + ox + 14, y1 + 0.5, gz + 66], [cx + ox - 14, y1 + 0.5, gz + 66]], isEvening ? '#fde68a' : '#2c4159', '#64748b', 1.2);
+          }
+        }
+      }
+    } else {
+      // Greater Lisboa Eatery or Cultural Shop 3D Pombaline Facade with terracotta roof, windows, awning & door
+      const wallCol = spot.kind === 'eatery' ? '#f6ecd9' : '#eaf2fb';
+      const sideCol = spot.kind === 'eatery' ? '#e2d5be' : '#d5e1ee';
+      drawRectBox(x0, y0, x1, y1, gz, gz + topH, wallCol, sideCol, '#b84a32', highlighted ? '#facc15' : '#334155');
+      if (cam.camY > y1) {
+        // Lower accent azulejo wainscot band
+        this.drawPoly3D(ctx, cam, [[x0, y1 + 0.4, gz], [x1, y1 + 0.4, gz], [x1, y1 + 0.4, gz + 14], [x0, y1 + 0.4, gz + 14]], accent);
+        // Shuttered upper windows & ground vitrines
+        const winCol = isEvening ? '#fde68a' : '#2c4159';
+        for (const wx of [x0 + 26, cx - 16, x1 - 58]) {
+          this.drawPoly3D(ctx, cam, [[wx, y1 + 0.5, gz + 64], [wx + 32, y1 + 0.5, gz + 64], [wx + 32, y1 + 0.5, gz + 92], [wx, y1 + 0.5, gz + 92]], winCol, '#475569', 1.2);
+        }
+        // Doorway & striped storefront awning
+        this.drawPoly3D(ctx, cam, [[cx - 18, y1 + 0.6, gz], [cx + 18, y1 + 0.6, gz], [cx + 18, y1 + 0.6, gz + 38], [cx - 18, y1 + 0.6, gz + 38]], '#5c3a21', '#2d1a0f', 1.3);
+        this.drawPoly3D(ctx, cam, [[x0 + 16, y1 + 0.5, gz + 46], [x1 - 16, y1 + 0.5, gz + 46], [x1 - 16, y1 + 14, gz + 38], [x0 + 16, y1 + 14, gz + 38]], accent, '#fef3c7', 1.2);
+      }
+    }
+
+    // Crisp 3D overhead Lisbon enamel building plaque (kept comfortably below top-right HUD radar)
+    const sp = this.projectWorldPt(cam, cx, y1 + 2, gz + (spot.kind === 'landmark' ? 68 : 54));
+    if (sp && sp.cz < 760 && sp.y > 54) {
+      const sc = clamp(this.focal / sp.cz, 0.5, 1.25);
+      ctx.save();
+      const fs = Math.max(8, Math.round(9.5 * sc));
+      ctx.font = `700 ${fs}px Georgia, serif`;
+      const lbl = `${spot.name.toUpperCase()} ${spot.badge}`;
+      const tw = ctx.measureText(lbl).width + 16 * sc;
+      const th = 20 * sc;
+      drawRoundedRect(ctx, sp.x - tw * 0.5, sp.y - th * 0.5, tw, th, 4);
+      ctx.fillStyle = highlighted ? 'rgba(180, 83, 9, 0.94)' : 'rgba(15, 23, 42, 0.88)';
+      ctx.fill();
+      ctx.strokeStyle = highlighted ? '#fde047' : accent;
+      ctx.lineWidth = highlighted ? 2 : 1.3;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl, sp.x, sp.y + fs * 0.34);
       ctx.restore();
     }
   }
@@ -4081,7 +4293,7 @@ export class LisboaStreetView3DRenderer {
             ctx.fillStyle = '#fde047';
             ctx.font = `800 ${fs}px "Segoe UI", sans-serif`;
             ctx.textAlign = 'center';
-            ctx.fillText(isTram ? '28E' : '737', bp.x, bp.y + fs * 0.34);
+            ctx.fillText(vehicle.routeNumber || (isTram ? '28E' : '737'), bp.x, bp.y + fs * 0.34);
             ctx.textAlign = 'left';
           }
         }
@@ -4601,7 +4813,7 @@ export class LisboaStreetView3DRenderer {
     ctx.fillStyle = stop.mode === 'tram' ? '#1e293b' : '#ffffff';
     ctx.font = `800 ${Math.max(7, Math.round(8.5 * s))}px "Segoe UI", sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(stop.mode === 'tram' ? '28E' : '737', sign.x, sign.y + 3 * s);
+    ctx.fillText(stop.routeNumber || (stop.mode === 'tram' ? '28E' : '737'), sign.x, sign.y + 3 * s);
     ctx.textAlign = 'left';
   }
 
@@ -5468,33 +5680,51 @@ export class LisboaStreetView3DRenderer {
         g = buf[ti + 1];
         b = buf[ti + 2];
       } else {
-        const inXSpan = wx >= 116 && wx <= 2284;
+        const inXSpan = wx >= -1520 && wx <= 3920;
+        const inCampoRoad = inXSpan && wy >= -1782 && wy <= -1708;
+        const inMarquesRoad = inXSpan && wy >= -1102 && wy <= -1028;
+        const inRossioRoad = inXSpan && wy >= -422 && wy <= -348;
         const inNorthRoad = inXSpan && wy >= 248 && wy <= 322;
         const inTramRoad = inXSpan && wy >= 577 && wy <= 643;
         const inSouthRoad = inXSpan && wy >= 893 && wy <= 972;
+        const inHorizRoad = inCampoRoad || inMarquesRoad || inRossioRoad || inNorthRoad || inTramRoad || inSouthRoad;
         const inVertRoad =
+          (wy >= -1782 && wy <= 972 && (
+            (wx >= -1502 && wx <= -1418) ||
+            (wx >= -602 && wx <= -518) ||
+            (wx >= 892 && wx <= 978 && wy <= 322) ||
+            (wx >= 1692 && wx <= 1798 && wy <= 322) ||
+            (wx >= 3318 && wx <= 3402)
+          )) ||
+          (wy >= -422 && wy <= 972 && (
+            (wx >= 475 && wx <= 550) ||
+            (wx >= 1344 && wx <= 1422) ||
+            (wx >= 2155 && wx <= 2280)
+          )) ||
           (wy >= 248 && wy <= 972 && (
             (wx >= 120 && wx <= 205) ||
             (wx >= 838 && wx <= 890) ||
-            (wx >= 1344 && wx <= 1422) ||
-            (wx >= 1685 && wx <= 1775) ||
-            (wx >= 2155 && wx <= 2280)
-          )) ||
-          (wy >= 124 && wy <= 972 && wx >= 475 && wx <= 550);
+            (wx >= 1685 && wx <= 1775)
+          ));
 
-        if (inNorthRoad || inTramRoad || inSouthRoad || inVertRoad) {
+        if (inHorizRoad || inVertRoad) {
           const onHorizCurb =
             !inVertRoad && (
+              (inCampoRoad && (wy < -1779 || wy > -1711)) ||
+              (inMarquesRoad && (wy < -1099 || wy > -1031)) ||
+              (inRossioRoad && (wy < -419 || wy > -351)) ||
               (inNorthRoad && (wy < 251 || wy > 319)) ||
               (inTramRoad && (wy < 580 || wy > 640)) ||
               (inSouthRoad && (wy < 896 || wy > 969))
             );
           const onVertCurb =
-            inVertRoad && !inNorthRoad && !inTramRoad && !inSouthRoad && (
+            inVertRoad && !inHorizRoad && (
+              (wx >= -602 && wx <= -599) || (wx >= -521 && wx <= -518) ||
               (wx >= 475 && wx <= 478) || (wx >= 547 && wx <= 550) ||
-              (wx >= 838 && wx <= 841) || (wx >= 887 && wx <= 890) ||
+              (wx >= 892 && wx <= 895) || (wx >= 975 && wx <= 978) ||
               (wx >= 1344 && wx <= 1347) || (wx >= 1419 && wx <= 1422) ||
-              (wx >= 1685 && wx <= 1688) || (wx >= 1772 && wx <= 1775)
+              (wx >= 1685 && wx <= 1688) || (wx >= 1795 && wx <= 1798) ||
+              (wx >= 3318 && wx <= 3321) || (wx >= 3399 && wx <= 3402)
             );
           if (onHorizCurb || onVertCurb) {
             const joint = (((wx + wy) % 24) + 24) % 24 < 1.3;
@@ -5510,15 +5740,20 @@ export class LisboaStreetView3DRenderer {
             b = tLeque[ti + 2];
 
             if (
+              (wy >= -1776 && wy <= -1714) ||
+              (wy >= -1096 && wy <= -1034) ||
+              (wy >= -416 && wy <= -354) ||
               (wy >= 254 && wy <= 316) ||
               (wy >= 579 && wy <= 641) ||
               (wy >= 900 && wy <= 962)
             ) {
               if (
+                (wx >= -581 && wx <= -538 && (((wx + 581) % 11) + 11) % 11 < 6) ||
                 (wx >= 491 && wx <= 532 && ((wx - 491) % 11) < 6) ||
                 (wx >= 885 && wx <= 932 && ((wx - 885) % 11) < 6) ||
                 (wx >= 1361 && wx <= 1404 && ((wx - 1361) % 11) < 6) ||
-                (wx >= 1705 && wx <= 1748 && ((wx - 1705) % 11) < 6)
+                (wx >= 1705 && wx <= 1748 && ((wx - 1705) % 11) < 6) ||
+                (wx >= 3338 && wx <= 3382 && ((wx - 3338) % 11) < 6)
               ) {
                 r = (r * 0.34 + 244 * 0.66) | 0;
                 g = (g * 0.34 + 240 * 0.66) | 0;
@@ -5526,7 +5761,7 @@ export class LisboaStreetView3DRenderer {
               }
             }
           }
-        } else if (wx >= 865 && wx <= 1035 && wy >= 230 && wy <= 972) {
+        } else if (wx >= 865 && wx <= 1035 && wy >= -1780 && wy <= 972) {
           const u = Math.floor(wx * MAR_SCALE) & mask;
           const v = Math.floor(wy * MAR_SCALE) & mask;
           const ti = (v * 128 + u) * 4;
@@ -5796,24 +6031,35 @@ export class LisboaStreetView3DRenderer {
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    const sx = (wx) => mapX + 6 + (wx / WORLD_WIDTH) * (mapW - 12);
-    const sy = (wy) => mapY + 6 + (wy / 1200) * (mapH - 12);
+    const spanW = WORLD_MAX_X - WORLD_MIN_X;
+    const spanH = WORLD_HEIGHT - WORLD_MIN_Y;
+    const sx = (wx) => mapX + 6 + ((wx - WORLD_MIN_X) / spanW) * (mapW - 12);
+    const sy = (wy) => mapY + 6 + ((wy - WORLD_MIN_Y) / spanH) * (mapH - 12);
 
     // Tagus water strip on mini-map
     ctx.fillStyle = 'rgba(14, 116, 144, 0.65)';
     ctx.fillRect(mapX + 6, sy(WATERFRONT_Y), mapW - 12, mapY + mapH - 6 - sy(WATERFRONT_Y));
 
-    // Tiny Lisbon buildings
+    // Tiny Lisbon buildings & Greater Lisboa landmarks
     ctx.fillStyle = 'rgba(226, 218, 202, 0.55)';
     for (const v of VENUES) {
-      ctx.fillRect(sx(v.x), sy(v.y), Math.max(2, (v.w / WORLD_WIDTH) * (mapW - 12)), Math.max(2, (v.h / 1200) * (mapH - 12)));
+      ctx.fillRect(sx(v.x), sy(v.y), 2.2, 2.2);
+    }
+    ctx.fillStyle = 'rgba(125, 211, 252, 0.65)';
+    for (const s of CITY_DISTRICT_SPOTS) {
+      ctx.fillRect(sx(s.worldX), sy(s.worldY), 2.4, 2.4);
+    }
+    ctx.fillStyle = '#e11d48';
+    for (const m of ALL_METRO_STATIONS) {
+      if (!Number.isFinite(m.doorX)) continue;
+      ctx.fillRect(sx(m.doorX) - 1.5, sy(m.doorY) - 1.5, 3, 3);
     }
 
-    // Live Tram 28E & Carris Bus dots
+    // All 9 Live Carris Tram & Bus dots
     for (const v of state.vehicles) {
       ctx.fillStyle = v.mode === 'tram' ? '#facc15' : '#34d399';
       ctx.beginPath();
-      ctx.arc(sx(v.x), sy(v.y), 2.8, 0, Math.PI * 2);
+      ctx.arc(sx(v.x), sy(v.y), 2.4, 0, Math.PI * 2);
       ctx.fill();
     }
 
