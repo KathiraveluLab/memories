@@ -57,8 +57,8 @@ const ALL_MEMORIES = getAllMemoryCatalog();
 
 // Pedestrians route strictly along continuous Lisboa sidewalks across all 12 neighborhoods
 // (from Belem to Parque das Nacoes, and from Tagus Waterfront to Campo Grande) and cross at zebra crosswalks.
-const HORIZONTAL_SIDEWALKS = [-1814, -1676, -1134, -996, -454, -316, 220, 352, 546, 676, 878, 996];
-const VERTICAL_SIDEWALKS = [-1400, -490, 0, 512, 892, 1014, 1680, 1800, 2202, 2856, 3290];
+const HORIZONTAL_SIDEWALKS = [-2494, -2356, -1814, -1676, -1134, -996, -454, -316, 220, 352, 546, 676, 878, 996];
+const VERTICAL_SIDEWALKS = [-2280, -1400, -490, 0, 512, 892, 1014, 1680, 1800, 2202, 2856, 3290, 3960];
 
 function escapeHtml(text) {
   return String(text ?? '')
@@ -84,6 +84,8 @@ function nearestValue(target, candidates) {
 
 function isInSidewalkBand(y) {
   return (
+    (y >= -2512 && y <= -2476) ||
+    (y >= -2374 && y <= -2338) ||
     (y >= -1832 && y <= -1796) ||
     (y >= -1694 && y <= -1658) ||
     (y >= -1152 && y <= -1116) ||
@@ -1047,8 +1049,10 @@ function renderActiveContextPanel(state) {
       })
       .join('');
 
-    // SECTION 1: Direct Trains From This Platform (strictly stations on activeLineId!)
-    const directEntries = getDirectStationsOnLine(metroStation.id, activeLineId);
+    // SECTION 1: Direct Trains From This Platform (every official station on activeLineId, in exact track order!)
+    const directEntries = getDirectStationsOnLine(metroStation.id, activeLineId).sort(
+      (a, b) => a.destIdx - b.destIdx
+    );
     const directIds = new Set(directEntries.map((d) => d.station.id));
     const directHtml = directEntries
       .map(({ station: dest, hopCount }) => {
@@ -1068,8 +1072,7 @@ function renderActiveContextPanel(state) {
             <div>
               <h4>${escapeHtml(dest.name)}${visited ? ' (Visited)' : ''}${isTransferHub ? ' <span class="badge-muted">TRANSFER HUB</span>' : ''}</h4>
               <div style="margin:3px 0;">${destLinesHtml}<span class="badge-muted">${escapeHtml(dest.zoneLabel || 'Lisboa')}</span></div>
-              <div class="item-meta">Direct on <strong>${escapeHtml(activeLine?.name || 'Line')}</strong> (${hopCount} ${hopCount === 1 ? 'stop' : 'stops'}, ~${route.travelMinutes} min)</div>
-              <div class="item-meta"><strong>${fareLabel}</strong> | ${escapeHtml((dest.transitConnections || []).slice(0, 2).join(' | '))}</div>
+              <div class="item-meta">Direct on <strong>${escapeHtml(activeLine?.name || 'Line')}</strong> (${hopCount} ${hopCount === 1 ? 'stop' : 'stops'}, ~${route.travelMinutes} min) | <strong>${fareLabel}</strong></div>
             </div>
             <button
               type="button"
@@ -1084,82 +1087,72 @@ function renderActiveContextPanel(state) {
       })
       .join('');
 
-    // SECTION 2: Other Metro Lines (Transfer Required - cannot board directly from this platform!)
-    const transferDestinations = ALL_METRO_STATIONS.filter(
-      (s) => s.id !== metroStation.id && !directIds.has(s.id)
-    );
-    const otherLinesHtml = transferDestinations
-      .map((dest) => {
-        const destLineIds = getStationLineIds(dest);
-        const route = computeMetroNetworkRoute(metroStation.id, dest.id, activeLineId);
-        const visited = (state.visitedMetroStations || []).includes(dest.id);
-        const destLinesHtml = destLineIds
-          .map((lid) => {
-            const ln = getMetroLineById(lid);
-            if (!ln) return '';
-            return `<span style="display:inline-block;padding:1px 5px;margin-right:4px;border-radius:3px;font-size:9.5px;font-weight:700;background:${ln.color};color:${ln.id === 'linha-amarela' ? '#1e293b' : '#ffffff'};">${escapeHtml(ln.name)}</span>`;
+    // SECTION 2: Other 3 Metro Lines (Transfer Required - grouped cleanly by line so all 50 stations stay scannable!)
+    const otherLinesHtml = METRO_NETWORK_LINES.filter((ln) => ln.id !== activeLineId)
+      .map((otherLn) => {
+        const lineDests = otherLn.stations
+          .map((stopName) => ALL_METRO_STATIONS.find((s) => s.canonicalStopName === stopName))
+          .filter((s) => s && s.id !== metroStation.id && !directIds.has(s.id));
+        if (lineDests.length === 0) return '';
+        const rowsHtml = lineDests
+          .map((dest) => {
+            const destLineIds = getStationLineIds(dest);
+            const route = computeMetroNetworkRoute(metroStation.id, dest.id, activeLineId);
+            const visited = (state.visitedMetroStations || []).includes(dest.id);
+            const sharedOtherLineId = otherLineIds.find((lid) => destLineIds.includes(lid)) || null;
+            const firstLeg = route.legs && route.legs[0] ? route.legs[0] : null;
+            let stepHint = '';
+            let actionBtnHtml = '';
+
+            if (sharedOtherLineId) {
+              const targetLn = getMetroLineById(sharedOtherLineId);
+              stepHint = `Walk through Correspondencia to ${targetLn?.name || 'connecting line'} here (Free)`;
+              actionBtnHtml = `
+                <button type="button" class="btn btn-secondary btn-sm" data-transfer-metro-line="${escapeHtml(sharedOtherLineId)}" ${isBusy ? 'disabled' : ''}>
+                  Switch to ${escapeHtml((targetLn?.name || 'Line').replace('Linha ', ''))}
+                </button>
+              `;
+            } else if (firstLeg && firstLeg.lineId !== activeLineId && otherLineIds.includes(firstLeg.lineId)) {
+              const firstLn = getMetroLineById(firstLeg.lineId);
+              stepHint = `${route.summary} (~${route.travelMinutes} min)`;
+              actionBtnHtml = `
+                <button type="button" class="btn btn-secondary btn-sm" data-transfer-metro-line="${escapeHtml(firstLeg.lineId)}" ${isBusy ? 'disabled' : ''}>
+                  Step 1: ${escapeHtml((firstLn?.name || 'Line').replace('Linha ', ''))}
+                </button>
+              `;
+            } else if (firstLeg && firstLeg.toStationId && directIds.has(firstLeg.toStationId)) {
+              const hubShort = (firstLeg.toStop || route.transferStation || 'Hub').replace('Metro ', '');
+              stepHint = `${route.summary} (~${route.travelMinutes} min)`;
+              actionBtnHtml = `
+                <button type="button" class="btn btn-secondary btn-sm" data-ride-metro="${escapeHtml(firstLeg.toStationId)}" ${affordable ? '' : 'disabled'}>
+                  Leg 1 -> ${escapeHtml(hubShort)}
+                </button>
+              `;
+            } else {
+              stepHint = `Transfer required: ${route.summary} (~${route.travelMinutes} min).`;
+              actionBtnHtml = `<button type="button" class="btn btn-secondary btn-sm" disabled>Transfer Req.</button>`;
+            }
+
+            return `
+              <div class="item-card" style="opacity:0.95;margin-top:5px;">
+                <div>
+                  <h4>${escapeHtml(dest.name)}${visited ? ' (Visited)' : ''}</h4>
+                  <div class="item-meta">${escapeHtml(stepHint)}</div>
+                </div>
+                ${actionBtnHtml}
+              </div>
+            `;
           })
           .join('');
-
-        // Determine the exact truthful Step 1 physical action from this platform!
-        const sharedOtherLineId = otherLineIds.find((lid) => destLineIds.includes(lid)) || null;
-        const firstLeg = route.legs && route.legs[0] ? route.legs[0] : null;
-        let stepHint = '';
-        let actionBtnHtml = '';
-
-        if (sharedOtherLineId) {
-          const otherLn = getMetroLineById(sharedOtherLineId);
-          stepHint = `Not on ${activeLine?.name || 'this platform'} - walk to the ${otherLn?.name || 'connecting'} platform here (Free)`;
-          actionBtnHtml = `
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              data-transfer-metro-line="${escapeHtml(sharedOtherLineId)}"
-              ${isBusy ? 'disabled' : ''}
-            >
-              Switch to ${escapeHtml((otherLn?.name || 'Line').replace('Linha ', ''))}
-            </button>
-          `;
-        } else if (firstLeg && firstLeg.lineId !== activeLineId && otherLineIds.includes(firstLeg.lineId)) {
-          const firstLn = getMetroLineById(firstLeg.lineId);
-          stepHint = `Transfer route: ${route.summary} (~${route.travelMinutes} min). First switch platform here to ${firstLn?.name || firstLeg.lineName}.`;
-          actionBtnHtml = `
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              data-transfer-metro-line="${escapeHtml(firstLeg.lineId)}"
-              ${isBusy ? 'disabled' : ''}
-            >
-              Step 1: ${escapeHtml((firstLn?.name || 'Line').replace('Linha ', ''))}
-            </button>
-          `;
-        } else if (firstLeg && firstLeg.toStationId && directIds.has(firstLeg.toStationId)) {
-          const hubShort = (firstLeg.toStop || route.transferStation || 'Hub').replace('Metro ', '');
-          stepHint = `Not served directly by ${activeLine?.name || 'this line'} here. Route: ${route.summary} (~${route.travelMinutes} min).`;
-          actionBtnHtml = `
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              data-ride-metro="${escapeHtml(firstLeg.toStationId)}"
-              ${affordable ? '' : 'disabled'}
-            >
-              Leg 1 -> ${escapeHtml(hubShort)}
-            </button>
-          `;
-        } else {
-          stepHint = `Transfer required: ${route.summary} (~${route.travelMinutes} min).`;
-          actionBtnHtml = `<button type="button" class="btn btn-secondary btn-sm" disabled>Transfer Req.</button>`;
-        }
-
+        const fg = otherLn.id === 'linha-amarela' ? '#0f172a' : '#ffffff';
         return `
-          <div class="item-card" style="opacity:0.94;">
-            <div>
-              <h4>${escapeHtml(dest.name)}${visited ? ' (Visited)' : ''}</h4>
-              <div style="margin:3px 0;">${destLinesHtml}<span class="badge-muted">TRANSFER REQUIRED</span></div>
-              <div class="item-meta">${escapeHtml(stepHint)}</div>
-            </div>
-            ${actionBtnHtml}
-          </div>
+          <details style="margin:6px 0;border:1px solid ${otherLn.color};border-radius:8px;padding:6px 8px;background:#f8fafc;">
+            <summary style="cursor:pointer;font-weight:700;font-size:12px;display:flex;align-items:center;gap:6px;">
+              <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:${otherLn.color};color:${fg};font-size:10px;">${escapeHtml(otherLn.name)}</span>
+              <span>${escapeHtml(otherLn.termini[0])} <-> ${escapeHtml(otherLn.termini[1])} (${lineDests.length} stations)</span>
+            </summary>
+            ${rowsHtml}
+          </details>
         `;
       })
       .join('');
@@ -1794,7 +1787,8 @@ function renderLists(state) {
   const labelOffsets = {
     'district-sao-sebastiao-sete-rios': { dx: 0, dy: -10, anchor: 'middle', txt: 'Sao Sebastiao & Zoo' },
     'district-campo-grande-alvalade': { dx: 0, dy: -10, anchor: 'middle', txt: 'Campo Grande' },
-    'district-oriente-parque-nacoes': { dx: 8, dy: -10, anchor: 'end', txt: 'Oriente & Expo' },
+    'district-aeroporto-lisboa': { dx: 0, dy: -9, anchor: 'middle', txt: 'Aeroporto' },
+    'district-oriente-parque-nacoes': { dx: 8, dy: 14, anchor: 'end', txt: 'Oriente & Expo' },
     'district-rato-principe-real': { dx: -8, dy: -9, anchor: 'middle', txt: 'Rato & Pr. Real' },
     'district-marques-pombal-avenida': { dx: -2, dy: -9, anchor: 'middle', txt: 'Marques' },
     'district-saldanha-campo-pequeno': { dx: 4, dy: -9, anchor: 'middle', txt: 'Saldanha' },
@@ -1897,58 +1891,63 @@ function renderLists(state) {
     </div>
   `);
 
-  guideParts.push('<div class="hood-group-title">Metropolitano de Lisboa - Official 4-Line City Network (56 Stops)</div>');
+  guideParts.push('<div class="hood-group-title">Metropolitano de Lisboa - All 50 Official Stations Across 4 Lines (56 Stops)</div>');
   for (const ln of METRO_NETWORK_LINES) {
-    guideParts.push(`
-      <div class="guide-card">
-        <div>
-          <div class="guide-card-title">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${ln.color};margin-right:6px;"></span>
-            ${escapeHtml(ln.name)} <span class="badge-muted">${escapeHtml(ln.termini[0])} - ${escapeHtml(ln.termini[1])}</span>
+    const fg = ln.id === 'linha-amarela' ? '#0f172a' : '#ffffff';
+    const stationRows = ln.stations
+      .map((stopName, sIdx) => {
+        const stObj = ALL_METRO_STATIONS.find((s) => s.canonicalStopName === stopName);
+        if (!stObj) return '';
+        const visited = (state.visitedMetroStations || []).includes(stObj.id);
+        const isHub = getStationLineIds(stObj).length > 1;
+        const isTerminus = sIdx === 0 || sIdx === ln.stations.length - 1;
+        const tag = isHub ? ' [HUB]' : isTerminus ? ' [TERMINUS]' : '';
+        return `
+          <div class="guide-card ${visited ? 'visited' : ''}" style="margin-top:4px;padding:6px 8px;">
+            <div>
+              <div class="guide-card-title">${escapeHtml(stObj.name)}<span class="badge-muted">${tag}</span></div>
+              <div class="guide-card-sub">${escapeHtml(stObj.zoneLabel || ln.name)}</div>
+            </div>
+            <div class="guide-card-actions">
+              <button type="button" class="btn btn-sm" data-walk-metro="${escapeHtml(stObj.id)}" ${state.ridingVehicleId ? 'disabled' : ''}>
+                Walk
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" data-travel-city-metro="${escapeHtml(stObj.id)}" ${state.ridingVehicleId ? 'disabled' : ''}>
+                Metro
+              </button>
+            </div>
           </div>
-          <div class="guide-card-sub">${escapeHtml(ln.stations.join(' -> '))}</div>
-        </div>
-      </div>
+        `;
+      })
+      .join('');
+    guideParts.push(`
+      <details style="margin:6px 0;border:1px solid ${ln.color};border-radius:8px;padding:6px 8px;background:#ffffff;">
+        <summary style="cursor:pointer;font-weight:700;font-size:12px;">
+          <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:${ln.color};color:${fg};font-size:10px;margin-right:6px;">${escapeHtml(ln.name)} (${ln.stations.length})</span>
+          ${escapeHtml(ln.termini[0])} <-> ${escapeHtml(ln.termini[1])}
+        </summary>
+        ${stationRows}
+      </details>
     `);
   }
 
-  guideParts.push('<div class="hood-group-title">Core Historic Metro Entrances (Walkable Overworld)</div>');
-  for (const station of METRO_STATIONS) {
-    const visited = (state.visitedMetroStations || []).includes(station.id);
+  guideParts.push('<div class="hood-group-title">Greater Lisboa Featured Districts &amp; Landmarks (Walk or Ride Metro)</div>');
+  for (const dist of LISBOA_CITY_DISTRICTS) {
+    const station = ALL_METRO_STATIONS.find((s) => s.id === dist.stationId);
+    if (!station) continue;
+    const visited = (state.visitedCityDistricts || []).includes(dist.id);
+    const isHere = curZone === dist.id;
     guideParts.push(`
       <div class="guide-card ${visited ? 'visited' : ''}">
         <div>
-          <div class="guide-card-title">${escapeHtml(station.name)} <span class="badge-muted">[METRO]</span></div>
-          <div class="guide-card-sub">${escapeHtml(station.lines.join(' & '))} - ${METRO_LINE.fareEur.toFixed(2)} EUR</div>
-        </div>
-        <button type="button" class="btn btn-sm" data-walk-metro="${escapeHtml(station.id)}" ${state.ridingVehicleId ? 'disabled' : ''}>
-          Walk Here
-        </button>
-      </div>
-    `);
-  }
-
-  guideParts.push('<div class="hood-group-title">Greater Lisboa Metro Stations &amp; City Districts (Walk or Ride Metro)</div>');
-  for (const station of CITY_METRO_STATIONS) {
-    const visited = (state.visitedCityDistricts || []).includes(station.districtId);
-    const isHere = curZone === station.districtId;
-    const walkRoute = computeLisboaWalkingRoute(curZone, station.districtId);
-    const walkHint = isHere
-      ? 'You are here now'
-      : walkRoute.ok
-        ? `On foot: ${(walkRoute.totalMeters / 1000).toFixed(1)} km (~${walkRoute.totalMinutes} min, ${walkRoute.legs.length} ${walkRoute.legs.length === 1 ? 'avenue' : 'avenues'})`
-        : 'Connected via Lisboa streets';
-    guideParts.push(`
-      <div class="guide-card ${visited ? 'visited' : ''}">
-        <div>
-          <div class="guide-card-title">${escapeHtml(station.name)} <span class="badge-muted">${escapeHtml(station.lines.join(' / '))}</span></div>
-          <div class="guide-card-sub">${escapeHtml(station.zoneLabel)} | ${escapeHtml(walkHint)}</div>
+          <div class="guide-card-title">${escapeHtml(dist.shortName)} <span class="badge-muted">${escapeHtml(station.lines.join(' / '))}</span></div>
+          <div class="guide-card-sub">${escapeHtml(station.name)} | ${escapeHtml(dist.transitSummary)}</div>
         </div>
         <div class="guide-card-actions">
-          <button type="button" class="btn btn-primary btn-sm" data-walk-city-district="${escapeHtml(station.districtId)}" ${state.ridingVehicleId || state.cityWalk?.active || isHere ? 'disabled' : ''}>
+          <button type="button" class="btn btn-primary btn-sm" data-walk-city-district="${escapeHtml(dist.id)}" ${state.ridingVehicleId || isHere ? 'disabled' : ''}>
             ${isHere ? 'Here Now' : 'Walk Here'}
           </button>
-          <button type="button" class="btn btn-sm" data-travel-city-metro="${escapeHtml(station.id)}" ${state.ridingVehicleId || state.cityWalk?.active ? 'disabled' : ''}>
+          <button type="button" class="btn btn-sm" data-travel-city-metro="${escapeHtml(station.id)}" ${state.ridingVehicleId ? 'disabled' : ''}>
             Ride Metro
           </button>
         </div>

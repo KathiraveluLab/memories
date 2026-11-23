@@ -6314,16 +6314,34 @@ export class LisboaCanvasRenderer {
         const isHub = getStationLineIds(st).length > 1;
         ctx.fillStyle = isCurrent ? '#facc15' : isHub ? '#ffffff' : activeLine.color;
         ctx.beginPath();
-        ctx.arc(sx, y, isCurrent ? 7.5 : isHub ? 6 : 5, 0, Math.PI * 2);
+        ctx.arc(sx, y, isCurrent ? 7.0 : isHub ? 5.2 : 4.2, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = isCurrent ? '#ffffff' : '#0f172a';
-        ctx.lineWidth = isCurrent ? 2.2 : 1.5;
+        ctx.lineWidth = isCurrent ? 2.2 : 1.4;
         ctx.stroke();
-        ctx.fillStyle = isCurrent ? '#fde047' : '#e2e8f0';
-        ctx.font = '700 8px "Segoe UI", sans-serif';
+        ctx.fillStyle = isCurrent ? '#fde047' : isHub ? '#ffffff' : '#cbd5e1';
+        ctx.font = isCurrent ? '800 7.5px "Segoe UI", sans-serif' : '700 6.8px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
-        const shortLabel = (st.canonicalStopName || st.name.replace('Metro ', '')).replace('Colegio Militar / Luz', 'Col. Militar');
-        ctx.fillText(shortLabel, sx, y + 17);
+        const shortLabel = (st.canonicalStopName || st.name.replace('Metro ', ''))
+          .replace('Colegio Militar/Luz', 'Col. Militar')
+          .replace('Cidade Universitaria', 'Cid. Univ.')
+          .replace('Quinta das Conchas', 'Qta. Conchas')
+          .replace('Marques de Pombal', 'Marques')
+          .replace('Praca de Espanha', 'Pr. Espanha')
+          .replace('Jardim Zoologico', 'Zoo')
+          .replace('Alto dos Moinhos', 'A. Moinhos')
+          .replace('Senhor Roubado', 'Sr. Roubado')
+          .replace('Terreiro do Paco', 'T. Paco')
+          .replace('Santa Apolonia', 'S. Apolonia')
+          .replace('Cais do Sodre', 'C. Sodre')
+          .replace('Sao Sebastiao', 'S. Sebastiao')
+          .replace('Campo Pequeno', 'C. Pequeno')
+          .replace('Campo Grande', 'C. Grande')
+          .replace('Entre Campos', 'E. Campos')
+          .replace('Martim Moniz', 'M. Moniz')
+          .replace('Restauradores', 'Restaurad.');
+        const labelY = stationsOnLine.length > 8 && idx % 2 === 1 ? y - 10 : y + 16;
+        ctx.fillText(shortLabel, sx, labelY);
       });
     }
     ctx.restore();

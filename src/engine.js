@@ -269,10 +269,12 @@ export function isPointInVehicleLane(px, py) {
   if (px >= -584 && px <= 2240 && py >= 262 && py <= 308) return true;
   // Row 3 Rato / Rossio / Alameda / Oriente (Tram 24E, Bus 706, Bus 736, Bus 744, Bus 728): y -408..-360
   if (px >= -960 && px <= 3620 && py >= -408 && py <= -360) return true;
-  // Row 4 Sao Sebastiao / Marques de Pombal / Saldanha / Aeroporto (Bus 746, Bus 736, Bus 744): y -1088..-1040
+  // Row 4 Sao Sebastiao / Marques de Pombal / Saldanha / Olivais (Bus 746, Bus 736, Bus 744): y -1088..-1040
   if (px >= -980 && px <= 3384 && py >= -1088 && py <= -1040) return true;
-  // Row 5 Campo Grande & Cidade Universitaria (Bus 746, Bus 736): y -1768..-1720
-  if (px >= -584 && px <= 1770 && py >= -1768 && py <= -1720) return true;
+  // Row 5 Campo Grande / Cidade Universitaria / Aeroporto Humberto Delgado (Bus 746, Bus 736, Bus 744): y -1768..-1720
+  if (px >= -584 && px <= 3540 && py >= -1768 && py <= -1720) return true;
+  // Row 6 Northern Ring (Reboleira - Amadora - Pontinha - Odivelas - Lumiar): y -2448..-2400
+  if (px >= -2300 && px <= 4180 && py >= -2448 && py <= -2400) return true;
   // Vertical transit corridors:
   // Col W1 Cais do Sodre - Rato - Sao Sebastiao - Forcas Armadas (Bus 706, Tram 24E, Bus 746): x -584..-536
   if (py >= -1768 && py <= 956 && px >= -584 && px <= -536) return true;
@@ -284,8 +286,8 @@ export function isPointInVehicleLane(px, py) {
   if (py >= -1768 && py <= 308 && px >= 1721 && px <= 1769) return true;
   // Col H-East Santa Apolonia - Olaias (Bus 737, Bus 706): x 2190..2240
   if (py >= -408 && py <= 956 && px >= 2190 && px <= 2240) return true;
-  // Col E1 Alameda dos Oceanos / Parque das Nacoes (Bus 728, Bus 744): x 3336..3384
-  if (py >= -1088 && py <= 956 && px >= 3336 && px <= 3384) return true;
+  // Col E1 Alameda dos Oceanos / Av. Berlim (Bus 728, Bus 744 to Oriente & Aeroporto): x 3336..3384
+  if (py >= -1768 && py <= 956 && px >= 3336 && px <= 3384) return true;
   return false;
 }
 
@@ -293,6 +295,7 @@ export function isPointOnSidewalk(px, py) {
   if (isPointInVehicleLane(px, py)) return false;
   if (!isOverworldPositionValid(px, py, PLAYER_RADIUS)) return false;
   // Exclude roadway curb-to-curb lanes of horizontal avenues while preserving full stone sidewalks
+  if (py > -2464 && py < -2386) return false;
   if (py > -1784 && py < -1706) return false;
   if (py > -1104 && py < -1026) return false;
   if (py > -424 && py < -346) return false;

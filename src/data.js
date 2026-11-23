@@ -1,7 +1,7 @@
-export const WORLD_MIN_X = -1600;
-export const WORLD_MAX_X = 4000;
-export const WORLD_MIN_Y = -2000;
-export const WORLD_WIDTH = 4000;
+export const WORLD_MIN_X = -2400;
+export const WORLD_MAX_X = 4400;
+export const WORLD_MIN_Y = -2700;
+export const WORLD_WIDTH = 4400;
 export const WORLD_HEIGHT = 1200;
 
 export const INTERIOR_WIDTH = 760;
@@ -109,7 +109,15 @@ export const ALL_LISBOA_NEIGHBORHOODS = [
     name: 'Oriente & Parque das Nacoes',
     accent: '#dc2626',
     groundTint: '#e4eaf0',
-    subtitle: 'Calatrava Gare do Oriente, Oceanario waterfront, Bus 728, Bus 744, and Linha Vermelha to Aeroporto.'
+    subtitle: 'Calatrava Gare do Oriente, Oceanario waterfront, Metro Oriente, Bus 728, and Bus 744.'
+  },
+  {
+    id: 'aeroporto-lisboa',
+    districtId: 'district-aeroporto-lisboa',
+    name: 'Aeroporto Humberto Delgado',
+    accent: '#b91c1c',
+    groundTint: '#e2e8f0',
+    subtitle: 'Lisbon International Airport Terminal 1, Linha Vermelha eastern terminus (Metro Aeroporto), and Carris Bus 744.'
   }
 ];
 
@@ -183,28 +191,32 @@ export function getTerrainSlope(wx, wy) {
 }
 
 export const STREETS = [
-  // Continuous City-Wide Horizontal Boulevards (Belem x=-1520 to Parque das Nacoes x=3920)
-  { id: 'ave-campo-grande', x: -1520, y: -1800, w: 5440, h: 110, style: 'bus-road', name: 'Av. das Forcas Armadas / Campo Grande / Av. Marechal Gomes da Costa' },
-  { id: 'ave-marques-saldanha', x: -1520, y: -1120, w: 5440, h: 110, style: 'bus-road', name: 'Av. Antonio Augusto de Aguiar / Marques de Pombal / Saldanha / Aeroporto' },
-  { id: 'ave-rossio-alameda', x: -1520, y: -440, w: 5440, h: 110, style: 'bus-road', name: 'Rua da Escola Politecnica / Rossio / Alameda / Gare do Oriente' },
-  { id: 'ave-north', x: -1520, y: 230, w: 5440, h: 110, style: 'bus-road', name: 'Rua de Sao Pedro / Rua Garrett / Santa Luzia' },
-  { id: 'ave-tram', x: -1520, y: 555, w: 5440, h: 110, style: 'tram-avenue', name: 'Calcada da Ajuda / Rua do Loreto / Largo do Chiado / Calcada da Se' },
-  { id: 'ave-south', x: -1520, y: 875, w: 5440, h: 115, style: 'bus-road', name: 'Av. da India (Belem) / Av. 24 de Julho / Ribeira / Av. Infante Dom Henrique' },
+  // Continuous City-Wide Horizontal Boulevards (Amadora/Belem x=-2320 to Parque das Nacoes/Aeroporto x=4320)
+  { id: 'ave-northern-ring', x: -2320, y: -2480, w: 6640, h: 110, style: 'bus-road', name: 'Reboleira / Amadora / Pontinha / Odivelas / Lumiar / Quinta das Conchas' },
+  { id: 'ave-campo-grande', x: -2320, y: -1800, w: 6640, h: 110, style: 'bus-road', name: 'Carnide / Luz / Telheiras / Campo Grande / Alvalade / Roma / Areeiro / Aeroporto' },
+  { id: 'ave-marques-saldanha', x: -2320, y: -1120, w: 6640, h: 110, style: 'bus-road', name: 'Alto dos Moinhos / Jardim Zoologico / Sao Sebastiao / Marques de Pombal / Saldanha / Olivais / Encarnacao' },
+  { id: 'ave-rossio-alameda', x: -2320, y: -440, w: 6640, h: 110, style: 'bus-road', name: 'Rato / Restauradores / Rossio / Alameda / Olaias / Cabo Ruivo / Gare do Oriente / Moscavide' },
+  { id: 'ave-north', x: -2320, y: 230, w: 6640, h: 110, style: 'bus-road', name: 'Rua de Sao Pedro / Rua Garrett / Martim Moniz / Intendente / Anjos / Arroios' },
+  { id: 'ave-tram', x: -2320, y: 555, w: 6640, h: 110, style: 'tram-avenue', name: 'Calcada da Ajuda / Rua do Loreto / Largo do Chiado / Calcada da Se' },
+  { id: 'ave-south', x: -2320, y: 875, w: 6640, h: 115, style: 'bus-road', name: 'Av. da India (Belem) / Av. 24 de Julho / Ribeira / Av. Infante Dom Henrique' },
   // Continuous City-Wide Vertical Connecting Avenues
-  { id: 'st-belem-west', x: -1512, y: -1800, w: 105, h: 2790, style: 'bus-road', name: 'Avenida da Torre de Belem' },
-  { id: 'st-rato-cais', x: -612, y: -1800, w: 105, h: 2790, style: 'bus-road', name: 'Av. Dom Carlos I / Rua de Sao Bento / Sao Sebastiao' },
+  { id: 'st-amadora-reboleira', x: -2312, y: -2480, w: 105, h: 3470, style: 'bus-road', name: 'Avenida de Reboleira & Amadora' },
+  { id: 'st-belem-west', x: -1512, y: -2480, w: 105, h: 3470, style: 'bus-road', name: 'Avenida da Torre de Belem & Benfica' },
+  { id: 'st-rato-cais', x: -612, y: -2480, w: 105, h: 3470, style: 'bus-road', name: 'Av. Dom Carlos I / Rua de Sao Bento / Sao Sebastiao / Telheiras' },
   { id: 'st-west-edge', x: 110, y: 230, w: 105, h: 760, style: 'bus-road', name: 'Rua da Misericordia Oeste' },
   { id: 'st-bairro-mid', x: 465, y: -440, w: 95, h: 1430, style: 'cobble', name: 'Rua da Rosa / Rua Dom Pedro V (Principe Real)' },
-  { id: 'st-av-liberdade', x: 865, y: -1800, w: 170, h: 2790, style: 'plaza', name: 'Avenida da Liberdade / Praca Luis de Camoes' },
+  { id: 'st-av-liberdade', x: 865, y: -2480, w: 170, h: 3470, style: 'plaza', name: 'Avenida da Liberdade / Praca Luis de Camoes / Lumiar' },
   { id: 'st-carmo', x: 1334, y: -440, w: 98, h: 1430, style: 'cobble', name: 'Rua do Carmo / Rua Augusta' },
-  { id: 'st-almirante-reis', x: 1680, y: -1800, w: 130, h: 2790, style: 'bus-road', name: 'Av. da Republica / Av. Almirante Reis / Escadinhas da Se' },
+  { id: 'st-almirante-reis', x: 1680, y: -2480, w: 130, h: 3470, style: 'bus-road', name: 'Av. da Republica / Av. Almirante Reis / Escadinhas da Se' },
   { id: 'st-east-edge', x: 2145, y: -440, w: 145, h: 1430, style: 'bus-road', name: 'Largo das Portas do Sol / Olaias' },
-  { id: 'st-parque-nacoes', x: 3308, y: -1800, w: 112, h: 2790, style: 'bus-road', name: 'Alameda dos Oceanos (Parque das Nacoes)' }
+  { id: 'st-parque-nacoes', x: 3308, y: -2480, w: 112, h: 3470, style: 'bus-road', name: 'Alameda dos Oceanos / Av. Berlim (Oriente & Aeroporto)' },
+  { id: 'st-aeroporto-east', x: 4100, y: -2480, w: 105, h: 3470, style: 'bus-road', name: 'Avenida do Aeroporto & Moscavide' }
 ];
 
 export const CROSSWALKS = [
-  // Crosswalks across all 6 horizontal roads at every major vertical corridor
-  ...[-1484, -584, 488, 882, 1358, 1720, 2190, 3336].flatMap((cx) => [
+  // Crosswalks across all 7 horizontal boulevards at every major vertical corridor
+  ...[-2284, -1484, -584, 488, 882, 1358, 1720, 2190, 3336, 4128].flatMap((cx) => [
+    { x: cx, y: -2458, w: 50, h: 70, orientation: 'vertical' },
     { x: cx, y: -1778, w: 50, h: 70, orientation: 'vertical' },
     { x: cx, y: -1098, w: 50, h: 70, orientation: 'vertical' },
     { x: cx, y: -418, w: 50, h: 70, orientation: 'vertical' },
@@ -1012,20 +1024,22 @@ export const METRO_STATIONS = [
   }
 ];
 
-// City-wide Metropolitano de Lisboa stations spanning all 4 official lines, all 6 transfer hubs, and walkable Lisbon districts
-export const CITY_METRO_STATIONS = [
+// Factual Metropolitano de Lisboa Greater Lisboa stations - EVERY SINGLE ONE of the 50 unique official stations
+// (56 stops across Linha Azul [18], Linha Amarela [13], Linha Verde [13], Linha Vermelha [12], with 6 2-line interchanges).
+// Zero merged/combined stations: Oriente and Aeroporto are separate stations, with Aeroporto as the true Red Line terminus!
+const FEATURED_CITY_METRO_STATIONS = [
   {
     id: 'metro-cais-sodre',
-    name: 'Metro Cais do Sodre (Belem Corridor)',
+    name: 'Metro Cais do Sodre',
     canonicalStopName: 'Cais do Sodre',
     corridorStops: ['Cais do Sodre'],
     neighborhood: 'cais-sodre-belem',
-    zoneLabel: 'Riverfront & Western Belem Corridor',
+    zoneLabel: 'Cais do Sodre Riverfront & Belem Corridor',
     districtId: 'district-cais-sodre-belem',
     order: 3,
     lines: ['Linha Verde'],
     lineColors: ['#16a34a'],
-    transitConnections: ['Eletrico 15E (Alges / Mosteiro dos Jeronimos / Torre de Belem)', 'CP Linha de Cascais', 'Transtejo Ferry (Cacilhas / Seixal / Montijo)'],
+    transitConnections: ['Eletrico 15E (Belem / Alges)', 'CP Linha de Cascais', 'Transtejo Ferry (Cacilhas / Seixal / Montijo)'],
     undergroundTheme: {
       wallPrimary: '#d8ece2',
       tileAccent: '#15803d',
@@ -1036,23 +1050,23 @@ export const CITY_METRO_STATIONS = [
       artist: 'Antonio Dacosta & Pedro Morais',
       muralStyle: 'dacosta-wonderland-tiles',
       nextTrainDest: 'Telheiras (via Baixa-Chiado & Rossio)',
-      oppositeDest: 'Terminus (Riverfront Hub)',
-      transferLine: 'CP Cascais Rail, Eletrico 15E to Belem & Transtejo Ferries'
+      oppositeDest: 'Terminus (Cais do Sodre)',
+      transferLine: 'CP Cascais Rail, Eletrico 15E & Transtejo Ferries'
     },
-    note: 'Award-winning southern Linha Verde terminus adorned with giant cobalt Alice-in-Wonderland rabbit panels, linking directly to Eletrico 15E for Belem.'
+    note: 'Award-winning southern Linha Verde terminus adorned with cobalt Alice-in-Wonderland rabbit panels, linking directly to Eletrico 15E and Transtejo ferries.'
   },
   {
     id: 'metro-rossio',
-    name: 'Metro Rossio (Baixa & Santa Justa)',
+    name: 'Metro Rossio',
     canonicalStopName: 'Rossio',
-    corridorStops: ['Rossio', 'Martim Moniz', 'Intendente', 'Anjos', 'Arroios', 'Restauradores'],
-    neighborhood: 'baixa-rossio',
-    zoneLabel: 'Pombaline Baixa, Rossio & Almirante Reis',
+    corridorStops: ['Rossio'],
+    neighborhood: 'rossio-restauradores',
+    zoneLabel: 'Praca Dom Pedro IV (Rossio) & Baixa',
     districtId: 'district-rossio-restauradores',
     order: 4,
     lines: ['Linha Verde'],
     lineColors: ['#16a34a'],
-    transitConnections: ['Elevador de Santa Justa (1902 Neo-Gothic Lift)', 'CP Linha de Sintra (Estacao do Rossio)', 'Eletrico 12E & 15E', 'Restauradores (Linha Azul Walkway)'],
+    transitConnections: ['Elevador de Santa Justa (1902)', 'CP Linha de Sintra (Estacao do Rossio)', 'Carris Buses 736 / 706 / 744'],
     undergroundTheme: {
       wallPrimary: '#e2ede4',
       tileAccent: '#166534',
@@ -1066,20 +1080,20 @@ export const CITY_METRO_STATIONS = [
       oppositeDest: 'Cais do Sodre (via Baixa-Chiado)',
       transferLine: 'CP Sintra Line & Elevador de Santa Justa'
     },
-    note: 'Historic downtown Linha Verde station opening directly onto Praca Dom Pedro IV (Rossio), the baroque fountains, Teatro Nacional D. Maria II, and Elevador de Santa Justa.'
+    note: 'Historic downtown Linha Verde station opening directly onto Praca Dom Pedro IV (Rossio), the baroque fountains, and Teatro Nacional D. Maria II.'
   },
   {
     id: 'metro-marques-pombal',
-    name: 'Metro Marques de Pombal (Avenida & Parque)',
+    name: 'Metro Marques de Pombal',
     canonicalStopName: 'Marques de Pombal',
-    corridorStops: ['Marques de Pombal', 'Parque', 'Avenida', 'Picoas'],
-    neighborhood: 'avenida-liberdade',
-    zoneLabel: 'Avenida da Liberdade & Parque Eduardo VII',
+    corridorStops: ['Marques de Pombal'],
+    neighborhood: 'marques-pombal-avenida',
+    zoneLabel: 'Praca Marques de Pombal & Parque Eduardo VII',
     districtId: 'district-marques-pombal-avenida',
     order: 5,
     lines: ['Linha Azul', 'Linha Amarela'],
     lineColors: ['#2563eb', '#eab308'],
-    transitConnections: ['Linha Azul & Linha Amarela Transfer Hub', 'Elevador do Lavra (1884 Funicular)', 'Carris Aerobus & 736 / 744 Boulevard Lines'],
+    transitConnections: ['Linha Azul & Linha Amarela Interchange', 'Carris Buses 736 / 746 / 744'],
     undergroundTheme: {
       wallPrimary: '#f2ead2',
       tileAccent: '#ca8a04',
@@ -1093,20 +1107,20 @@ export const CITY_METRO_STATIONS = [
       oppositeDest: 'Rato / Santa Apolonia',
       transferLine: 'Linha Azul & Linha Amarela Interchange'
     },
-    note: 'Central Lisbon interchange where the original 1959 Y-network split into Linha Azul and Linha Amarela beneath the Monumento ao Marques de Pombal and Parque Eduardo VII.'
+    note: 'Central Lisbon interchange where the original 1959 network joins Linha Azul and Linha Amarela beneath the Monumento ao Marques de Pombal.'
   },
   {
     id: 'metro-rato',
-    name: 'Metro Rato (Principe Real & Amoreiras)',
+    name: 'Metro Rato',
     canonicalStopName: 'Rato',
     corridorStops: ['Rato'],
-    neighborhood: 'principe-real',
-    zoneLabel: 'Largo do Rato, Principe Real & Aguas Livres Aqueduct',
+    neighborhood: 'rato-principe-real',
+    zoneLabel: 'Largo do Rato & Principe Real',
     districtId: 'district-rato-principe-real',
     order: 6,
     lines: ['Linha Amarela'],
     lineColors: ['#eab308'],
-    transitConnections: ['Eletrico 24E (Campolide - Principe Real - Camoes)', 'Carris Buses 758 / 773 / 713', 'Mae d Agua das Amoreiras Aqueduct Reservoir'],
+    transitConnections: ['Eletrico 24E (Campolide - Principe Real - Camoes)', 'Carris Buses 706 / 758 / 773'],
     undergroundTheme: {
       wallPrimary: '#f6edd5',
       tileAccent: '#b45309',
@@ -1120,20 +1134,20 @@ export const CITY_METRO_STATIONS = [
       oppositeDest: 'Terminus (Largo do Rato)',
       transferLine: 'Eletrico 24E to Principe Real & Camoes'
     },
-    note: 'Southern terminus of Linha Amarela featuring vibrant polychrome geometric tile panels by Manuel Cargaleiro and poetic portraits of Arpad Szenes and Vieira da Silva.'
+    note: 'Southern terminus of Linha Amarela featuring polychrome geometric tile panels by Manuel Cargaleiro beneath Largo do Rato.'
   },
   {
-    id: 'metro-saldanha-campo-pequeno',
-    name: 'Metro Saldanha & Campo Pequeno',
+    id: 'metro-saldanha',
+    name: 'Metro Saldanha',
     canonicalStopName: 'Saldanha',
-    corridorStops: ['Saldanha', 'Campo Pequeno', 'Entre Campos'],
-    neighborhood: 'avenidas-novas',
-    zoneLabel: 'Avenidas Novas, Saldanha & Campo Pequeno',
+    corridorStops: ['Saldanha'],
+    neighborhood: 'saldanha-campo-pequeno',
+    zoneLabel: 'Praca Duque de Saldanha & Avenidas Novas',
     districtId: 'district-saldanha-campo-pequeno',
     order: 7,
     lines: ['Linha Amarela', 'Linha Vermelha'],
     lineColors: ['#eab308', '#dc2626'],
-    transitConnections: ['Linha Amarela & Linha Vermelha Transfer Hub', 'CP Entre Campos Urban Rail', 'Carris Express Corridor 727 / 736 / 744'],
+    transitConnections: ['Linha Amarela & Linha Vermelha Interchange', 'Carris Buses 736 / 744 / 727'],
     undergroundTheme: {
       wallPrimary: '#f3e5d8',
       tileAccent: '#b91c1c',
@@ -1147,71 +1161,47 @@ export const CITY_METRO_STATIONS = [
       oppositeDest: 'Sao Sebastiao / Rato',
       transferLine: 'Linha Amarela & Linha Vermelha Interchange'
     },
-    note: 'Major Avenidas Novas interchange uniting Linha Amarela and Linha Vermelha beneath Praca Duque de Saldanha and the 1892 Neo-Moorish brick dome of Campo Pequeno.'
+    note: 'Major Avenidas Novas interchange uniting Linha Amarela and Linha Vermelha beneath Praca Duque de Saldanha.'
   },
   {
-    id: 'metro-sao-sebastiao-zoologico',
-    name: 'Metro Sao Sebastiao (Gulbenkian, Zoo & Reboleira)',
+    id: 'metro-sao-sebastiao',
+    name: 'Metro Sao Sebastiao',
     canonicalStopName: 'Sao Sebastiao',
-    corridorStops: [
-      'Sao Sebastiao',
-      'Praca de Espanha',
-      'Jardim Zoologico',
-      'Laranjeiras',
-      'Alto dos Moinhos',
-      'Colegio Militar/Luz',
-      'Carnide',
-      'Pontinha',
-      'Alfornelos',
-      'Amadora Este',
-      'Reboleira'
-    ],
-    neighborhood: 'sete-rios-gulbenkian',
-    zoneLabel: 'Gulbenkian Gardens, Sete Rios Zoo & Northwestern Blue Line',
+    corridorStops: ['Sao Sebastiao'],
+    neighborhood: 'sao-sebastiao-sete-rios',
+    zoneLabel: 'Sao Sebastiao & Fundacao Calouste Gulbenkian',
     districtId: 'district-sao-sebastiao-sete-rios',
     order: 8,
     lines: ['Linha Azul', 'Linha Vermelha'],
     lineColors: ['#2563eb', '#dc2626'],
-    transitConnections: ['Linha Azul & Linha Vermelha Transfer Hub', 'Teleferico do Jardim Zoologico', 'CP Sete Rios & Rede Expressos Coach Terminal'],
+    transitConnections: ['Linha Azul & Linha Vermelha Interchange', 'Carris Bus 746', 'Fundacao Calouste Gulbenkian'],
     undergroundTheme: {
       wallPrimary: '#e5ecf6',
       tileAccent: '#1d4ed8',
       platformFloor: '#d5dce4',
       trim: '#b91c1c',
-      artLabel: 'MARIA KEIL & JULIO POMAR - ZOO FAUNA & MODERNIST TILES',
+      artLabel: 'MARIA KEIL & TIAGO HENRIQUES - AZUL & VERMELHA HUB',
       architect: 'Falcao e Cunha (1959) / Tiago Henriques (2009)',
-      artist: 'Maria Keil & Julio Pomar',
-      muralStyle: 'pomar-zoo-fauna',
+      artist: 'Maria Keil',
+      muralStyle: 'keil-geometric-patterns',
       nextTrainDest: 'Aeroporto / Reboleira',
       oppositeDest: 'Santa Apolonia (via Marques de Pombal & Baixa-Chiado)',
-      transferLine: 'Linha Azul & Linha Vermelha Terminus Hub'
+      transferLine: 'Linha Azul & Linha Vermelha Western Terminus Hub'
     },
-    note: 'Western transfer hub linking Linha Azul (toward Jardim Zoologico, Colegio Militar/Luz, and Reboleira) with the western terminus of Linha Vermelha next to Fundacao Calouste Gulbenkian.'
+    note: 'Western transfer hub linking Linha Azul with the western terminus of Linha Vermelha directly beside Fundacao Calouste Gulbenkian.'
   },
   {
-    id: 'metro-campo-grande-alvalade',
-    name: 'Metro Campo Grande (Universidade, Alvalade & Odivelas)',
+    id: 'metro-campo-grande',
+    name: 'Metro Campo Grande',
     canonicalStopName: 'Campo Grande',
-    corridorStops: [
-      'Campo Grande',
-      'Cidade Universitaria',
-      'Quinta das Conchas',
-      'Lumiar',
-      'Ameixoeira',
-      'Senhor Roubado',
-      'Odivelas',
-      'Telheiras',
-      'Alvalade',
-      'Roma',
-      'Areeiro'
-    ],
+    corridorStops: ['Campo Grande'],
     neighborhood: 'campo-grande-alvalade',
-    zoneLabel: 'Cidade Universitaria, Campo Grande, Alvalade & Northern Termini',
+    zoneLabel: 'Jardim do Campo Grande & Northern Viaduct Hub',
     districtId: 'district-campo-grande-alvalade',
     order: 9,
     lines: ['Linha Amarela', 'Linha Verde'],
     lineColors: ['#eab308', '#16a34a'],
-    transitConnections: ['Linha Amarela & Linha Verde Viaduct Hub', 'Carris Metropolitana Northern Terminal', 'Cidade Universitaria Campus Loop'],
+    transitConnections: ['Linha Amarela & Linha Verde Interchange', 'Carris Bus 736 / 746', 'Carris Metropolitana Terminal'],
     undergroundTheme: {
       wallPrimary: '#e4efe8',
       tileAccent: '#15803d',
@@ -1219,53 +1209,53 @@ export const CITY_METRO_STATIONS = [
       trim: '#ca8a04',
       artLabel: 'EDUARDO NERY - 18TH-CENTURY BAROQUE CONVITE TILE FIGURES',
       architect: 'Ezequiel Nicolau (1993)',
-      artist: 'Eduardo Nery (Fabrica Viúva Lamego Cutouts)',
+      artist: 'Eduardo Nery (Fabrica Viuva Lamego Cutouts)',
       muralStyle: 'nery-convite-sentinels',
       nextTrainDest: 'Odivelas / Telheiras',
       oppositeDest: 'Rato / Cais do Sodre',
       transferLine: 'Linha Amarela & Linha Verde Interchange'
     },
-    note: 'Northern interchange uniting Linha Amarela (to Lumiar and Odivelas) and Linha Verde (to Telheiras and Alvalade), guarded by Eduardo Nery blue-and-white baroque tile sentinels.'
+    note: 'Elevated viaduct interchange uniting Linha Amarela (Odivelas) and Linha Verde (Telheiras), guarded by Eduardo Nery blue-and-white baroque tile sentinels.'
   },
   {
     id: 'metro-alameda',
-    name: 'Metro Alameda (Fonte Luminosa & Olaias)',
+    name: 'Metro Alameda',
     canonicalStopName: 'Alameda',
-    corridorStops: ['Alameda', 'Olaias', 'Bela Vista', 'Chelas'],
+    corridorStops: ['Alameda'],
     neighborhood: 'alameda-arroios',
-    zoneLabel: 'Alameda Dom Afonso Henriques, Fonte Luminosa & Olaias',
+    zoneLabel: 'Alameda Dom Afonso Henriques & Fonte Luminosa',
     districtId: 'district-alameda-arroios',
     order: 10,
     lines: ['Linha Verde', 'Linha Vermelha'],
     lineColors: ['#16a34a', '#dc2626'],
-    transitConnections: ['Linha Verde & Linha Vermelha Transfer Hub', 'Carris Buses 708 / 717 / 720 / 735', 'Instituto Superior Tecnico Esplanade'],
+    transitConnections: ['Linha Verde & Linha Vermelha Interchange', 'Carris Buses 706 / 708 / 717 / 720', 'Instituto Superior Tecnico'],
     undergroundTheme: {
       wallPrimary: '#f5e4dc',
       tileAccent: '#dc2626',
       platformFloor: '#dfd4ce',
       trim: '#15803d',
-      artLabel: 'COSTA PINHEIRO & TAVEIRA - NAVIGATORS & POLYCHROME ARCHES',
-      architect: 'Falcao e Cunha / Manuel Tainha & Tomas Taveira (1998)',
-      artist: 'Maria Keil, Costa Pinheiro & Alberto Carneiro',
+      artLabel: 'COSTA PINHEIRO & MARIA KEIL - NAVIGATORS AZULEJOS',
+      architect: 'Falcao e Cunha (1972) / Manuel Tainha (1998)',
+      artist: 'Maria Keil, Costa Pinheiro, Noronha da Costa & Alberto Carneiro',
       muralStyle: 'taveira-polychrome-arches',
       nextTrainDest: 'Aeroporto (via Oriente) / Telheiras',
       oppositeDest: 'Cais do Sodre / Sao Sebastiao',
       transferLine: 'Linha Verde & Linha Vermelha Interchange'
     },
-    note: 'Eastern junction where Linha Verde meets Linha Vermelha beneath the monumental 1948 Fonte Luminosa and beside the polychrome cathedral columns of Olaias.'
+    note: 'Eastern interchange where Linha Verde meets Linha Vermelha beneath the 1948 Fonte Luminosa and Instituto Superior Tecnico.'
   },
   {
-    id: 'metro-oriente-aeroporto',
-    name: 'Metro Oriente & Aeroporto (Parque das Nacoes)',
+    id: 'metro-oriente',
+    name: 'Metro Oriente',
     canonicalStopName: 'Oriente',
-    corridorStops: ['Oriente', 'Cabo Ruivo', 'Olivais', 'Moscavide', 'Encarnacao', 'Aeroporto'],
-    neighborhood: 'parque-das-nacoes',
-    zoneLabel: 'Parque das Nacoes, Gare do Oriente & Aeroporto Humberto Delgado',
+    corridorStops: ['Oriente'],
+    neighborhood: 'oriente-parque-nacoes',
+    zoneLabel: 'Gare do Oriente & Parque das Nacoes',
     districtId: 'district-oriente-parque-nacoes',
     order: 11,
     lines: ['Linha Vermelha'],
     lineColors: ['#dc2626'],
-    transitConnections: ['Gare do Oriente High-Speed Rail & Bus Hub', 'Telecabine Lisboa (Parque das Nacoes Gondola)', 'Aeroporto Humberto Delgado (Linha Vermelha Terminus)'],
+    transitConnections: ['Gare do Oriente High-Speed CP Rail & Bus Hub', 'Carris Buses 728 / 744', 'Telecabine Lisboa & Oceanario'],
     undergroundTheme: {
       wallPrimary: '#e8eef5',
       tileAccent: '#dc2626',
@@ -1277,11 +1267,132 @@ export const CITY_METRO_STATIONS = [
       muralStyle: 'calatrava-oceans-mural',
       nextTrainDest: 'Aeroporto (via Moscavide & Encarnacao)',
       oppositeDest: 'Sao Sebastiao (via Alameda & Saldanha)',
-      transferLine: 'Gare do Oriente Rail, Telecabine Lisboa & Aeroporto'
+      transferLine: 'Gare do Oriente Rail & Parque das Nacoes'
     },
-    note: 'Monumental Expo 98 intermodal station designed by Santiago Calatrava featuring ceramic ocean murals by 11 artists from all five continents, extending north to Aeroporto.'
+    note: 'Monumental Expo 98 Linha Vermelha station beneath Santiago Calatrava white gothic canopy at Gare do Oriente, three stops before Aeroporto.'
+  },
+  {
+    id: 'metro-aeroporto',
+    name: 'Metro Aeroporto',
+    canonicalStopName: 'Aeroporto',
+    corridorStops: ['Aeroporto'],
+    neighborhood: 'aeroporto-lisboa',
+    zoneLabel: 'Aeroporto Humberto Delgado (Terminal 1)',
+    districtId: 'district-aeroporto-lisboa',
+    order: 12,
+    lines: ['Linha Vermelha'],
+    lineColors: ['#dc2626'],
+    transitConnections: ['Aeroporto Humberto Delgado Terminal 1 Arrivals & Departures', 'Carris Bus 744 (Restauradores - Saldanha - Aeroporto - Oriente)', 'Carris Bus 722 / 783'],
+    undergroundTheme: {
+      wallPrimary: '#f1f5f9',
+      tileAccent: '#dc2626',
+      platformFloor: '#d8dee6',
+      trim: '#b91c1c',
+      artLabel: 'ANTONIO ANTUNES - CARICATURES OF LISBON CULTURAL ICONS',
+      architect: 'Leopoldo de Almeida Rosa (2012)',
+      artist: 'Antonio Antunes (Stone-Engraved Portraits of Amalia, Pessoa & Eca)',
+      muralStyle: 'calatrava-oceans-mural',
+      nextTrainDest: 'Terminus (Aeroporto Humberto Delgado)',
+      oppositeDest: 'Sao Sebastiao (via Encarnacao, Moscavide & Oriente)',
+      transferLine: 'Linha Vermelha Eastern Terminus - Lisbon Airport Terminal 1'
+    },
+    note: 'Official eastern terminus of Linha Vermelha opening directly beneath Terminal 1 of Aeroporto Humberto Delgado, lined with stone-engraved caricatures of Lisbon cultural legends by Antonio Antunes.'
   }
 ];
+
+// All 37 remaining official individual Metropolitano de Lisboa stations across Linha Azul, Amarela, Verde, and Vermelha
+// so every single one of the 50 physical stations (56 line stops) is individually modeled, walkable, and rideable!
+const ADDITIONAL_METRO_STATION_SPECS = [
+  // Linha Azul (13 additional stations: Reboleira -> Restauradores)
+  { id: 'metro-reboleira', stop: 'Reboleira', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Reboleira (Amadora) - Blue Line Western Terminus', x: -2140, y: -2596, architect: 'Leopoldo de Almeida Rosa (2016)', artist: 'Viuva Lamego Contemporary Panels', mural: 'transparencia-blue-glass', conn: ['CP Linha de Sintra & Azambuja Rail', 'Carris Metropolitana Amadora'], note: 'Western terminus of Linha Azul connecting Amadora directly with CP Linha de Sintra suburban rail.' },
+  { id: 'metro-amadora-este', stop: 'Amadora Este', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Falagueira / Amadora Este', x: -1860, y: -2596, architect: 'Leopoldo de Almeida Rosa (2004)', artist: 'Graca Morais', mural: 'transparencia-blue-glass', conn: ['Carris Metropolitana 1502 / 1508'], note: 'Linha Azul station in Amadora adorned with expressive ceramic murals by Graca Morais.' },
+  { id: 'metro-alfornelos', stop: 'Alfornelos', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Alfornelos (Amadora)', x: -1620, y: -2596, architect: 'Alberto Barradas (2004)', artist: 'Ana Vidigal', mural: 'keil-geometric-patterns', conn: ['Carris Metropolitana Alfornelos'], note: 'Linha Azul station featuring bright red-and-white playful tile motifs by Ana Vidigal.' },
+  { id: 'metro-pontinha', stop: 'Pontinha', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Pontinha & Estrada Militar', x: -1240, y: -2596, architect: 'Ana Nascimento (1997)', artist: 'Jacinto Luis', mural: 'keil-geometric-patterns', conn: ['Carris Bus 726 / 747', 'Pontinha Bus Terminal'], note: 'Linha Azul station on the northwest rim of Lisbon decorated with deep ultramarine mosaics by Jacinto Luis.' },
+  { id: 'metro-carnide', stop: 'Carnide', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Carnide Historic Village', x: -1960, y: -1916, architect: 'Jose de Almeida (1997)', artist: 'Jose de Guimaraes', mural: 'cargaleiro-polychrome', conn: ['Carris Bus 729 / 747'], note: 'Linha Azul station serving historic Carnide, celebrated for colorful modernist totems and ceramic reliefs by Jose de Guimaraes.' },
+  { id: 'metro-colegio-militar-luz', stop: 'Colegio Militar/Luz', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Benfica, Estadio da Luz & Colombo', x: -1720, y: -1916, architect: 'Antonio J. Mendes (1988)', artist: 'Manuel Cargaleiro', mural: 'cargaleiro-polychrome', conn: ['Estadio da Luz', 'Carris Buses 703 / 729 / 750 / 767'], note: 'Major Benfica Linha Azul hub next to Estadio da Luz decorated with blue-and-ochre geometric azulejos by Manuel Cargaleiro.' },
+  { id: 'metro-alto-dos-moinhos', stop: 'Alto dos Moinhos', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Alto dos Moinhos & Sao Domingos de Benfica', x: -2060, y: -1236, architect: 'Ezequiel Nicolau (1988)', artist: 'Julio Pomar', mural: 'pomar-zoo-fauna', conn: ['Carris Bus 754', 'Museu da Musica'], note: 'Linha Azul station famous for Julio Pomar large ceramic portraits of Fernando Pessoa, Camoes, Bocage, and Almada Negreiros.' },
+  { id: 'metro-laranjeiras', stop: 'Laranjeiras', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Laranjeiras & Estrada da Luz', x: -1820, y: -1236, architect: 'Antonio J. Mendes (1988)', artist: 'Rolando Sa Nogueira', mural: 'keil-geometric-patterns', conn: ['Carris Bus 726 / 768'], note: 'Linha Azul station decorated with warm terracotta orange-tree tile panels by Rolando Sa Nogueira.' },
+  { id: 'metro-jardim-zoologico', stop: 'Jardim Zoologico', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Sete Rios & Jardim Zoologico de Lisboa', x: -1300, y: -1236, architect: 'Falcao e Cunha (1959) / Benoliel de Carvalho (1995)', artist: 'Julio Pomar', mural: 'pomar-zoo-fauna', conn: ['CP Sete Rios Rail', 'Jardim Zoologico Teleferico', 'Carris Bus 746'], note: 'Original 1959 Linha Azul station at Sete Rios celebrated for lively ceramic animal murals by Julio Pomar right outside Lisbon Zoo.' },
+  { id: 'metro-praca-de-espanha', stop: 'Praca de Espanha', lineId: 'linha-azul', hood: 'sao-sebastiao-sete-rios', zone: 'Praca de Espanha & Parque Urbano', x: -1140, y: -1236, architect: 'Falcao e Cunha (1959)', artist: 'Maria Keil', mural: 'keil-geometric-patterns', conn: ['Fundacao Calouste Gulbenkian West', 'Carris Buses 716 / 726 / 746'], note: '1959 Linha Azul station beside Parque Urbano Goncalo Ribeiro Telles, adorned with Maria Keil classic geometric tilework.' },
+  { id: 'metro-parque', stop: 'Parque', lineId: 'linha-azul', hood: 'marques-pombal-avenida', zone: 'Parque Eduardo VII & Av. Antonio Augusto de Aguiar', x: 160, y: -1236, architect: 'Falcao e Cunha (1959) / Sanchez Jorge (1994)', artist: 'Francoise Schein & Federica Matta', mural: 'transparencia-blue-glass', conn: ['Parque Eduardo VII', 'Carris Bus 746'], note: 'Linha Azul station celebrated for its cobalt azulejo tribute to the Universal Declaration of Human Rights and Portuguese maritime exploration by Francoise Schein.' },
+  { id: 'metro-avenida', stop: 'Avenida', lineId: 'linha-azul', hood: 'rossio-restauradores', zone: 'Avenida da Liberdade & Teatro Tivoli', x: 320, y: -556, architect: 'Falcao e Cunha (1959) / Sanchez Jorge (1982)', artist: 'Rogerio Ribeiro', mural: 'keil-geometric-patterns', conn: ['Avenida da Liberdade', 'Carris Buses 709 / 711 / 732 / 736'], note: 'Original 1959 Linha Azul station midway along tree-lined Avenida da Liberdade featuring Rogerio Ribeiro rhythmic azulejo panels.' },
+  { id: 'metro-restauradores', stop: 'Restauradores', lineId: 'linha-azul', hood: 'rossio-restauradores', zone: 'Praca dos Restauradores & Elevador da Gloria', x: 140, y: -556, architect: 'Falcao e Cunha (1959) / Manuel Ponte (1994)', artist: 'Maria Keil, Luiz Ventura & Nadir Afonso', mural: 'cargaleiro-polychrome', conn: ['Elevador da Gloria (1885)', 'CP Rossio Station', 'Carris Bus 736 / 744'], note: 'Downtown Linha Azul station at Praca dos Restauradores connecting to Elevador da Gloria and featuring Brasil-Portugal murals by Luiz Ventura and Nadir Afonso.' },
+  // Linha Amarela (9 additional stations: Odivelas -> Picoas)
+  { id: 'metro-odivelas', stop: 'Odivelas', lineId: 'linha-amarela', hood: 'campo-grande-alvalade', zone: 'Odivelas - Yellow Line Northern Terminus', x: -360, y: -2596, architect: 'Paulo Brito da Silva (2004)', artist: 'Alvaro Lapa', mural: 'almada-marble-reliefs', conn: ['Carris Metropolitana Odivelas', 'Mosteiro de Sao Dinis'], note: 'Northern terminus of Linha Amarela featuring sculptural tile compositions by Alvaro Lapa.' },
+  { id: 'metro-senhor-roubado', stop: 'Senhor Roubado', lineId: 'linha-amarela', hood: 'campo-grande-alvalade', zone: 'Senhor Roubado Viaduct & Transport Hub', x: 160, y: -2596, architect: 'Manuel Bastos (2004)', artist: 'Pedro Croft', mural: 'almada-marble-reliefs', conn: ['Senhor Roubado Bus Interface'], note: 'Elevated Linha Amarela station north of Lumiar with minimalist geometric art interventions by Pedro Croft.' },
+  { id: 'metro-ameixoeira', stop: 'Ameixoeira', lineId: 'linha-amarela', hood: 'campo-grande-alvalade', zone: 'Ameixoeira & Santa Clara', x: 620, y: -2596, architect: 'Robert Mac Fadden (2004)', artist: 'Irene Buarque', mural: 'cargaleiro-polychrome', conn: ['Carris Bus 703 / 717 / 796'], note: 'Linha Amarela station featuring luminous stained-glass and ceramic compositions by Irene Buarque.' },
+  { id: 'metro-lumiar', stop: 'Lumiar', lineId: 'linha-amarela', hood: 'campo-grande-alvalade', zone: 'Lumiar & Alameda das Linhas de Torres', x: 1180, y: -2596, architect: 'Dinis Gomes (2004)', artist: 'Antonio Moutinho, Marta Lima & Susete Rebelo', mural: 'nery-convite-sentinels', conn: ['Carris Bus 717 / 736 / 796', 'Museu Nacional do Traje'], note: 'Northern Lisbon Linha Amarela station serving Lumiar and Quinta das Lilases with vibrant contemporary tile mosaics.' },
+  { id: 'metro-quinta-das-conchas', stop: 'Quinta das Conchas', lineId: 'linha-amarela', hood: 'campo-grande-alvalade', zone: 'Parque da Quinta das Conchas e dos Lilases', x: 1520, y: -2596, architect: 'Bartolomeu Costa Cabral (2004)', artist: 'Joana Rosa & Manuel Batista', mural: 'nery-convite-sentinels', conn: ['Parque da Quinta das Conchas', 'Carris Bus 717 / 736'], note: 'Linha Amarela station right beside Lisbon third-largest green park, decorated with sculptural reliefs by Joana Rosa and Manuel Batista.' },
+  { id: 'metro-cidade-universitaria', stop: 'Cidade Universitaria', lineId: 'linha-amarela', hood: 'campo-grande-alvalade', zone: 'Universidade de Lisboa & Reitoria Campus', x: 240, y: -1916, architect: 'Sanchez Jorge (1988)', artist: 'Maria Helena Vieira da Silva', mural: 'cargaleiro-polychrome', conn: ['Universidade de Lisboa Reitoria', 'Hospital de Santa Maria', 'Carris Bus 738 / 746'], note: 'Linha Amarela station directly serving the University of Lisbon campus, famous for monumental azulejo murals by Maria Helena Vieira da Silva.' },
+  { id: 'metro-entre-campos', stop: 'Entre Campos', lineId: 'linha-amarela', hood: 'saldanha-campo-pequeno', zone: 'Entre Campos & Avenida da Republica', x: 2910, y: -1236, architect: 'Falcao e Cunha (1959) / Sanchez Jorge (1993)', artist: 'Bartolomeu Cid dos Santos & Jose Santa Barbara', mural: 'almada-marble-reliefs', conn: ['CP Entre Campos Urban & Fertagus Rail', 'Carris Bus 736 / 744'], note: 'Major rail-metro hub along Avenida da Republica featuring engraved stone calligraphy panels by Bartolomeu Cid dos Santos.' },
+  { id: 'metro-campo-pequeno', stop: 'Campo Pequeno', lineId: 'linha-amarela', hood: 'saldanha-campo-pequeno', zone: 'Praca do Campo Pequeno (1892)', x: 2700, y: -1236, architect: 'Falcao e Cunha (1959) / Duarte Nuno Simoes (1994)', artist: 'Francisco Simoes & Maria Keil', mural: 'almada-marble-reliefs', conn: ['Praca do Campo Pequeno 1892', 'Carris Bus 736 / 744'], note: 'Linha Amarela station beneath the 1892 Neo-Moorish red-brick rotunda of Campo Pequeno, displaying limestone reliefs of Lisbon merchants by Francisco Simoes.' },
+  { id: 'metro-picoas', stop: 'Picoas', lineId: 'linha-amarela', hood: 'marques-pombal-avenida', zone: 'Picoas & Avenida Fontes Pereira de Melo', x: 340, y: -1236, architect: 'Falcao e Cunha (1959) / Dinis Gomes (1995)', artist: 'Martins Correia & Hector Guimard Access', mural: 'keil-geometric-patterns', conn: ['Guimard Paris Art Nouveau Metro Arch', 'Carris Bus 736 / 744'], note: 'Linha Amarela station crowned by an authentic Hector Guimard Art Nouveau Paris Metro cast-iron entrance gifted by RATP and stone friezes by Martins Correia.' },
+  // Linha Verde (8 additional stations: Telheiras -> Martim Moniz)
+  { id: 'metro-telheiras', stop: 'Telheiras', lineId: 'linha-verde', hood: 'campo-grande-alvalade', zone: 'Telheiras - Green Line Northern Terminus', x: -360, y: -1916, architect: 'Duarte Nuno Simoes (2002)', artist: 'Eduardo Batarda', mural: 'dacosta-wonderland-tiles', conn: ['Carris Bus 747 / 767'], note: 'Northern terminus of Linha Verde celebrated for witty graphic ceramic friezes by Eduardo Batarda.' },
+  { id: 'metro-alvalade', stop: 'Alvalade', lineId: 'linha-verde', hood: 'campo-grande-alvalade', zone: 'Praca de Alvalade & Avenida da Igreja', x: 1860, y: -1916, architect: 'Dinis Gomes (1972) / Sanchez Jorge (2006)', artist: 'Maria Keil & Bela Silva', mural: 'keil-geometric-patterns', conn: ['Avenida da Igreja', 'Carris Bus 717 / 735 / 767'], note: 'Beloved Linha Verde station in Alvalade pairing Maria Keil 1972 tiles with Bela Silva vibrant floral ceramic panels.' },
+  { id: 'metro-roma', stop: 'Roma', lineId: 'linha-verde', hood: 'campo-grande-alvalade', zone: 'Avenida de Roma', x: 2300, y: -1916, architect: 'Dinis Gomes (1972)', artist: 'Maria Keil & Lourdes de Castro', mural: 'keil-geometric-patterns', conn: ['CP Roma-Areeiro Rail', 'Avenida de Roma Shops'], note: 'Linha Verde station beneath lively Avenida de Roma adorned with shadow silhouettes by Lourdes de Castro and Maria Keil tilework.' },
+  { id: 'metro-areeiro', stop: 'Areeiro', lineId: 'linha-verde', hood: 'campo-grande-alvalade', zone: 'Praca Francisco Sa Carneiro (Areeiro)', x: 2600, y: -1916, architect: 'Dinis Gomes (1972) / Alberto Barradas (2013)', artist: 'Maria Keil & Julia Ventura', mural: 'keil-geometric-patterns', conn: ['CP Roma-Areeiro Rail', 'Carris Bus 705 / 708 / 722'], note: 'Linha Verde station serving Areeiro traffic circle with Maria Keil classic geometric tiles and contemporary renovations.' },
+  { id: 'metro-arroios', stop: 'Arroios', lineId: 'linha-verde', hood: 'alameda-arroios', zone: 'Praca do Chile & Avenida Almirante Reis', x: 3120, y: 122, architect: 'Dinis Gomes (1972) / Paulo Brito da Silva (2021)', artist: 'Maria Keil & Nikias Skapinakis', mural: 'keil-geometric-patterns', conn: ['Avenida Almirante Reis', 'Carris Bus 708 / 718'], note: 'Modernized Linha Verde station at Praca do Chile featuring restored Maria Keil tilework and Nikias Skapinakis ceramic panels.' },
+  { id: 'metro-anjos', stop: 'Anjos', lineId: 'linha-verde', hood: 'alameda-arroios', zone: 'Anjos & Avenida Almirante Reis', x: 2920, y: 122, architect: 'Dinis Gomes (1966)', artist: 'Maria Keil & Rogerio Ribeiro', mural: 'keil-geometric-patterns', conn: ['Avenida Almirante Reis', 'Carris Bus 708'], note: '1966 Linha Verde station in the bohemian Anjos quarter decorated with warm ochre-and-emerald geometric azulejos.' },
+  { id: 'metro-intendente', stop: 'Intendente', lineId: 'linha-verde', hood: 'alameda-arroios', zone: 'Largo do Intendente Pina Manique', x: 2660, y: 122, architect: 'Dinis Gomes (1966)', artist: 'Maria Keil', mural: 'keil-geometric-patterns', conn: ['Largo do Intendente', 'Fabrica Viuva Lamego Historic Facade', 'Eletrico 28E'], note: '1966 Linha Verde station right beside the historic Viuva Lamego azulejo factory at Largo do Intendente.' },
+  { id: 'metro-martim-moniz', stop: 'Martim Moniz', lineId: 'linha-verde', hood: 'rossio-restauradores', zone: 'Praca Martim Moniz & Mouraria', x: 2480, y: 122, architect: 'Dinis Gomes (1966) / Paulo Brito da Silva (1997)', artist: 'Graca Morais & Jose Joao Brito', mural: 'ferroviarios-railway-tiles', conn: ['Eletrico 28E Terminus', 'Eletrico 12E', 'Mouraria Historic Quarter'], note: 'Linha Verde station beneath Praca Martim Moniz and Castelo de Sao Jorge, decorated with medieval Lisbon siege ceramic reliefs.' },
+  // Linha Vermelha (7 additional stations: Olaias -> Encarnacao)
+  { id: 'metro-olaias', stop: 'Olaias', lineId: 'linha-vermelha', hood: 'alameda-arroios', zone: 'Olaias & Parque da Bela Vista South', x: 2900, y: -556, architect: 'Tomas Taveira (1998)', artist: 'Pedro Cabrita Reis, Graca Pereira Coutinho, Pedro Calapez & Rui Sanchez', mural: 'taveira-polychrome-arches', conn: ['Carris Bus 756 / 793'], note: 'World-famous 1998 Linha Vermelha cathedral station designed by Tomas Taveira with soaring polychrome steel columns and stained glass.' },
+  { id: 'metro-bela-vista', stop: 'Bela Vista', lineId: 'linha-vermelha', hood: 'oriente-parque-nacoes', zone: 'Parque da Bela Vista & Chelas', x: 3080, y: -1236, architect: 'Paulo Brito da Silva (1998)', artist: 'Querubim Lapa', mural: 'taveira-polychrome-arches', conn: ['Parque da Bela Vista', 'Carris Bus 755 / 793'], note: 'Linha Vermelha station beside Lisbon vast Parque da Bela Vista, celebrated for expressive sculptural ceramic walls by Querubim Lapa.' },
+  { id: 'metro-chelas', stop: 'Chelas', lineId: 'linha-vermelha', hood: 'oriente-parque-nacoes', zone: 'Chelas & Instituto Superior de Engenharia', x: 3480, y: -1236, architect: 'Ana Nascimento (1998)', artist: 'Jorge Martins', mural: 'taveira-polychrome-arches', conn: ['ISEL Campus', 'Carris Bus 718 / 755 / 759'], note: 'Linha Vermelha station in Chelas adorned with rhythmic abstract geometric stone and ceramic panels by Jorge Martins.' },
+  { id: 'metro-olivais', stop: 'Olivais', lineId: 'linha-vermelha', hood: 'oriente-parque-nacoes', zone: 'Olivais Sul & Jardim Vale do Silencio', x: 3680, y: -1236, architect: 'Rui Cardim (1998)', artist: 'Nuno de Siqueira & Cecilia de Sousa', mural: 'calatrava-oceans-mural', conn: ['Carris Bus 708 / 759 / 779'], note: 'Deep Linha Vermelha station serving the modernist garden neighborhood of Olivais Sul, featuring stylized olive-tree ceramic murals.' },
+  { id: 'metro-cabo-ruivo', stop: 'Cabo Ruivo', lineId: 'linha-vermelha', hood: 'oriente-parque-nacoes', zone: 'Cabo Ruivo & Parque das Nacoes Sul', x: 3060, y: -556, architect: 'Duarte Nuno Simoes (1998)', artist: 'David de Almeida', mural: 'calatrava-oceans-mural', conn: ['Carris Bus 728 / 750 / 759', 'Parque das Nacoes South'], note: 'Linha Vermelha station just south of Gare do Oriente decorated with prehistoric rock-art inspired granite engravings by David de Almeida.' },
+  { id: 'metro-moscavide', stop: 'Moscavide', lineId: 'linha-vermelha', hood: 'oriente-parque-nacoes', zone: 'Moscavide & Parque das Nacoes Norte', x: 3760, y: -556, architect: 'Manuel Bastos (2012)', artist: 'Manuel Baptista', mural: 'calatrava-oceans-mural', conn: ['CP Moscavide', 'Carris Bus 728 / 744 / 759'], note: 'Linha Vermelha station one stop north of Oriente toward Lisbon Airport, featuring luminous azure and scarlet spatial panels by Manuel Baptista.' },
+  { id: 'metro-encarnacao', stop: 'Encarnacao', lineId: 'linha-vermelha', hood: 'aeroporto-lisboa', zone: 'Bairro da Encarnacao (Last Stop Before Airport)', x: 3850, y: -1236, architect: 'Alberto Barradas (2012)', artist: 'Eduardo Nery', mural: 'nery-convite-sentinels', conn: ['Bairro da Encarnacao', 'Carris Bus 705 / 722 / 779'], note: 'Penultimate Linha Vermelha station immediately before Aeroporto Humberto Delgado, lined with crisp kinetic ceramic compositions by Eduardo Nery.' }
+];
+
+const BUILT_ADDITIONAL_STATIONS = ADDITIONAL_METRO_STATION_SPECS.map((spec, idx) => {
+  const line = METRO_NETWORK_LINES.find((l) => l.id === spec.lineId) || METRO_NETWORK_LINES[0];
+  const stopIdx = line.stations.indexOf(spec.stop);
+  const nextStop = stopIdx >= 0 && stopIdx < line.stations.length - 1 ? line.stations[stopIdx + 1] : line.termini[1];
+  const prevStop = stopIdx > 0 ? line.stations[stopIdx - 1] : line.termini[0];
+  const wallBg =
+    spec.lineId === 'linha-azul' ? '#e5ecf6'
+      : spec.lineId === 'linha-amarela' ? '#f5eed8'
+        : spec.lineId === 'linha-verde' ? '#e2efe6'
+          : '#f5e6e4';
+  const spawnY = spec.y === 122 ? 220 : spec.y + 102;
+  return {
+    id: spec.id,
+    name: `Metro ${spec.stop}`,
+    canonicalStopName: spec.stop,
+    corridorStops: [spec.stop],
+    neighborhood: spec.hood,
+    zoneLabel: spec.zone,
+    order: 13 + idx,
+    lines: [line.name],
+    lineColors: [line.color],
+    transitConnections: spec.conn,
+    x: spec.x,
+    y: spec.y,
+    w: 68,
+    h: 72,
+    doorX: spec.x + 34,
+    doorY: spec.y + 72,
+    spawnOutside: { x: spec.x + 34, y: spawnY },
+    undergroundTheme: {
+      wallPrimary: wallBg,
+      tileAccent: line.color,
+      platformFloor: '#d6dce2',
+      trim: line.darkColor,
+      artLabel: `${spec.stop.toUpperCase()} - ${spec.artist.toUpperCase()}`,
+      architect: spec.architect,
+      artist: spec.artist,
+      muralStyle: spec.mural,
+      nextTrainDest: `${line.termini[1]} (next: ${nextStop})`,
+      oppositeDest: `${line.termini[0]} (prev: ${prevStop})`,
+      transferLine: line.name
+    },
+    note: spec.note
+  };
+});
+
+export const CITY_METRO_STATIONS = [...FEATURED_CITY_METRO_STATIONS, ...BUILT_ADDITIONAL_STATIONS];
 
 export const ALL_METRO_STATIONS = [...METRO_STATIONS, ...CITY_METRO_STATIONS];
 
@@ -1657,7 +1768,7 @@ export const LISBOA_CITY_DISTRICTS = [
   },
   {
     id: 'district-saldanha-campo-pequeno',
-    stationId: 'metro-saldanha-campo-pequeno',
+    stationId: 'metro-saldanha',
     name: 'Saldanha, Avenidas Novas & Campo Pequeno (1892)',
     shortName: 'Saldanha / Campo Pequeno',
     zoneBadge: '[LINHA AMARELA + LINHA VERMELHA]',
@@ -1749,7 +1860,7 @@ export const LISBOA_CITY_DISTRICTS = [
   },
   {
     id: 'district-sao-sebastiao-sete-rios',
-    stationId: 'metro-sao-sebastiao-zoologico',
+    stationId: 'metro-sao-sebastiao',
     name: 'Sao Sebastiao, Gulbenkian Gardens, Sete Rios Zoo & Reboleira Corridor',
     shortName: 'Sao Sebastiao / Zoo',
     zoneBadge: '[LINHA AZUL + LINHA VERMELHA]',
@@ -1841,7 +1952,7 @@ export const LISBOA_CITY_DISTRICTS = [
   },
   {
     id: 'district-campo-grande-alvalade',
-    stationId: 'metro-campo-grande-alvalade',
+    stationId: 'metro-campo-grande',
     name: 'Campo Grande, Cidade Universitaria, Alvalade & Odivelas/Telheiras',
     shortName: 'Campo Grande / Alvalade',
     zoneBadge: '[LINHA AMARELA + LINHA VERDE]',
@@ -2025,19 +2136,19 @@ export const LISBOA_CITY_DISTRICTS = [
   },
   {
     id: 'district-oriente-parque-nacoes',
-    stationId: 'metro-oriente-aeroporto',
-    name: 'Parque das Nacoes, Gare do Oriente, Oceanario & Aeroporto',
+    stationId: 'metro-oriente',
+    name: 'Parque das Nacoes, Gare do Oriente & Oceanario',
     shortName: 'Oriente / Parque das Nacoes',
     zoneBadge: '[LINHA VERMELHA + TELECABINE]',
     accentColor: '#dc2626',
     skylineStyle: 'oriente-calatrava',
-    transitSummary: 'Linha Vermelha (Oriente to Aeroporto) | Gare do Oriente Rail | Telecabine Lisboa',
-    description: 'Experience modern riverfront Lisboa at Parque das Nacoes: walk beneath Santiago Calatrava soaring white steel gothic tree-arches at Gare do Oriente, ride the aerial Telecabine Lisboa along the Tagus beside Oceanario de Lisboa, and connect north to Aeroporto Humberto Delgado.',
-    plazaNote: 'Dine along the Marina Parque das Nacoes waterfront, ride the Telecabine Lisboa river gondola past Oceanario and Ponte Vasco da Gama, or browse Oceanario keepsakes.',
+    transitSummary: 'Metro Oriente (Linha Vermelha) | Gare do Oriente Rail | Telecabine Lisboa | Bus 728 & 744',
+    description: 'Experience modern riverfront Lisboa at Parque das Nacoes: walk beneath Santiago Calatrava soaring white steel gothic tree-arches at Gare do Oriente and visit Oceanario de Lisboa along the Tagus.',
+    plazaNote: 'Dine along the Marina Parque das Nacoes waterfront, admire Gare do Oriente and Ponte Vasco da Gama, or continue north along Linha Vermelha through Moscavide and Encarnacao to Aeroporto.',
     phrase: {
-      pt: 'A Linha Vermelha liga a Gare do Oriente e o Parque das Nacoes ao Aeroporto de Lisboa.',
-      pronunciation: 'Ah Lee-nyah Vehr-meh-lyah lee-gah ah Gah-reh doo Oh-ree-eyn-teh ee oo Pahr-keh dash Nah-soysh ow Ah-eh-roh-pohr-too deh Leesh-boh-ah.',
-      en: 'The Red Line connects Gare do Oriente and Parque das Nacoes to Lisbon Airport.'
+      pt: 'A estacao do Oriente fica no Parque das Nacoes, tres paragens antes do Aeroporto.',
+      pronunciation: 'Ah ehsh-tah-sow doo Oh-ree-eyn-teh fee-kah noo Pahr-keh dash Nah-soysh, trehsh pah-rah-zheynsh ahn-tehsh doo Ah-eh-roh-pohr-too.',
+      en: 'Oriente station is in Parque das Nacoes, three stops before the Airport.'
     },
     townSpots: [
       {
@@ -2081,7 +2192,7 @@ export const LISBOA_CITY_DISTRICTS = [
         host: 'Station Master Duarte',
         x: 380,
         y: 192,
-        note: 'Santiago Calatrava soaring 1998 steel-and-glass tree canopy uniting Linha Vermelha (to Aeroporto), high-speed trains, Oceanario de Lisboa, and the riverfront Telecabine Lisboa gondola overlooking the 12.3 km Ponte Vasco da Gama. Free rest (+25 Energy).'
+        note: 'Santiago Calatrava soaring 1998 steel-and-glass tree canopy uniting Metro Oriente (Linha Vermelha), high-speed trains, Oceanario de Lisboa, and the riverfront Telecabine Lisboa gondola overlooking Ponte Vasco da Gama. Free rest (+25 Energy).'
       },
       {
         id: 'oriente-oceanario-loja',
@@ -2114,21 +2225,114 @@ export const LISBOA_CITY_DISTRICTS = [
         ]
       }
     ]
+  },
+  {
+    id: 'district-aeroporto-lisboa',
+    stationId: 'metro-aeroporto',
+    name: 'Aeroporto Humberto Delgado (Terminal 1)',
+    shortName: 'Aeroporto de Lisboa',
+    zoneBadge: '[LINHA VERMELHA TERMINUS]',
+    accentColor: '#b91c1c',
+    skylineStyle: 'aeroporto-terminal',
+    transitSummary: 'Metro Aeroporto (Linha Vermelha Terminus) | Carris Bus 744 / 722 / 783 | Terminal 1 Departures',
+    description: 'Arrive at Aeroporto Humberto Delgado (LIS), the true eastern terminus of Metropolitano de Lisboa Linha Vermelha (three stops past Oriente via Moscavide and Encarnacao) and directly served by Carris Bus 744.',
+    plazaNote: 'Grab a last warm Lisbon pastry or juice at Terminal 1, admire the aviation departures canopy, or pick up Portuguese cork and azulejo keepsakes before boarding Metro Aeroporto or Bus 744.',
+    phrase: {
+      pt: 'A estacao do Aeroporto e a ultima paragem da Linha Vermelha.',
+      pronunciation: 'Ah ehsh-tah-sow doo Ah-eh-roh-pohr-too eh ah ool-tee-mah pah-rah-zheym dah Lee-nyah Vehr-meh-lyah.',
+      en: 'Aeroporto station is the last stop on the Red Line.'
+    },
+    townSpots: [
+      {
+        id: 'aeroporto-pastelaria-t1',
+        kind: 'eatery',
+        name: 'Pastelaria Portuguesa - Terminal 1',
+        badge: '[AIRPORT CAFE]',
+        host: 'Clara S.',
+        x: 155,
+        y: 192,
+        note: 'Bright departures-hall cafe welcoming arriving and departing travelers with warm toasted Alentejo sandwiches on plates and chilled passionfruit juice in tall glasses.',
+        items: [
+          {
+            id: 'item-aeroporto-tosta-plate',
+            name: 'Tosta Mista em Pao Alentejano',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 5.8,
+            fullnessDelta: 36,
+            energyDelta: 22,
+            description: 'Crisp grilled cheese and smoked ham on rustic Alentejo sourdough bread served on a porcelain plate.'
+          },
+          {
+            id: 'item-aeroporto-maracuja-glass',
+            name: 'Sumo Natural de Maracuja dos Acores',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'limonada',
+            costEur: 3.6,
+            fullnessDelta: 14,
+            energyDelta: 20,
+            description: 'Freshly pressed Azorean passionfruit juice poured cold in a tall glass.'
+          }
+        ]
+      },
+      {
+        id: 'aeroporto-terminal1-landmark',
+        kind: 'landmark',
+        name: 'Aeroporto Humberto Delgado - Terminal 1 (LIS)',
+        badge: '[AIRPORT TERMINUS]',
+        host: 'Coordinator Henrique',
+        x: 380,
+        y: 192,
+        note: 'Lisbon international aviation gateway opened in 1942 and connected directly to Metro Linha Vermelha in 2012 (final terminus stop after Encarnacao and Moscavide). Free lounge rest (+25 Energy).'
+      },
+      {
+        id: 'aeroporto-dutyfree-loja',
+        kind: 'shop',
+        name: 'Loja de Portugal & Cortica - Terminal 1',
+        badge: '[AIRPORT SHOP]',
+        host: 'Filipa',
+        x: 605,
+        y: 192,
+        note: 'Terminal 1 Portuguese crafts boutique offering Alentejo cork travel journals and Antonio Antunes station caricature postcards.',
+        items: [
+          {
+            id: 'item-aeroporto-cork-tag',
+            name: 'Alentejo Cork Luggage Tag & Passport Case',
+            kind: 'souvenir',
+            costEur: 12.0,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Hand-stitched natural Portuguese cork travel wallet stamped with the Lisbon skyline.'
+          },
+          {
+            id: 'item-aeroporto-caricature-set',
+            name: 'Metro Aeroporto Lisbon Icons Postcard Pack',
+            kind: 'souvenir',
+            costEur: 7.5,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Collector postcard set celebrating Antonio Antunes stone-carved cultural portraits at Metro Aeroporto.'
+          }
+        ]
+      }
+    ]
   }
 ];
 
-// Geographic unified open-world layout coordinates for all 9 Greater Lisboa Metro entrances & 27 landmarks/eateries/shops!
-// Every district sits directly on the continuous Lisboa street grid with zero portals and zero teleporting.
+// Geographic unified open-world layout coordinates for featured Greater Lisboa Metro entrances & landmarks!
+// Every single one of the 50 official Metropolitano de Lisboa stations sits on the continuous street grid with zero portals.
 export const CITY_METRO_WORLD_COORDS = {
   'metro-cais-sodre': { x: -360, y: 782, w: 68, h: 66, doorX: -326, doorY: 848, spawnOutside: { x: -326, y: 878 } },
   'metro-rato': { x: -440, y: -556, w: 68, h: 72, doorX: -406, doorY: -484, spawnOutside: { x: -406, y: -454 } },
   'metro-rossio': { x: 1060, y: -556, w: 68, h: 72, doorX: 1094, doorY: -484, spawnOutside: { x: 1094, y: -454 } },
   'metro-marques-pombal': { x: 1060, y: -1236, w: 68, h: 72, doorX: 1094, doorY: -1164, spawnOutside: { x: 1094, y: -1134 } },
-  'metro-saldanha-campo-pequeno': { x: 1860, y: -1236, w: 68, h: 72, doorX: 1894, doorY: -1164, spawnOutside: { x: 1894, y: -1134 } },
-  'metro-sao-sebastiao-zoologico': { x: -440, y: -1236, w: 68, h: 72, doorX: -406, doorY: -1164, spawnOutside: { x: -406, y: -1134 } },
-  'metro-campo-grande-alvalade': { x: 1060, y: -1916, w: 68, h: 72, doorX: 1094, doorY: -1844, spawnOutside: { x: 1094, y: -1814 } },
+  'metro-saldanha': { x: 1860, y: -1236, w: 68, h: 72, doorX: 1894, doorY: -1164, spawnOutside: { x: 1894, y: -1134 } },
+  'metro-sao-sebastiao': { x: -440, y: -1236, w: 68, h: 72, doorX: -406, doorY: -1164, spawnOutside: { x: -406, y: -1134 } },
+  'metro-campo-grande': { x: 1060, y: -1916, w: 68, h: 72, doorX: 1094, doorY: -1844, spawnOutside: { x: 1094, y: -1814 } },
   'metro-alameda': { x: 1860, y: -556, w: 68, h: 72, doorX: 1894, doorY: -484, spawnOutside: { x: 1894, y: -454 } },
-  'metro-oriente-aeroporto': { x: 3060, y: -556, w: 68, h: 72, doorX: 3094, doorY: -484, spawnOutside: { x: 3094, y: -454 } }
+  'metro-oriente': { x: 3200, y: -556, w: 68, h: 72, doorX: 3234, doorY: -484, spawnOutside: { x: 3234, y: -454 } },
+  'metro-aeroporto': { x: 3450, y: -1916, w: 68, h: 72, doorX: 3484, doorY: -1844, spawnOutside: { x: 3484, y: -1814 } }
 };
 
 for (const st of CITY_METRO_STATIONS) {
@@ -2174,7 +2378,11 @@ export const CITY_DISTRICT_SPOT_LAYOUT = {
   // Oriente, Parque das Nacoes & Oceanario (East Riverfront & Gare do Oriente)
   'oriente-marina-restaurante': { x: 2920, y: 710, w: 196, h: 140, spawnOutside: { x: 3018, y: 878 } },
   'oriente-calatrava-telecabine': { x: 3480, y: -624, w: 220, h: 140, spawnOutside: { x: 3590, y: -454 } },
-  'oriente-oceanario-loja': { x: 3500, y: 710, w: 196, h: 140, spawnOutside: { x: 3598, y: 878 } }
+  'oriente-oceanario-loja': { x: 3500, y: 710, w: 196, h: 140, spawnOutside: { x: 3598, y: 878 } },
+  // Aeroporto Humberto Delgado - Terminal 1 (Row 5 Northeast, Linha Vermelha Terminus)
+  'aeroporto-pastelaria-t1': { x: 2940, y: -1984, w: 196, h: 140, spawnOutside: { x: 3038, y: -1814 } },
+  'aeroporto-terminal1-landmark': { x: 3550, y: -1984, w: 180, h: 140, spawnOutside: { x: 3640, y: -1814 } },
+  'aeroporto-dutyfree-loja': { x: 3760, y: -1984, w: 170, h: 140, spawnOutside: { x: 3845, y: -1814 } }
 };
 
 export const CITY_DISTRICT_SPOTS = [];
@@ -2733,8 +2941,9 @@ export const LISBOA_WALKING_NETWORK = {
 // Geographic schematic coordinates (0..100%) & continuous open-world anchors for the interactive Full-City Lisboa Map
 export const LISBOA_CITY_MAP_NODES = [
   { id: 'district-sao-sebastiao-sete-rios', shortName: 'Sao Sebastiao & Zoo', x: 24, y: 18, worldX: -406, worldY: -1134, color: '#2563eb' },
-  { id: 'district-campo-grande-alvalade', shortName: 'Campo Grande', x: 54, y: 14, worldX: 1094, worldY: -1814, color: '#16a34a' },
-  { id: 'district-oriente-parque-nacoes', shortName: 'Oriente & Expo', x: 88, y: 26, worldX: 3094, worldY: -454, color: '#dc2626' },
+  { id: 'district-campo-grande-alvalade', shortName: 'Campo Grande', x: 52, y: 14, worldX: 1094, worldY: -1814, color: '#16a34a' },
+  { id: 'district-aeroporto-lisboa', shortName: 'Aeroporto', x: 76, y: 12, worldX: 3484, worldY: -1814, color: '#b91c1c' },
+  { id: 'district-oriente-parque-nacoes', shortName: 'Oriente & Expo', x: 88, y: 28, worldX: 3234, worldY: -454, color: '#dc2626' },
   { id: 'district-rato-principe-real', shortName: 'Rato & Pr. Real', x: 22, y: 50, worldX: -406, worldY: -454, color: '#eab308' },
   { id: 'district-marques-pombal-avenida', shortName: 'Marques de Pombal', x: 38, y: 38, worldX: 1094, worldY: -1134, color: '#eab308' },
   { id: 'district-saldanha-campo-pequeno', shortName: 'Saldanha', x: 54, y: 34, worldX: 1894, worldY: -1134, color: '#dc2626' },
@@ -4577,6 +4786,9 @@ export const TRANSIT_LINES = [
       { x: 2090, y: -1064, stopId: 'stop-bus744-saldanha', stopName: 'Saldanha / Campo Pequeno (744)', platformY: -1134 },
       { x: 2560, y: -1064, stopId: 'stop-bus744-avenidas', stopName: 'Avenidas Novas / Olaias Norte (744)', platformY: -1134 },
       { x: 3360, y: -1064 },
+      { x: 3360, y: -1744 },
+      { x: 3484, y: -1744, stopId: 'stop-bus744-aeroporto', stopName: 'Aeroporto Humberto Delgado (744)', platformY: -1814 },
+      { x: 3360, y: -1744 },
       { x: 3360, y: -384 },
       { x: 3580, y: -384, stopId: 'stop-bus744-oriente', stopName: 'Gare do Oriente / Calatrava (744)', platformY: -454 }
     ]
@@ -5279,17 +5491,22 @@ export function getAllMemoryCatalog() {
 
 export function getNeighborhoodAt(x, y = 500) {
   const byId = (id) => ALL_LISBOA_NEIGHBORHOODS.find((n) => n.id === id) || NEIGHBORHOODS[1];
-  if (y < -1440) return byId('campo-grande-alvalade');
+  if (y < -1440) {
+    if (x >= 2860) return byId('aeroporto-lisboa');
+    if (x < -900) return byId('sao-sebastiao-sete-rios');
+    return byId('campo-grande-alvalade');
+  }
   if (y < -760) {
     if (x < 320) return byId('sao-sebastiao-sete-rios');
     if (x < 1680) return byId('marques-pombal-avenida');
-    if (x < 2820) return byId('saldanha-campo-pequeno');
+    if (x < 2960) return byId('saldanha-campo-pequeno');
+    if (x >= 3800) return byId('aeroporto-lisboa');
     return byId('oriente-parque-nacoes');
   }
   if (y < -60) {
-    if (x < 320) return byId('rato-principe-real');
+    if (x < 80) return byId('rato-principe-real');
     if (x < 1680) return byId('rossio-restauradores');
-    if (x < 2820) return byId('alameda-arroios');
+    if (x < 2980) return byId('alameda-arroios');
     return byId('oriente-parque-nacoes');
   }
   if (x < 0) return byId('cais-sodre-belem');

@@ -3776,6 +3776,18 @@ export class LisboaStreetView3DRenderer {
           }
         }
         this.drawPoly3D(ctx, cam, [[x0 + 8, y1 - 36, gz + 124], [x1 - 8, y1 - 36, gz + 124], [x1 - 8, y1 - 10, gz + 128], [x0 + 8, y1 - 10, gz + 128]], 'rgba(224, 242, 254, 0.72)', '#0284c7', 1.8);
+      } else if (style === 'aeroporto-terminal') {
+        // Aeroporto Humberto Delgado (LIS) Terminal 1 modern glass hall, crimson aviation canopy & ATC tower
+        drawRectBox(x0 + 4, y0 + 14, x1 - 4, y1, gz, gz + 76, '#f1f5f9', '#cbd5e1', '#94a3b8', highlighted ? '#facc15' : '#334155');
+        drawRectBox(x0, y0 + 8, x1, y1 + 4, gz + 76, gz + 86, '#dc2626', '#991b1b', '#b91c1c', '#7f1d1d');
+        // Air-Traffic Control Tower rising behind Terminal 1
+        drawRectBox(cx - 14, y0 + 14, cx + 14, y0 + 42, gz + 86, gz + 136, '#e2e8f0', '#cbd5e1', '#f8fafc', '#475569');
+        drawRectBox(cx - 22, y0 + 10, cx + 22, y0 + 46, gz + 136, gz + 154, '#0ea5e9', '#0369a1', '#f8fafc', '#0f172a');
+        if (cam.camY > y1) {
+          for (const ox of [-52, 0, 52]) {
+            this.drawPoly3D(ctx, cam, [[cx + ox - 18, y1 + 0.5, gz + 8], [cx + ox + 18, y1 + 0.5, gz + 8], [cx + ox + 18, y1 + 0.5, gz + 64], [cx + ox - 18, y1 + 0.5, gz + 64]], isEvening ? '#fde68a' : '#0ea5e9', '#1e293b', 1.3);
+          }
+        }
       } else {
         // Classical Lisbon limestone landmark (Rossio, Mae d'Agua Aqueduct, Gulbenkian, Reitoria Universidade)
         drawRectBox(x0 + 6, y0 + 10, x1 - 6, y1, gz, gz + 98, '#efe8da', '#d8cfc0', accent, highlighted ? '#facc15' : '#475569');
@@ -5680,21 +5692,24 @@ export class LisboaStreetView3DRenderer {
         g = buf[ti + 1];
         b = buf[ti + 2];
       } else {
-        const inXSpan = wx >= -1520 && wx <= 3920;
+        const inXSpan = wx >= -2320 && wx <= 4320;
+        const inNorthernRoad = inXSpan && wy >= -2462 && wy <= -2388;
         const inCampoRoad = inXSpan && wy >= -1782 && wy <= -1708;
         const inMarquesRoad = inXSpan && wy >= -1102 && wy <= -1028;
         const inRossioRoad = inXSpan && wy >= -422 && wy <= -348;
         const inNorthRoad = inXSpan && wy >= 248 && wy <= 322;
         const inTramRoad = inXSpan && wy >= 577 && wy <= 643;
         const inSouthRoad = inXSpan && wy >= 893 && wy <= 972;
-        const inHorizRoad = inCampoRoad || inMarquesRoad || inRossioRoad || inNorthRoad || inTramRoad || inSouthRoad;
+        const inHorizRoad = inNorthernRoad || inCampoRoad || inMarquesRoad || inRossioRoad || inNorthRoad || inTramRoad || inSouthRoad;
         const inVertRoad =
-          (wy >= -1782 && wy <= 972 && (
+          (wy >= -2462 && wy <= 972 && (
+            (wx >= -2302 && wx <= -2218) ||
             (wx >= -1502 && wx <= -1418) ||
             (wx >= -602 && wx <= -518) ||
             (wx >= 892 && wx <= 978 && wy <= 322) ||
             (wx >= 1692 && wx <= 1798 && wy <= 322) ||
-            (wx >= 3318 && wx <= 3402)
+            (wx >= 3318 && wx <= 3402) ||
+            (wx >= 4110 && wx <= 4195)
           )) ||
           (wy >= -422 && wy <= 972 && (
             (wx >= 475 && wx <= 550) ||
@@ -5710,6 +5725,7 @@ export class LisboaStreetView3DRenderer {
         if (inHorizRoad || inVertRoad) {
           const onHorizCurb =
             !inVertRoad && (
+              (inNorthernRoad && (wy < -2459 || wy > -2391)) ||
               (inCampoRoad && (wy < -1779 || wy > -1711)) ||
               (inMarquesRoad && (wy < -1099 || wy > -1031)) ||
               (inRossioRoad && (wy < -419 || wy > -351)) ||
@@ -5719,12 +5735,14 @@ export class LisboaStreetView3DRenderer {
             );
           const onVertCurb =
             inVertRoad && !inHorizRoad && (
+              (wx >= -2302 && wx <= -2299) || (wx >= -2221 && wx <= -2218) ||
               (wx >= -602 && wx <= -599) || (wx >= -521 && wx <= -518) ||
               (wx >= 475 && wx <= 478) || (wx >= 547 && wx <= 550) ||
               (wx >= 892 && wx <= 895) || (wx >= 975 && wx <= 978) ||
               (wx >= 1344 && wx <= 1347) || (wx >= 1419 && wx <= 1422) ||
               (wx >= 1685 && wx <= 1688) || (wx >= 1795 && wx <= 1798) ||
-              (wx >= 3318 && wx <= 3321) || (wx >= 3399 && wx <= 3402)
+              (wx >= 3318 && wx <= 3321) || (wx >= 3399 && wx <= 3402) ||
+              (wx >= 4110 && wx <= 4113) || (wx >= 4192 && wx <= 4195)
             );
           if (onHorizCurb || onVertCurb) {
             const joint = (((wx + wy) % 24) + 24) % 24 < 1.3;
@@ -5740,6 +5758,7 @@ export class LisboaStreetView3DRenderer {
             b = tLeque[ti + 2];
 
             if (
+              (wy >= -2456 && wy <= -2394) ||
               (wy >= -1776 && wy <= -1714) ||
               (wy >= -1096 && wy <= -1034) ||
               (wy >= -416 && wy <= -354) ||
