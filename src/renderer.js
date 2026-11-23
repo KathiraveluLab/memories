@@ -6227,9 +6227,9 @@ export class LisboaCanvasRenderer {
       route && Array.isArray(route.stationPath) && route.stationPath.length >= 2
         ? route.stationPath
         : [
-            originStation.canonicalStopName || originStation.name.replace('Metro ', ''),
-            ...(destStation ? [destStation.canonicalStopName || destStation.name.replace('Metro ', '')] : [])
-          ];
+          originStation.canonicalStopName || originStation.name.replace('Metro ', ''),
+          ...(destStation ? [destStation.canonicalStopName || destStation.name.replace('Metro ', '')] : [])
+        ];
 
     if (stopsList.length >= 2) {
       const tIdx = route?.transferStation ? stopsList.indexOf(route.transferStation) : -1;

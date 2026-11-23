@@ -1206,12 +1206,11 @@ function renderActiveContextPanel(state) {
           </div>
           <button type="button" class="btn btn-secondary btn-sm" data-sj-exit="true" ${isMoving ? 'disabled' : ''}>Exit to Street</button>
         </div>
-        <p class="helper-text">${
-          sj.phase === 'ascending'
-            ? 'Riding the 1902 mahogany-and-brass cabin vertically through the Neo-Gothic iron shaft toward the 45-meter open-air miradouro...'
-            : sj.phase === 'descending'
-              ? 'Descending smoothly back down to street level inside Elevador de Santa Justa...'
-              : escapeHtml(SANTA_JUSTA_LIFT.note)
+        <p class="helper-text">${sj.phase === 'ascending'
+          ? 'Riding the 1902 mahogany-and-brass cabin vertically through the Neo-Gothic iron shaft toward the 45-meter open-air miradouro...'
+          : sj.phase === 'descending'
+            ? 'Descending smoothly back down to street level inside Elevador de Santa Justa...'
+            : escapeHtml(SANTA_JUSTA_LIFT.note)
         }</p>
         <div class="phrase-callout">
           <span class="pt">${escapeHtml(SANTA_JUSTA_LIFT.phrase.pt)}</span>
@@ -1829,8 +1828,8 @@ function renderLists(state) {
       <div class="city-map-legend">
         <span><strong>Here:</strong> ${escapeHtml(getLisboaZoneShortName(curZone))}</span>
         ${curZone !== 'overworld'
-          ? `<button type="button" class="btn btn-sm" data-walk-city-district="overworld" ${state.ridingVehicleId ? 'disabled' : ''}>Walk to Historic Core</button>`
-          : '<span>Click any district to walk continuously along Lisboa streets</span>'}
+      ? `<button type="button" class="btn btn-sm" data-walk-city-district="overworld" ${state.ridingVehicleId ? 'disabled' : ''}>Walk to Historic Core</button>`
+      : '<span>Click any district to walk continuously along Lisboa streets</span>'}
       </div>
     </div>
   `);

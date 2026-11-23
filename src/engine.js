@@ -5119,9 +5119,9 @@ export class MemoriesGameEngine {
     const destLineIds = getStationLineIds(destination);
     const currentLineId =
       this.state.mode === 'metro' &&
-      this.state.metro.stationId === origin.id &&
-      this.state.metro.activeLineId &&
-      originLineIds.includes(this.state.metro.activeLineId)
+        this.state.metro.stationId === origin.id &&
+        this.state.metro.activeLineId &&
+        originLineIds.includes(this.state.metro.activeLineId)
         ? this.state.metro.activeLineId
         : originLineIds[0];
     const currentLine = getMetroLineById(currentLineId);
