@@ -11,7 +11,10 @@ import {
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
   METRO_LINE,
+  METRO_NETWORK_LINES,
   METRO_STATIONS,
+  ALL_METRO_STATIONS,
+  LISBOA_CITY_DISTRICTS,
   VENUES,
   REST_SPOTS,
   RIVERSIDE_BENCHES,
@@ -22,6 +25,8 @@ import {
   isBairroAltoPartyTime,
   getTerrainElevation,
   getAllTransitStops,
+  getMetroLineById,
+  getStationLineIds,
   getOutfitById,
   getMonthInfo
 } from './data.js';
@@ -113,7 +118,12 @@ export class LisboaCanvasRenderer {
   }
 
   screenToWorld(canvasX, canvasY, state) {
-    if (state.mode === 'interior' || state.mode === 'metro' || state.mode === 'ferry') {
+    if (
+      state.mode === 'interior' ||
+      state.mode === 'metro' ||
+      state.mode === 'ferry' ||
+      state.mode === 'city-district'
+    ) {
       if (state.viewMode === 'street3d') {
         return this.scenes3d.screenToFloor(canvasX, canvasY, state);
       }
@@ -169,6 +179,15 @@ export class LisboaCanvasRenderer {
       } else {
         this.renderFerry(ctx, state, nearbyInteraction);
         if (state.southBankFeedback) this.drawSouthBankFeedbackCard(ctx, state.southBankFeedback);
+      }
+    } else if (state.mode === 'city-district') {
+      if (state.viewMode === 'street3d') {
+        this.scenes3d.renderCityDistrict3D(ctx, state, nearbyInteraction, this.animTime);
+        if (state.cityDistrictFeedback) this.drawSouthBankFeedbackCard(ctx, state.cityDistrictFeedback);
+        if (nearbyInteraction) this.drawInteractionBanner(ctx, nearbyInteraction);
+      } else {
+        this.renderCityDistrict(ctx, state, nearbyInteraction);
+        if (state.cityDistrictFeedback) this.drawSouthBankFeedbackCard(ctx, state.cityDistrictFeedback);
       }
     } else if (state.ridingVehicleId === 'bus-737-758') {
       this.renderBusInteriorView(ctx, state, nearbyInteraction);
@@ -5191,7 +5210,9 @@ export class LisboaCanvasRenderer {
     ctx.save();
     ctx.translate(offsetX, offsetY);
 
-    if (isTunnelCruise) {
+    if (m.phase === 'transferring') {
+      this.renderMetroTransferScene(ctx, state);
+    } else if (isTunnelCruise) {
       this.renderMetroTunnelRide(ctx, state);
     } else {
       this.renderMetroPlatformScene(ctx, state, nearbyInteraction);
@@ -5204,9 +5225,123 @@ export class LisboaCanvasRenderer {
     }
   }
 
+  renderMetroTransferScene(ctx, state) {
+    const m = state.metro;
+    const station = ALL_METRO_STATIONS.find((s) => s.id === m.stationId) || METRO_STATIONS[0];
+    const stationLineIds = getStationLineIds(station);
+    const fromLine = getMetroLineById(m.activeLineId || stationLineIds[0]);
+    const toLine = getMetroLineById(m.transferToLineId || stationLineIds.find((id) => id !== fromLine?.id) || stationLineIds[0]);
+    const fromColor = fromLine?.color || '#2563eb';
+    const toColor = toLine?.color || '#eab308';
+    const p = clamp(m.phaseProgress || 0, 0, 1);
+
+    drawRoundedRect(ctx, 0, 0, INTERIOR_WIDTH, INTERIOR_HEIGHT, 12);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+    ctx.strokeStyle = toColor;
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Tiled Lisboa underground transfer passage walls & floor
+    ctx.fillStyle = station.undergroundTheme?.wallPrimary || '#e5dfd3';
+    ctx.fillRect(8, 8, INTERIOR_WIDTH - 16, 136);
+    this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 56, 'cobalt-azulejo');
+
+    // Dual-color transition wayfinding band (fromLine -> toLine)
+    const splitX = Math.round(8 + (INTERIOR_WIDTH - 16) * 0.5);
+    ctx.fillStyle = fromColor;
+    ctx.fillRect(8, 138, splitX - 8, 10);
+    ctx.fillStyle = toColor;
+    ctx.fillRect(splitX, 138, INTERIOR_WIDTH - 8 - splitX, 10);
+
+    // Pedestrian corridor walkway floor
+    ctx.fillStyle = station.undergroundTheme?.platformFloor || '#d4cec2';
+    ctx.fillRect(8, 148, INTERIOR_WIDTH - 16, 200);
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.14)';
+    ctx.lineWidth = 1;
+    for (let gx = 40; gx < INTERIOR_WIDTH - 16; gx += 36) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 148);
+      ctx.lineTo(gx, 348);
+      ctx.stroke();
+    }
+
+    // Guiding floor arrows along the transfer corridor
+    ctx.strokeStyle = toColor;
+    ctx.lineWidth = 3;
+    for (let ax = 150; ax <= 610; ax += 92) {
+      ctx.beginPath();
+      ctx.moveTo(ax - 12, 238);
+      ctx.lineTo(ax + 8, 250);
+      ctx.lineTo(ax - 12, 262);
+      ctx.stroke();
+    }
+
+    // Left origin line arch & Right destination line arch
+    drawRoundedRect(ctx, 18, 178, 88, 142, 8);
+    ctx.fillStyle = fromColor;
+    ctx.fill();
+    ctx.fillStyle = fromLine?.id === 'linha-amarela' ? '#0f172a' : '#ffffff';
+    ctx.font = '800 10px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText((fromLine?.name || 'FROM').toUpperCase(), 62, 252, 80);
+
+    drawRoundedRect(ctx, INTERIOR_WIDTH - 106, 178, 88, 142, 8);
+    ctx.fillStyle = toColor;
+    ctx.fill();
+    ctx.fillStyle = toLine?.id === 'linha-amarela' ? '#0f172a' : '#ffffff';
+    ctx.fillText((toLine?.name || 'TO').toUpperCase(), INTERIOR_WIDTH - 62, 252, 80);
+
+    // Walking traveler moving smoothly across the Correspondencia passage
+    const px = 128 + p * (INTERIOR_WIDTH - 256);
+    this.drawCharacterSprite(ctx, px, 252, {
+      facing: 'right',
+      walkPhase: this.animTime * 9,
+      isMoving: true,
+      outfitId: state.player.outfitId,
+      label: state.player.name,
+      isPlayer: true
+    });
+
+    // Overhead Correspondencia plaque
+    drawRoundedRect(ctx, 110, 18, 540, 56, 8);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+    ctx.fill();
+    ctx.strokeStyle = toColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 13px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`CORRESPONDENCIA AT ${station.name.replace('Metro ', '').toUpperCase()}`, 380, 41, 520);
+    ctx.fillStyle = '#fde68a';
+    ctx.font = '700 10px "Segoe UI", sans-serif';
+    ctx.fillText(
+      `${(fromLine?.name || '').toUpperCase()}  ->  ${(toLine?.name || '').toUpperCase()}  |  FREE IN-STATION TRANSFER`,
+      380,
+      61,
+      520
+    );
+
+    // Lower informational footer strip
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(8, 348, INTERIOR_WIDTH - 16, 100);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillText(
+      `Next Platform Termini: ${(toLine?.termini || []).join('  <->  ')}`,
+      380,
+      394
+    );
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 9.5px "Segoe UI", sans-serif';
+    ctx.fillText('Single Navegante ticket covers transfers inside Metropolitano de Lisboa gates.', 380, 418);
+    ctx.textAlign = 'left';
+  }
+
   renderMetroPlatformScene(ctx, state, nearbyInteraction) {
     const m = state.metro;
-    const station = METRO_STATIONS.find((s) => s.id === m.stationId) || METRO_STATIONS[0];
+    const station = ALL_METRO_STATIONS.find((s) => s.id === m.stationId) || METRO_STATIONS[0];
     const theme = station.undergroundTheme || {
       wallPrimary: '#ded8ce',
       tileAccent: '#1b4d89',
@@ -5214,12 +5349,22 @@ export class LisboaCanvasRenderer {
       trim: '#1e3a5f',
       artLabel: 'METROPOLITANO DE LISBOA'
     };
+    const stationLineIds = getStationLineIds(station);
+    const activeLineId =
+      m.activeLineId && stationLineIds.includes(m.activeLineId)
+        ? m.activeLineId
+        : stationLineIds[0];
+    const activeLine = getMetroLineById(activeLineId);
+    const otherLineIds = stationLineIds.filter((id) => id !== activeLineId);
+    const otherLine = otherLineIds.length > 0 ? getMetroLineById(otherLineIds[0]) : null;
+    const primaryLineColor = activeLine?.color || (station.lineColors && station.lineColors[0]) || '#2563eb';
+    const secondaryLineColor = otherLine?.color || null;
 
     // Frame shell
     drawRoundedRect(ctx, 0, 0, INTERIOR_WIDTH, INTERIOR_HEIGHT, 12);
     ctx.fillStyle = '#182436';
     ctx.fill();
-    ctx.strokeStyle = theme.trim;
+    ctx.strokeStyle = primaryLineColor;
     ctx.lineWidth = 6;
     ctx.stroke();
 
@@ -5228,7 +5373,7 @@ export class LisboaCanvasRenderer {
     ctx.fillRect(6, 6, INTERIOR_WIDTH - 12, 146);
     this.drawAzulejoWall(ctx, 8, 92, INTERIOR_WIDTH - 16, 56, 'cobalt-azulejo');
 
-    // Station-specific architectural mural interventions (Siza/Angelo de Sousa gold tiles, Transparencia II blue glass, or Santa Barbara railway relief tiles)
+    // Station-specific architectural mural interventions across all 4 official Lisbon Metro lines
     for (const [mx0, mw] of [[24, 286], [450, 286]]) {
       if (theme.muralStyle === 'siza-limestone-gold') {
         ctx.fillStyle = '#ece6db';
@@ -5247,6 +5392,58 @@ export class LisboaCanvasRenderer {
           ctx.fillStyle = cols[i % cols.length];
           ctx.fillRect(mx0 + 10 + i * 45, 100, 34, 38);
         }
+      } else if (theme.muralStyle === 'dacosta-wonderland-tiles') {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(mx0, 96, mw, 46);
+        for (let i = 0; i < 4; i += 1) {
+          const rx = mx0 + 36 + i * 68;
+          ctx.fillStyle = '#1d4ed8';
+          ctx.beginPath();
+          ctx.ellipse(rx, 122, 14, 10, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillRect(rx - 6, 102, 4, 12);
+          ctx.fillRect(rx + 2, 102, 4, 12);
+        }
+      } else if (theme.muralStyle === 'keil-geometric-patterns') {
+        ctx.fillStyle = '#ecfdf5';
+        ctx.fillRect(mx0, 96, mw, 46);
+        const cols = ['#16a34a', '#eab308', '#2563eb', '#0f766e'];
+        for (let i = 0; i < 6; i += 1) {
+          const gx = mx0 + 18 + i * 44;
+          ctx.fillStyle = cols[i % cols.length];
+          ctx.beginPath();
+          ctx.moveTo(gx + 16, 100);
+          ctx.lineTo(gx + 32, 119);
+          ctx.lineTo(gx + 16, 138);
+          ctx.lineTo(gx, 119);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else if (theme.muralStyle === 'cargaleiro-polychrome' || theme.muralStyle === 'taveira-polychrome-arches') {
+        ctx.fillStyle = '#fffbeb';
+        ctx.fillRect(mx0, 96, mw, 46);
+        const cols = ['#dc2626', '#2563eb', '#eab308', '#16a34a', '#9333ea'];
+        for (let i = 0; i < 7; i += 1) {
+          ctx.fillStyle = cols[i % cols.length];
+          ctx.fillRect(mx0 + 10 + i * 38, 100, 28, 38);
+        }
+      } else if (theme.muralStyle === 'calatrava-oceans-mural' || theme.muralStyle === 'pomar-zoo-fauna') {
+        ctx.fillStyle = theme.muralStyle === 'calatrava-oceans-mural' ? '#e0f2fe' : '#fef9c3';
+        ctx.fillRect(mx0, 96, mw, 46);
+        const cols = ['#0284c7', '#dc2626', '#eab308', '#16a34a'];
+        for (let i = 0; i < 5; i += 1) {
+          ctx.fillStyle = cols[i % cols.length];
+          ctx.beginPath();
+          ctx.arc(mx0 + 30 + i * 56, 119, 13, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (theme.muralStyle === 'nery-convite-sentinels' || theme.muralStyle === 'almada-marble-reliefs') {
+        ctx.fillStyle = theme.muralStyle === 'nery-convite-sentinels' ? '#eff6ff' : '#f5ebe0';
+        ctx.fillRect(mx0, 96, mw, 46);
+        for (let i = 0; i < 5; i += 1) {
+          ctx.fillStyle = theme.muralStyle === 'nery-convite-sentinels' ? '#1d4ed8' : '#b91c1c';
+          ctx.fillRect(mx0 + 22 + i * 54, 102, 22, 34);
+        }
       } else if (theme.muralStyle === 'ferroviarios-railway-tiles') {
         ctx.fillStyle = '#fef3c7';
         ctx.fillRect(mx0, 96, mw, 46);
@@ -5263,6 +5460,14 @@ export class LisboaCanvasRenderer {
           ctx.fill();
         }
       }
+    }
+
+    // Active line color stripe along upper platform wall
+    ctx.fillStyle = primaryLineColor;
+    ctx.fillRect(8, 86, INTERIOR_WIDTH - 16, 6);
+    if (secondaryLineColor) {
+      ctx.fillStyle = secondaryLineColor;
+      ctx.fillRect(8, 80, INTERIOR_WIDTH - 16, 5);
     }
 
     // Overhead station architectural vault arches & fluorescent light fixtures
@@ -5309,15 +5514,19 @@ export class LisboaCanvasRenderer {
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ffffff';
       ctx.font = '700 11px Georgia, serif';
-      ctx.fillText(station.name.replace('Metro ', '').toUpperCase(), px - 64, 43);
+      ctx.fillText(station.name.replace('Metro ', '').toUpperCase(), px - 64, 43, 166);
       ctx.fillStyle = '#93c5fd';
       ctx.font = '700 8.5px "Segoe UI", sans-serif';
-      ctx.fillText(`${station.lines.join(' / ').toUpperCase()}  -  ${(theme.architect || 'LISBOA').split(' ')[0].toUpperCase()}`, px - 64, 56);
-      // Red-LED Next-Train Countdown Line at bottom of plaque
+      const activeLineUpper = (activeLine?.name || station.lines[0] || 'LINHA AZUL').toUpperCase();
+      ctx.fillText(`${activeLineUpper} PLATFORM`, px - 64, 56, 166);
+      // Red-LED Next-Train Countdown Line at bottom of plaque (strictly matching active platform line!)
       ctx.fillStyle = '#fb923c';
       ctx.font = '700 8.5px "Consolas", monospace';
-      const nextDest = idx === 0 ? (theme.nextTrainDest || 'Santa Apolonia') : (theme.oppositeDest || 'Reboleira');
-      ctx.fillText(`DEST: ${nextDest.toUpperCase()} ${idx === 0 ? '1 MIN' : '4 MIN'}`, px - 64, 67);
+      const nextDest =
+        idx === 0
+          ? (activeLine?.termini?.[1] || theme.nextTrainDest || 'Santa Apolonia')
+          : (activeLine?.termini?.[0] || theme.oppositeDest || 'Reboleira');
+      ctx.fillText(`DEST: ${nextDest.toUpperCase()} ${idx === 0 ? '1 MIN' : '4 MIN'}`, px - 64, 67, 166);
     }
 
     // 2. Animated Moving Escalator Bank (center top: x 328..432, y 22..162)
@@ -5394,8 +5603,9 @@ export class LisboaCanvasRenderer {
       ctx.stroke();
     }
 
-    // Platform benches + subtle Lisbon art label
-    for (const bx of [110, 580]) {
+    // Platform benches (keep east floor clear when Correspondencia transfer arch is present!)
+    const benchXs = otherLine ? [110, 476] : [110, 580];
+    for (const bx of benchXs) {
       ctx.fillStyle = '#475569';
       drawRoundedRect(ctx, bx, 198, 70, 18, 4);
       ctx.fill();
@@ -5411,15 +5621,48 @@ export class LisboaCanvasRenderer {
       ctx.fillRect(dx, 285, 6, 2);
     }
 
-    // Boarding zone floor marker when on platform
+    // Boarding zone floor marker & East-Wall Transfer Corridor Arch (ONLY on 2-line transfer hubs!)
     if (m.phase === 'platform') {
+      const boardLineLabel = (activeLine?.name || 'METRO').toUpperCase();
       this.drawInteriorMarker(
         ctx,
         380,
         252,
-        'BOARD METRO [E]',
+        `BOARD ${boardLineLabel} [E]`,
         nearbyInteraction?.type === 'metro-board'
       );
+
+      if (otherLine) {
+        // East-wall recessed Correspondencia transfer arch
+        drawRoundedRect(ctx, 684, 174, 66, 68, 6);
+        ctx.fillStyle = '#0f172a';
+        ctx.fill();
+        ctx.strokeStyle = otherLine.color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.fillStyle = otherLine.color;
+        ctx.fillRect(687, 177, 60, 16);
+        ctx.fillStyle = otherLine.id === 'linha-amarela' ? '#0f172a' : '#ffffff';
+        ctx.font = '800 7.5px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('TRANSFER', 717, 188);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '700 8px "Segoe UI", sans-serif';
+        ctx.fillText(otherLine.name.replace('Linha ', '').toUpperCase(), 717, 212);
+        ctx.fillStyle = '#fde047';
+        ctx.font = '700 7.5px "Segoe UI", sans-serif';
+        ctx.fillText('FREE ->', 717, 229);
+        ctx.textAlign = 'left';
+
+        this.drawInteriorMarker(
+          ctx,
+          622,
+          208,
+          `TO ${otherLine.name.toUpperCase()} [E]`,
+          nearbyInteraction?.type === 'metro-transfer'
+        );
+      }
     }
 
     // 4. Recessed Underground Railway Track Bed (y: 290..448)
@@ -5433,11 +5676,11 @@ export class LisboaCanvasRenderer {
     for (let tx = 20; tx < INTERIOR_WIDTH - 18; tx += 22) {
       ctx.fillRect(tx, 318, 10, 86);
     }
-    // Twin steel Metro rails + blue third-rail highlight
+    // Twin steel Metro rails + active line third-rail highlight
     ctx.fillStyle = '#94a3b8';
     ctx.fillRect(8, 332, INTERIOR_WIDTH - 16, 4);
     ctx.fillRect(8, 386, INTERIOR_WIDTH - 16, 4);
-    ctx.fillStyle = '#2563eb';
+    ctx.fillStyle = primaryLineColor;
     ctx.fillRect(8, 412, INTERIOR_WIDTH - 16, 3);
 
     // Subterranean tunnel mouth arches at left & right edges
@@ -5456,12 +5699,21 @@ export class LisboaCanvasRenderer {
       doorsOpen,
       showRiderInTrain,
       direction: m.direction || 1,
-      headlightsOn: true
+      headlightsOn: true,
+      lineColor: primaryLineColor
     });
     ctx.restore();
 
-    // 6. Linha Azul Station Strip Diagram at bottom of vault
-    this.drawMetroRouteStrip(ctx, station.id, m.toStationId, m.phase === 'riding' ? m.phaseProgress : 0, 424);
+    // 6. Active Metropolitano de Lisboa Line Strip Diagram at bottom of vault
+    this.drawMetroRouteStrip(
+      ctx,
+      station.id,
+      m.toStationId,
+      m.phase === 'riding' ? m.phaseProgress : 0,
+      424,
+      m.route,
+      activeLineId
+    );
 
     // Walk target on platform
     if (m.phase === 'platform' && state.player.walkTarget) {
@@ -5511,9 +5763,11 @@ export class LisboaCanvasRenderer {
 
   renderMetroTunnelRide(ctx, state) {
     const m = state.metro;
-    const origin = METRO_STATIONS.find((s) => s.id === m.fromStationId) || METRO_STATIONS[0];
-    const dest = METRO_STATIONS.find((s) => s.id === m.toStationId) || METRO_STATIONS[1];
+    const origin = ALL_METRO_STATIONS.find((s) => s.id === m.fromStationId) || METRO_STATIONS[0];
+    const dest = ALL_METRO_STATIONS.find((s) => s.id === m.toStationId) || METRO_STATIONS[1];
     const dir = m.direction || 1;
+    const route = m.route;
+    const activeLineColor = route?.primaryColor || (origin.lineColors && origin.lineColors[0]) || '#2563eb';
 
     // Deep curved underground Lisbon Metro tunnel
     drawRoundedRect(ctx, 0, 0, INTERIOR_WIDTH, INTERIOR_HEIGHT, 12);
@@ -5523,7 +5777,7 @@ export class LisboaCanvasRenderer {
     bgGrad.addColorStop(1, '#0b1322');
     ctx.fillStyle = bgGrad;
     ctx.fill();
-    ctx.strokeStyle = '#2563eb';
+    ctx.strokeStyle = activeLineColor;
     ctx.lineWidth = 6;
     ctx.stroke();
 
@@ -5532,7 +5786,7 @@ export class LisboaCanvasRenderer {
     drawRoundedRect(ctx, 4, 4, INTERIOR_WIDTH - 8, INTERIOR_HEIGHT - 8, 9);
     ctx.clip();
 
-    // Streaming arched tunnel concrete ribs & Linha Azul light conduit
+    // Streaming arched tunnel concrete ribs & active line light conduit
     const ribSpacing = 120;
     const scroll = ((m.tunnelOffset % ribSpacing) + ribSpacing) % ribSpacing;
     for (let rx = -ribSpacing + (dir > 0 ? ribSpacing - scroll : scroll); rx < INTERIOR_WIDTH + ribSpacing; rx += ribSpacing) {
@@ -5553,24 +5807,31 @@ export class LisboaCanvasRenderer {
       ctx.fill();
     }
 
-    // Horizontal Linha Azul illuminated cable strip streaking across tunnel wall
-    ctx.fillStyle = '#2563eb';
+    // Horizontal active Metro line illuminated cable strip streaking across tunnel wall
+    ctx.fillStyle = activeLineColor;
     ctx.fillRect(8, 184, INTERIOR_WIDTH - 16, 5);
-    ctx.fillStyle = 'rgba(96, 165, 250, 0.35)';
-    ctx.fillRect(8, 180, INTERIOR_WIDTH - 16, 13);
 
-    // Passing intermediate station flash when riding 2 stops (Baixa-Chiado <-> Santa Apolonia)
-    const isTwoHops = Math.abs((dest.order ?? 0) - (origin.order ?? 0)) === 2;
-    if (isTwoHops && m.phaseProgress > 0.42 && m.phaseProgress < 0.58) {
-      const alpha = 1 - Math.abs(m.phaseProgress - 0.5) / 0.08;
+    // Passing intermediate stations & transfer hubs dynamically flashed from the 56-station network route
+    const interStops = route?.intermediateStops || [];
+    if (interStops.length > 0 && m.phaseProgress > 0.22 && m.phaseProgress < 0.78) {
+      const normP = (m.phaseProgress - 0.22) / 0.56;
+      const stopIdx = Math.min(interStops.length - 1, Math.floor(normP * interStops.length));
+      const passingStop = interStops[stopIdx];
+      const isTransfer = route?.transferStation && passingStop === route.transferStation;
       ctx.save();
-      ctx.globalAlpha = clamp(alpha, 0, 1) * 0.78;
-      ctx.fillStyle = '#14669c';
-      ctx.fillRect(210, 118, 340, 44);
-      ctx.fillStyle = '#e0f2fe';
-      ctx.font = '700 13px Georgia, serif';
+      ctx.globalAlpha = 0.86;
+      ctx.fillStyle = isTransfer ? '#b45309' : activeLineColor;
+      ctx.fillRect(190, 128, 380, 36);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 12.5px Georgia, serif';
       ctx.textAlign = 'center';
-      ctx.fillText('PASSING: TERREIRO DO PACO', 380, 145);
+      ctx.fillText(
+        isTransfer
+          ? `TRANSFER HUB: ${passingStop.toUpperCase()}`
+          : `PASSING: ${passingStop.toUpperCase()}`,
+        380,
+        151
+      );
       ctx.restore();
     }
 
@@ -5592,27 +5853,29 @@ export class LisboaCanvasRenderer {
       doorsOpen: false,
       showRiderInTrain: true,
       direction: dir,
-      headlightsOn: true
+      headlightsOn: true,
+      lineColor: activeLineColor
     });
 
-    // Overhead live Linha Azul journey header & animated station progress map
-    drawRoundedRect(ctx, 110, 22, 540, 74, 8);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    // Overhead live 4-Line journey header & animated station progress map
+    drawRoundedRect(ctx, 90, 18, 580, 78, 8);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
     ctx.fill();
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = activeLineColor;
+    ctx.lineWidth = 1.8;
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = '700 13.5px Georgia, serif';
+    ctx.font = '700 13px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(
       `METROPOLITANO DE LISBOA  -  ${origin.name.replace('Metro ', '')} -> ${dest.name.replace('Metro ', '')}`,
       380,
-      44
+      39,
+      556
     );
 
-    this.drawMetroRouteStrip(ctx, origin.id, dest.id, m.phaseProgress, 72);
+    this.drawMetroRouteStrip(ctx, origin.id, dest.id, m.phaseProgress, 68, route);
     if (state.metroDoorChime) {
       drawRoundedRect(ctx, 150, 102, 460, 24, 6);
       ctx.fillStyle = 'rgba(153, 27, 27, 0.92)';
@@ -5624,7 +5887,7 @@ export class LisboaCanvasRenderer {
       ctx.font = '700 10px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(
-        `${(state.metroDoorChime.triggeredBy || 'LINHA AZUL').toUpperCase()} CHIME: "${state.metroDoorChime.text}"`,
+        `${(state.metroDoorChime.triggeredBy || 'METRO').toUpperCase()} CHIME: "${state.metroDoorChime.text}"`,
         380,
         118,
         440
@@ -5633,7 +5896,7 @@ export class LisboaCanvasRenderer {
     ctx.restore();
   }
 
-  drawMetroTrain(ctx, centerX, centerY, { doorsOpen, showRiderInTrain, direction, headlightsOn }) {
+  drawMetroTrain(ctx, centerX, centerY, { doorsOpen, showRiderInTrain, direction, headlightsOn, lineColor = '#1d4ed8' }) {
     const trainW = 510;
     const trainH = 74;
     const x = centerX - trainW / 2;
@@ -5675,14 +5938,14 @@ export class LisboaCanvasRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Signature Lisbon Metro crimson cab noses & Linha Azul lower livery stripe
+    // Signature Lisbon Metro crimson cab noses & active line color lower livery stripe
     ctx.fillStyle = '#c81e32';
     drawRoundedRect(ctx, x, y + 6, 22, trainH - 12, 8);
     ctx.fill();
     drawRoundedRect(ctx, x + trainW - 22, y + 6, 22, trainH - 12, 8);
     ctx.fill();
 
-    ctx.fillStyle = '#1d4ed8';
+    ctx.fillStyle = lineColor;
     ctx.fillRect(x + 20, y + trainH - 14, trainW - 40, 7);
 
     // Carriage coupling joints (3 articulated cars)
@@ -5739,55 +6002,121 @@ export class LisboaCanvasRenderer {
     ctx.restore();
   }
 
-  drawMetroRouteStrip(ctx, originId, destId, rideProgress, y) {
-    const startX = 165;
-    const endX = 595;
+  drawMetroRouteStrip(ctx, originId, destId, rideProgress, y, route = null, activeLineId = null) {
+    const startX = 110;
+    const endX = 650;
     const span = endX - startX;
 
     ctx.save();
-    // Blue line track
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(startX, y);
-    ctx.lineTo(endX, y);
-    ctx.stroke();
+    const originStation = ALL_METRO_STATIONS.find((s) => s.id === originId) || METRO_STATIONS[0];
+    const destStation = destId ? ALL_METRO_STATIONS.find((s) => s.id === destId) : null;
+    const activeLine = getMetroLineById(activeLineId || getStationLineIds(originStation)[0]);
+    const lineColor = route?.primaryColor || activeLine?.color || (originStation.lineColors && originStation.lineColors[0]) || '#3b82f6';
+    const arrivalColor = route?.arrivalColor || lineColor;
 
-    const originStation = METRO_STATIONS.find((s) => s.id === originId) || METRO_STATIONS[0];
-    const destStation = destId ? METRO_STATIONS.find((s) => s.id === destId) : null;
+    // Draw line track (split cleanly at transfer station if transferring between 2 lines!)
+    const stopsList =
+      route && Array.isArray(route.stationPath) && route.stationPath.length >= 2
+        ? route.stationPath
+        : [
+            originStation.canonicalStopName || originStation.name.replace('Metro ', ''),
+            ...(destStation ? [destStation.canonicalStopName || destStation.name.replace('Metro ', '')] : [])
+          ];
 
-    METRO_STATIONS.forEach((st, idx) => {
-      const sx = startX + (idx / (METRO_STATIONS.length - 1)) * span;
-      const isCurrent = st.id === originId && !destStation;
-      const isTarget = destStation && st.id === destStation.id;
+    if (stopsList.length >= 2) {
+      const tIdx = route?.transferStation ? stopsList.indexOf(route.transferStation) : -1;
+      if (tIdx > 0 && tIdx < stopsList.length - 1) {
+        const tx = startX + (tIdx / (stopsList.length - 1)) * span;
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(startX, y);
+        ctx.lineTo(tx, y);
+        ctx.stroke();
+        ctx.strokeStyle = arrivalColor;
+        ctx.beginPath();
+        ctx.moveTo(tx, y);
+        ctx.lineTo(endX, y);
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(startX, y);
+        ctx.lineTo(endX, y);
+        ctx.stroke();
+      }
 
-      ctx.fillStyle = isTarget ? '#facc15' : isCurrent ? '#38bdf8' : '#f8fafc';
+      const maxLabels = stopsList.length <= 5 ? 1 : Math.ceil(stopsList.length / 4);
+      stopsList.forEach((stopName, idx) => {
+        const sx = startX + (idx / Math.max(1, stopsList.length - 1)) * span;
+        const isFirst = idx === 0;
+        const isLast = idx === stopsList.length - 1;
+        const isTransfer = route?.transferStation && stopName === route.transferStation;
+
+        ctx.fillStyle = isLast ? '#facc15' : isTransfer ? '#fb923c' : isFirst ? '#38bdf8' : '#f8fafc';
+        ctx.beginPath();
+        ctx.arc(sx, y, isFirst || isLast || isTransfer ? 6.5 : 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+
+        if (isFirst || isLast || isTransfer || idx % maxLabels === 0) {
+          ctx.fillStyle = isTransfer ? '#fde047' : '#e2e8f0';
+          ctx.font = '700 8.5px "Segoe UI", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(stopName, sx, y + 17);
+        }
+      });
+
+      if (destStation) {
+        const curX = startX + span * clamp(rideProgress, 0, 1);
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(curX, y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    } else if (activeLine) {
+      // Idle on platform: display ONLY the active platform line's interactive stations in factual order!
+      const stationsOnLine = ALL_METRO_STATIONS
+        .filter((s) => getStationLineIds(s).includes(activeLine.id))
+        .sort((a, b) => {
+          const ia = activeLine.stations.indexOf(a.canonicalStopName || '');
+          const ib = activeLine.stations.indexOf(b.canonicalStopName || '');
+          return ia - ib;
+        });
+
+      ctx.strokeStyle = activeLine.color;
+      ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(sx, y, isCurrent || isTarget ? 7 : 5.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1e3a8a';
-      ctx.lineWidth = 2;
+      ctx.moveTo(startX, y);
+      ctx.lineTo(endX, y);
       ctx.stroke();
 
-      ctx.fillStyle = '#e2e8f0';
-      ctx.font = '700 9.5px "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(st.name.replace('Metro ', ''), sx, y + 18);
-    });
-
-    // Live moving train pip along the Blue Line strip during ride
-    if (destStation) {
-      const ox = startX + ((originStation.order ?? 0) / (METRO_STATIONS.length - 1)) * span;
-      const dx = startX + ((destStation.order ?? 0) / (METRO_STATIONS.length - 1)) * span;
-      const curX = ox + (dx - ox) * clamp(rideProgress, 0, 1);
-
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath();
-      ctx.arc(curX, y, 7.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      stationsOnLine.forEach((st, idx) => {
+        const sx =
+          stationsOnLine.length === 1
+            ? (startX + endX) / 2
+            : startX + (idx / (stationsOnLine.length - 1)) * span;
+        const isCurrent = st.id === originStation.id;
+        const isHub = getStationLineIds(st).length > 1;
+        ctx.fillStyle = isCurrent ? '#facc15' : isHub ? '#ffffff' : activeLine.color;
+        ctx.beginPath();
+        ctx.arc(sx, y, isCurrent ? 7.5 : isHub ? 6 : 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = isCurrent ? '#ffffff' : '#0f172a';
+        ctx.lineWidth = isCurrent ? 2.2 : 1.5;
+        ctx.stroke();
+        ctx.fillStyle = isCurrent ? '#fde047' : '#e2e8f0';
+        ctx.font = '700 8px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        const shortLabel = (st.canonicalStopName || st.name.replace('Metro ', '')).replace('Colegio Militar / Luz', 'Col. Militar');
+        ctx.fillText(shortLabel, sx, y + 17);
+      });
     }
     ctx.restore();
   }
@@ -7528,5 +7857,225 @@ export class LisboaCanvasRenderer {
     ctx.fillRect(-130, 8, 260, 5);
 
     ctx.restore();
+  }
+
+  renderCityDistrict(ctx, state, nearbyInteraction) {
+    const district =
+      LISBOA_CITY_DISTRICTS.find((d) => d.id === state.cityDistrictId) ||
+      LISBOA_CITY_DISTRICTS[0];
+    const station =
+      ALL_METRO_STATIONS.find((s) => s.id === district.stationId) ||
+      METRO_STATIONS[0];
+    const primaryLineColor = (station.lineColors && station.lineColors[0]) || district.accentColor || '#2563eb';
+    const [eatery, landmark, shop] = district.townSpots;
+
+    ctx.fillStyle = '#102032';
+    ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+
+    const offsetX = Math.round((this.viewWidth - INTERIOR_WIDTH) / 2);
+    const offsetY = Math.round((this.viewHeight - INTERIOR_HEIGHT) / 2);
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+
+    drawRoundedRect(ctx, 0, 0, INTERIOR_WIDTH, INTERIOR_HEIGHT, 12);
+    ctx.fillStyle = '#e7dfd1';
+    ctx.fill();
+    ctx.strokeStyle = primaryLineColor;
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Top District Architecture Row (y: 12..148)
+    ctx.fillStyle = '#d6cec0';
+    ctx.fillRect(8, 8, INTERIOR_WIDTH - 16, 140);
+
+    // Header Banner
+    drawRoundedRect(ctx, 22, 14, INTERIOR_WIDTH - 44, 34, 6);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = primaryLineColor;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 12px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${district.name.toUpperCase()}  ${district.zoneBadge}`, INTERIOR_WIDTH / 2, 30, INTERIOR_WIDTH - 64);
+    ctx.fillStyle = '#bae6fd';
+    ctx.font = '600 9.5px "Segoe UI", sans-serif';
+    ctx.fillText(district.transitSummary, INTERIOR_WIDTH / 2, 43, INTERIOR_WIDTH - 64);
+
+    // 3 Top Buildings (Eatery, Center Monument/Transit, Shop)
+    const cards = [
+      { spot: eatery, x: 34, w: 204, fill: '#f7f1e5', accent: district.accentColor || '#b84a32' },
+      { spot: landmark, x: 266, w: 228, fill: '#eef2ff', accent: '#0f766e' },
+      { spot: shop, x: 522, w: 204, fill: '#eaf2fb', accent: primaryLineColor }
+    ];
+    for (const c of cards) {
+      const hl = nearbyInteraction?.type === 'city-district-spot' && nearbyInteraction.spotId === c.spot.id;
+      ctx.fillStyle = c.fill;
+      drawRoundedRect(ctx, c.x, 58, c.w, 84, 7);
+      ctx.fill();
+      ctx.strokeStyle = hl ? '#f59e0b' : c.accent;
+      ctx.lineWidth = hl ? 3 : 2;
+      ctx.stroke();
+      ctx.fillStyle = c.accent;
+      ctx.fillRect(c.x, 58, c.w, 20);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 9px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(c.spot.badge, c.x + c.w / 2, 71);
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '700 10.5px Georgia, serif';
+      ctx.fillText(c.spot.name, c.x + c.w / 2, 102, c.w - 14);
+      ctx.fillStyle = '#475569';
+      ctx.font = '600 9px "Segoe UI", sans-serif';
+      ctx.fillText(`Host: ${c.spot.host}`, c.x + c.w / 2, 122, c.w - 14);
+    }
+
+    // Walkable Calçada Portuguesa Plaza Floor (y: 148..288)
+    ctx.fillStyle = this.patterns?.plaza || '#ece5d6';
+    ctx.fillRect(8, 148, INTERIOR_WIDTH - 16, 140);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(8, 148, INTERIOR_WIDTH - 16, 140);
+
+    // Terrace dining table in front of left eatery (shows Glass or Plate when seatedDining is active!)
+    ctx.fillStyle = '#78350f';
+    drawRoundedRect(ctx, 138, 172, 34, 22, 4);
+    ctx.fill();
+    if (state.seatedDining && state.seatedDining.active) {
+      if (state.seatedDining.servingType === 'glass') {
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(151, 177, 8, 11);
+        ctx.strokeStyle = '#ffffff';
+        ctx.strokeRect(151, 177, 8, 11);
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(155, 183, 6.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath();
+        ctx.arc(155, 183, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Interactive spot markers along plaza north edge
+    for (const sp of district.townSpots) {
+      this.drawInteriorMarker(
+        ctx,
+        sp.x,
+        182,
+        sp.kind === 'landmark' ? 'EXPLORE [E]' : sp.badge,
+        nearbyInteraction?.type === 'city-district-spot' && nearbyInteraction.spotId === sp.id
+      );
+    }
+
+    // South Metropolitano de Lisboa Entrance Pavilion (y: 292..448)
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(8, 288, INTERIOR_WIDTH - 16, 164);
+    drawRoundedRect(ctx, 220, 314, 320, 108, 10);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+    ctx.strokeStyle = primaryLineColor;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Authentic Red Diamond M Logo on Metro Pavilion
+    const mx = 276;
+    const my = 368;
+    ctx.fillStyle = '#c81e32';
+    ctx.beginPath();
+    ctx.moveTo(mx, my - 20);
+    ctx.lineTo(mx + 20, my);
+    ctx.lineTo(mx, my + 20);
+    ctx.lineTo(mx - 20, my);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 18px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('M', mx, my + 6);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 12.5px Georgia, serif';
+    ctx.fillText(station.name.toUpperCase(), 312, 356, 214);
+    ctx.fillStyle = '#bae6fd';
+    ctx.font = '700 10px "Segoe UI", sans-serif';
+    ctx.fillText(station.lines.join(' & ').toUpperCase(), 312, 376, 214);
+    ctx.fillStyle = '#fde047';
+    ctx.font = '600 9.5px "Segoe UI", sans-serif';
+    ctx.fillText('Walk South or Press [E] to Descend into Metro', 312, 396, 214);
+
+    this.drawInteriorMarker(
+      ctx,
+      380,
+      250,
+      'METRO ENTRANCE [E]',
+      nearbyInteraction?.type === 'city-district-metro'
+    );
+
+    if (state.player.walkTarget) {
+      ctx.strokeStyle = primaryLineColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(state.player.walkTarget.x, state.player.walkTarget.y, 9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Strolling local resident, player, and LAN peers
+    const actors = [
+      {
+        x: 270 + Math.sin(this.animTime * 0.55) * 65,
+        y: 230,
+        facing: Math.cos(this.animTime * 0.55) >= 0 ? 'right' : 'left',
+        walkPhase: this.animTime * 3.8,
+        isMoving: true,
+        outfitId: 'fado-blazer',
+        isPlayer: false
+      },
+      {
+        x: state.player.x,
+        y: state.player.y,
+        facing: state.player.facing,
+        walkPhase: state.player.walkPhase,
+        isMoving: state.player.isMoving,
+        outfitId: state.player.outfitId,
+        label: (state.remotePlayers || []).length > 0 ? state.player.name : '',
+        emoteText: state.player.emoteText || '',
+        isPlayer: true
+      }
+    ];
+    for (const rp of state.remotePlayers || []) {
+      if (rp.mode === 'city-district' && rp.cityDistrictId === district.id) {
+        actors.push({
+          x: rp.x,
+          y: rp.y,
+          facing: rp.facing,
+          walkPhase: rp.walkPhase,
+          isMoving: rp.isMoving,
+          outfitId: rp.outfitId,
+          label: rp.name,
+          emoteText: rp.emoteText || '',
+          isPlayer: false,
+          isRemotePlayer: true
+        });
+      }
+    }
+    actors.sort((a, b) => a.y - b.y);
+    for (const actor of actors) {
+      this.drawCharacterSprite(ctx, actor.x, actor.y, actor);
+    }
+
+    ctx.restore();
+
+    if (nearbyInteraction) {
+      this.drawInteractionBanner(ctx, nearbyInteraction);
+    }
   }
 }

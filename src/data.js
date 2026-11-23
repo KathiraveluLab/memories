@@ -521,14 +521,14 @@ export const FERRY_DESTINATIONS = [
 
 export const METRO_LINE = {
   id: 'metro-linha-azul',
-  name: 'Metropolitano de Lisboa (Linha Azul)',
+  name: 'Metropolitano de Lisboa (4-Line Network)',
   badge: '[METRO]',
   fareEur: 1.8,
   travelMinutes: 6,
   phrase: {
-    pt: 'Um bilhete de metro para a Linha Azul, por favor.',
-    pronunciation: 'Oom bee-lyeh-teh deh meh-troo pah-rah ah Lee-nyah Ah-zool, poor fah-vohr.',
-    en: 'One metro ticket for the Blue Line, please.'
+    pt: 'Um bilhete de metro para a rede do Metropolitano de Lisboa, por favor.',
+    pronunciation: 'Oom bee-lyeh-teh deh meh-troo pah-rah ah heh-deh doo Meh-troo-poh-lee-tah-noo deh Leesh-boh-ah, poor fah-vohr.',
+    en: 'One metro ticket for the Lisbon Metro network, please.'
   },
   memory: {
     id: 'mem-ride-metro-lisboa',
@@ -539,14 +539,126 @@ export const METRO_LINE = {
   }
 };
 
+// Factual 4-Line Metropolitano de Lisboa Official Network (https://www.metrolisboa.pt/) - all 56 station stops across 4 lines
+export const METRO_NETWORK_LINES = [
+  {
+    id: 'linha-azul',
+    name: 'Linha Azul',
+    ptSymbolName: 'Linha da Gaivota (Seagull Line)',
+    badge: '[LINHA AZUL]',
+    color: '#2563eb',
+    darkColor: '#1d4ed8',
+    lightColor: '#dbeafe',
+    termini: ['Reboleira', 'Santa Apolonia'],
+    stations: [
+      'Reboleira',
+      'Amadora Este',
+      'Alfornelos',
+      'Pontinha',
+      'Carnide',
+      'Colegio Militar/Luz',
+      'Alto dos Moinhos',
+      'Laranjeiras',
+      'Jardim Zoologico',
+      'Praca de Espanha',
+      'Sao Sebastiao',
+      'Parque',
+      'Marques de Pombal',
+      'Avenida',
+      'Restauradores',
+      'Baixa-Chiado',
+      'Terreiro do Paco',
+      'Santa Apolonia'
+    ]
+  },
+  {
+    id: 'linha-amarela',
+    name: 'Linha Amarela',
+    ptSymbolName: 'Linha do Girassol (Sunflower Line)',
+    badge: '[LINHA AMARELA]',
+    color: '#eab308',
+    darkColor: '#ca8a04',
+    lightColor: '#fef9c3',
+    termini: ['Odivelas', 'Rato'],
+    stations: [
+      'Odivelas',
+      'Senhor Roubado',
+      'Ameixoeira',
+      'Lumiar',
+      'Quinta das Conchas',
+      'Campo Grande',
+      'Cidade Universitaria',
+      'Entre Campos',
+      'Campo Pequeno',
+      'Saldanha',
+      'Picoas',
+      'Marques de Pombal',
+      'Rato'
+    ]
+  },
+  {
+    id: 'linha-verde',
+    name: 'Linha Verde',
+    ptSymbolName: 'Linha da Caravela (Caravel Line)',
+    badge: '[LINHA VERDE]',
+    color: '#16a34a',
+    darkColor: '#15803d',
+    lightColor: '#dcfce7',
+    termini: ['Telheiras', 'Cais do Sodre'],
+    stations: [
+      'Telheiras',
+      'Campo Grande',
+      'Alvalade',
+      'Roma',
+      'Areeiro',
+      'Alameda',
+      'Arroios',
+      'Anjos',
+      'Intendente',
+      'Martim Moniz',
+      'Rossio',
+      'Baixa-Chiado',
+      'Cais do Sodre'
+    ]
+  },
+  {
+    id: 'linha-vermelha',
+    name: 'Linha Vermelha',
+    ptSymbolName: 'Linha do Oriente (Compass Rose Line)',
+    badge: '[LINHA VERMELHA]',
+    color: '#dc2626',
+    darkColor: '#b91c1c',
+    lightColor: '#fee2e2',
+    termini: ['Sao Sebastiao', 'Aeroporto'],
+    stations: [
+      'Sao Sebastiao',
+      'Saldanha',
+      'Alameda',
+      'Olaias',
+      'Bela Vista',
+      'Chelas',
+      'Olivais',
+      'Cabo Ruivo',
+      'Oriente',
+      'Moscavide',
+      'Encarnacao',
+      'Aeroporto'
+    ]
+  }
+];
+
 export const METRO_STATIONS = [
   {
     id: 'metro-baixa-chiado',
     name: 'Metro Baixa-Chiado',
+    canonicalStopName: 'Baixa-Chiado',
+    corridorStops: ['Baixa-Chiado'],
     neighborhood: 'chiado',
+    zoneLabel: 'Historic Core (Chiado & Baixa)',
     order: 0,
     lines: ['Linha Azul', 'Linha Verde'],
     lineColors: ['#2563eb', '#16a34a'],
+    transitConnections: ['Eletrico 28E (Largo do Chiado)', 'Elevador de Santa Justa (Baixa Walkway)', 'Carris Bus 758'],
     x: 1266,
     y: 446,
     w: 58,
@@ -563,19 +675,23 @@ export const METRO_STATIONS = [
       architect: 'Alvaro Siza Vieira (1998)',
       artist: 'Angelo de Sousa',
       muralStyle: 'siza-limestone-gold',
-      nextTrainDest: 'Santa Apolonia',
-      oppositeDest: 'Reboleira',
-      transferLine: 'Linha Verde (Cais do Sodre - Telheiras)'
+      nextTrainDest: 'Santa Apolonia / Cais do Sodre',
+      oppositeDest: 'Reboleira / Telheiras',
+      transferLine: 'Linha Azul & Linha Verde Hub'
     },
-    note: 'Deep transfer station right beside Cafe A Brasileira on Largo do Chiado, serving both Chiado and nearby hilltop Bairro Alto.'
+    note: 'Deep transfer station right beside Cafe A Brasileira on Largo do Chiado, connecting Linha Azul and Linha Verde beneath historic Chiado.'
   },
   {
     id: 'metro-terreiro-paco',
     name: 'Metro Terreiro do Paco',
+    canonicalStopName: 'Terreiro do Paco',
+    corridorStops: ['Terreiro do Paco'],
     neighborhood: 'chiado',
+    zoneLabel: 'Historic Core (Praca do Comercio Waterfront)',
     order: 1,
     lines: ['Linha Azul'],
     lineColors: ['#2563eb'],
+    transitConnections: ['Transtejo Soflusa River Terminal (Barreiro)', 'Eletrico 15E & 25E', 'Carris Waterfront Buses 728 / 735'],
     x: 1516,
     y: 842,
     w: 68,
@@ -595,15 +711,19 @@ export const METRO_STATIONS = [
       nextTrainDest: 'Santa Apolonia',
       oppositeDest: 'Reboleira'
     },
-    note: 'Tagus riverside Blue Line station at the edge of Baixa and lower Alfama.'
+    note: 'Tagus riverside Blue Line station at Praca do Comercio on the edge of Baixa and lower Alfama.'
   },
   {
     id: 'metro-santa-apolonia',
     name: 'Metro Santa Apolonia',
+    canonicalStopName: 'Santa Apolonia',
+    corridorStops: ['Santa Apolonia'],
     neighborhood: 'alfama',
+    zoneLabel: 'Historic Core (Alfama & National Rail Terminus)',
     order: 2,
     lines: ['Linha Azul'],
     lineColors: ['#2563eb'],
+    transitConnections: ['CP Alfa Pendular & Intercidades (Porto / Coimbra)', 'Carris Buses 728 / 735 / 759', 'Lisbon Cruise Terminal'],
     x: 1990,
     y: 842,
     w: 68,
@@ -623,9 +743,1349 @@ export const METRO_STATIONS = [
       nextTrainDest: 'Reboleira (via Baixa-Chiado)',
       oppositeDest: 'Terminus'
     },
-    note: 'Eastern Blue Line terminus along the Alfama riverfront, framing the steep hillside below Portas do Sol.'
+    note: 'Eastern Blue Line terminus beneath Estacao de Santa Apolonia along the Alfama riverfront below Portas do Sol.'
   }
 ];
+
+// City-wide Metropolitano de Lisboa stations spanning all 4 official lines, all 6 transfer hubs, and walkable Lisbon districts
+export const CITY_METRO_STATIONS = [
+  {
+    id: 'metro-cais-sodre',
+    name: 'Metro Cais do Sodre (Belem Corridor)',
+    canonicalStopName: 'Cais do Sodre',
+    corridorStops: ['Cais do Sodre'],
+    neighborhood: 'cais-sodre-belem',
+    zoneLabel: 'Riverfront & Western Belem Corridor',
+    districtId: 'district-cais-sodre-belem',
+    order: 3,
+    lines: ['Linha Verde'],
+    lineColors: ['#16a34a'],
+    transitConnections: ['Eletrico 15E (Alges / Mosteiro dos Jeronimos / Torre de Belem)', 'CP Linha de Cascais', 'Transtejo Ferry (Cacilhas / Seixal / Montijo)'],
+    undergroundTheme: {
+      wallPrimary: '#d8ece2',
+      tileAccent: '#15803d',
+      platformFloor: '#ced8d2',
+      trim: '#14532d',
+      artLabel: 'ANTONIO DACOSTA - BLUE RABBITS IN WONDERLAND AZULEJOS',
+      architect: 'Nuno Teotonio Pereira & Pedro Botelho (1998)',
+      artist: 'Antonio Dacosta & Pedro Morais',
+      muralStyle: 'dacosta-wonderland-tiles',
+      nextTrainDest: 'Telheiras (via Baixa-Chiado & Rossio)',
+      oppositeDest: 'Terminus (Riverfront Hub)',
+      transferLine: 'CP Cascais Rail, Eletrico 15E to Belem & Transtejo Ferries'
+    },
+    note: 'Award-winning southern Linha Verde terminus adorned with giant cobalt Alice-in-Wonderland rabbit panels, linking directly to Eletrico 15E for Belem.'
+  },
+  {
+    id: 'metro-rossio',
+    name: 'Metro Rossio (Baixa & Santa Justa)',
+    canonicalStopName: 'Rossio',
+    corridorStops: ['Rossio', 'Martim Moniz', 'Intendente', 'Anjos', 'Arroios', 'Restauradores'],
+    neighborhood: 'baixa-rossio',
+    zoneLabel: 'Pombaline Baixa, Rossio & Almirante Reis',
+    districtId: 'district-rossio-restauradores',
+    order: 4,
+    lines: ['Linha Verde'],
+    lineColors: ['#16a34a'],
+    transitConnections: ['Elevador de Santa Justa (1902 Neo-Gothic Lift)', 'CP Linha de Sintra (Estacao do Rossio)', 'Eletrico 12E & 15E', 'Restauradores (Linha Azul Walkway)'],
+    undergroundTheme: {
+      wallPrimary: '#e2ede4',
+      tileAccent: '#166534',
+      platformFloor: '#d6dbd4',
+      trim: '#14532d',
+      artLabel: 'MARIA KEIL & ARTUR ROSA - GEOMETRIC EMERALD AZULEJOS',
+      architect: 'Falcao e Cunha (1963) / Leopoldo de Almeida Rosa (1998)',
+      artist: 'Maria Keil & Artur Rosa',
+      muralStyle: 'keil-geometric-patterns',
+      nextTrainDest: 'Telheiras (via Martim Moniz & Alameda)',
+      oppositeDest: 'Cais do Sodre (via Baixa-Chiado)',
+      transferLine: 'CP Sintra Line & Elevador de Santa Justa'
+    },
+    note: 'Historic downtown Linha Verde station opening directly onto Praca Dom Pedro IV (Rossio), the baroque fountains, Teatro Nacional D. Maria II, and Elevador de Santa Justa.'
+  },
+  {
+    id: 'metro-marques-pombal',
+    name: 'Metro Marques de Pombal (Avenida & Parque)',
+    canonicalStopName: 'Marques de Pombal',
+    corridorStops: ['Marques de Pombal', 'Parque', 'Avenida', 'Picoas'],
+    neighborhood: 'avenida-liberdade',
+    zoneLabel: 'Avenida da Liberdade & Parque Eduardo VII',
+    districtId: 'district-marques-pombal-avenida',
+    order: 5,
+    lines: ['Linha Azul', 'Linha Amarela'],
+    lineColors: ['#2563eb', '#eab308'],
+    transitConnections: ['Linha Azul & Linha Amarela Transfer Hub', 'Elevador do Lavra (1884 Funicular)', 'Carris Aerobus & 736 / 744 Boulevard Lines'],
+    undergroundTheme: {
+      wallPrimary: '#f2ead2',
+      tileAccent: '#ca8a04',
+      platformFloor: '#dcd6c6',
+      trim: '#1d4ed8',
+      artLabel: 'MARIA KEIL & JOAO CUTILEIRO - POMBAL HERALDIC MOSAICS',
+      architect: 'Falcao e Cunha (1959) / Duarte Nuno Simoes (1995)',
+      artist: 'Maria Keil, Joao Cutileiro & Menez',
+      muralStyle: 'keil-geometric-patterns',
+      nextTrainDest: 'Odivelas / Reboleira',
+      oppositeDest: 'Rato / Santa Apolonia',
+      transferLine: 'Linha Azul & Linha Amarela Interchange'
+    },
+    note: 'Central Lisbon interchange where the original 1959 Y-network split into Linha Azul and Linha Amarela beneath the Monumento ao Marques de Pombal and Parque Eduardo VII.'
+  },
+  {
+    id: 'metro-rato',
+    name: 'Metro Rato (Principe Real & Amoreiras)',
+    canonicalStopName: 'Rato',
+    corridorStops: ['Rato'],
+    neighborhood: 'principe-real',
+    zoneLabel: 'Largo do Rato, Principe Real & Aguas Livres Aqueduct',
+    districtId: 'district-rato-principe-real',
+    order: 6,
+    lines: ['Linha Amarela'],
+    lineColors: ['#eab308'],
+    transitConnections: ['Eletrico 24E (Campolide - Principe Real - Camoes)', 'Carris Buses 758 / 773 / 713', 'Mae d Agua das Amoreiras Aqueduct Reservoir'],
+    undergroundTheme: {
+      wallPrimary: '#f6edd5',
+      tileAccent: '#b45309',
+      platformFloor: '#dfd7c5',
+      trim: '#92400e',
+      artLabel: 'MANUEL CARGALEIRO & VIEIRA DA SILVA - POLYCHROME AZULEJOS',
+      architect: 'Sanchez Jorge (1997)',
+      artist: 'Manuel Cargaleiro, Arpad Szenes & Maria Helena Vieira da Silva',
+      muralStyle: 'cargaleiro-polychrome',
+      nextTrainDest: 'Odivelas (via Marques de Pombal & Saldanha)',
+      oppositeDest: 'Terminus (Largo do Rato)',
+      transferLine: 'Eletrico 24E to Principe Real & Camoes'
+    },
+    note: 'Southern terminus of Linha Amarela featuring vibrant polychrome geometric tile panels by Manuel Cargaleiro and poetic portraits of Arpad Szenes and Vieira da Silva.'
+  },
+  {
+    id: 'metro-saldanha-campo-pequeno',
+    name: 'Metro Saldanha & Campo Pequeno',
+    canonicalStopName: 'Saldanha',
+    corridorStops: ['Saldanha', 'Campo Pequeno', 'Entre Campos'],
+    neighborhood: 'avenidas-novas',
+    zoneLabel: 'Avenidas Novas, Saldanha & Campo Pequeno',
+    districtId: 'district-saldanha-campo-pequeno',
+    order: 7,
+    lines: ['Linha Amarela', 'Linha Vermelha'],
+    lineColors: ['#eab308', '#dc2626'],
+    transitConnections: ['Linha Amarela & Linha Vermelha Transfer Hub', 'CP Entre Campos Urban Rail', 'Carris Express Corridor 727 / 736 / 744'],
+    undergroundTheme: {
+      wallPrimary: '#f3e5d8',
+      tileAccent: '#b91c1c',
+      platformFloor: '#ded4c8',
+      trim: '#a16207',
+      artLabel: 'ALMADA NEGREIROS & JORGE VIEIRA - MARBLE RELIEFS & BRONZE',
+      architect: 'Falcao e Cunha (1959) / Paulo Brito da Silva (2009)',
+      artist: 'Jorge Vieira, Luis Filipe de Abreu & Almada Negreiros Tribute',
+      muralStyle: 'almada-marble-reliefs',
+      nextTrainDest: 'Aeroporto / Odivelas',
+      oppositeDest: 'Sao Sebastiao / Rato',
+      transferLine: 'Linha Amarela & Linha Vermelha Interchange'
+    },
+    note: 'Major Avenidas Novas interchange uniting Linha Amarela and Linha Vermelha beneath Praca Duque de Saldanha and the 1892 Neo-Moorish brick dome of Campo Pequeno.'
+  },
+  {
+    id: 'metro-sao-sebastiao-zoologico',
+    name: 'Metro Sao Sebastiao (Gulbenkian, Zoo & Reboleira)',
+    canonicalStopName: 'Sao Sebastiao',
+    corridorStops: [
+      'Sao Sebastiao',
+      'Praca de Espanha',
+      'Jardim Zoologico',
+      'Laranjeiras',
+      'Alto dos Moinhos',
+      'Colegio Militar/Luz',
+      'Carnide',
+      'Pontinha',
+      'Alfornelos',
+      'Amadora Este',
+      'Reboleira'
+    ],
+    neighborhood: 'sete-rios-gulbenkian',
+    zoneLabel: 'Gulbenkian Gardens, Sete Rios Zoo & Northwestern Blue Line',
+    districtId: 'district-sao-sebastiao-sete-rios',
+    order: 8,
+    lines: ['Linha Azul', 'Linha Vermelha'],
+    lineColors: ['#2563eb', '#dc2626'],
+    transitConnections: ['Linha Azul & Linha Vermelha Transfer Hub', 'Teleferico do Jardim Zoologico', 'CP Sete Rios & Rede Expressos Coach Terminal'],
+    undergroundTheme: {
+      wallPrimary: '#e5ecf6',
+      tileAccent: '#1d4ed8',
+      platformFloor: '#d5dce4',
+      trim: '#b91c1c',
+      artLabel: 'MARIA KEIL & JULIO POMAR - ZOO FAUNA & MODERNIST TILES',
+      architect: 'Falcao e Cunha (1959) / Tiago Henriques (2009)',
+      artist: 'Maria Keil & Julio Pomar',
+      muralStyle: 'pomar-zoo-fauna',
+      nextTrainDest: 'Aeroporto / Reboleira',
+      oppositeDest: 'Santa Apolonia (via Marques de Pombal & Baixa-Chiado)',
+      transferLine: 'Linha Azul & Linha Vermelha Terminus Hub'
+    },
+    note: 'Western transfer hub linking Linha Azul (toward Jardim Zoologico, Colegio Militar/Luz, and Reboleira) with the western terminus of Linha Vermelha next to Fundacao Calouste Gulbenkian.'
+  },
+  {
+    id: 'metro-campo-grande-alvalade',
+    name: 'Metro Campo Grande (Universidade, Alvalade & Odivelas)',
+    canonicalStopName: 'Campo Grande',
+    corridorStops: [
+      'Campo Grande',
+      'Cidade Universitaria',
+      'Quinta das Conchas',
+      'Lumiar',
+      'Ameixoeira',
+      'Senhor Roubado',
+      'Odivelas',
+      'Telheiras',
+      'Alvalade',
+      'Roma',
+      'Areeiro'
+    ],
+    neighborhood: 'campo-grande-alvalade',
+    zoneLabel: 'Cidade Universitaria, Campo Grande, Alvalade & Northern Termini',
+    districtId: 'district-campo-grande-alvalade',
+    order: 9,
+    lines: ['Linha Amarela', 'Linha Verde'],
+    lineColors: ['#eab308', '#16a34a'],
+    transitConnections: ['Linha Amarela & Linha Verde Viaduct Hub', 'Carris Metropolitana Northern Terminal', 'Cidade Universitaria Campus Loop'],
+    undergroundTheme: {
+      wallPrimary: '#e4efe8',
+      tileAccent: '#15803d',
+      platformFloor: '#d4ddd6',
+      trim: '#ca8a04',
+      artLabel: 'EDUARDO NERY - 18TH-CENTURY BAROQUE CONVITE TILE FIGURES',
+      architect: 'Ezequiel Nicolau (1993)',
+      artist: 'Eduardo Nery (Fabrica Viúva Lamego Cutouts)',
+      muralStyle: 'nery-convite-sentinels',
+      nextTrainDest: 'Odivelas / Telheiras',
+      oppositeDest: 'Rato / Cais do Sodre',
+      transferLine: 'Linha Amarela & Linha Verde Interchange'
+    },
+    note: 'Northern interchange uniting Linha Amarela (to Lumiar and Odivelas) and Linha Verde (to Telheiras and Alvalade), guarded by Eduardo Nery blue-and-white baroque tile sentinels.'
+  },
+  {
+    id: 'metro-alameda',
+    name: 'Metro Alameda (Fonte Luminosa & Olaias)',
+    canonicalStopName: 'Alameda',
+    corridorStops: ['Alameda', 'Olaias', 'Bela Vista', 'Chelas'],
+    neighborhood: 'alameda-arroios',
+    zoneLabel: 'Alameda Dom Afonso Henriques, Fonte Luminosa & Olaias',
+    districtId: 'district-alameda-arroios',
+    order: 10,
+    lines: ['Linha Verde', 'Linha Vermelha'],
+    lineColors: ['#16a34a', '#dc2626'],
+    transitConnections: ['Linha Verde & Linha Vermelha Transfer Hub', 'Carris Buses 708 / 717 / 720 / 735', 'Instituto Superior Tecnico Esplanade'],
+    undergroundTheme: {
+      wallPrimary: '#f5e4dc',
+      tileAccent: '#dc2626',
+      platformFloor: '#dfd4ce',
+      trim: '#15803d',
+      artLabel: 'COSTA PINHEIRO & TAVEIRA - NAVIGATORS & POLYCHROME ARCHES',
+      architect: 'Falcao e Cunha / Manuel Tainha & Tomas Taveira (1998)',
+      artist: 'Maria Keil, Costa Pinheiro & Alberto Carneiro',
+      muralStyle: 'taveira-polychrome-arches',
+      nextTrainDest: 'Aeroporto (via Oriente) / Telheiras',
+      oppositeDest: 'Cais do Sodre / Sao Sebastiao',
+      transferLine: 'Linha Verde & Linha Vermelha Interchange'
+    },
+    note: 'Eastern junction where Linha Verde meets Linha Vermelha beneath the monumental 1948 Fonte Luminosa and beside the polychrome cathedral columns of Olaias.'
+  },
+  {
+    id: 'metro-oriente-aeroporto',
+    name: 'Metro Oriente & Aeroporto (Parque das Nacoes)',
+    canonicalStopName: 'Oriente',
+    corridorStops: ['Oriente', 'Cabo Ruivo', 'Olivais', 'Moscavide', 'Encarnacao', 'Aeroporto'],
+    neighborhood: 'parque-das-nacoes',
+    zoneLabel: 'Parque das Nacoes, Gare do Oriente & Aeroporto Humberto Delgado',
+    districtId: 'district-oriente-parque-nacoes',
+    order: 11,
+    lines: ['Linha Vermelha'],
+    lineColors: ['#dc2626'],
+    transitConnections: ['Gare do Oriente High-Speed Rail & Bus Hub', 'Telecabine Lisboa (Parque das Nacoes Gondola)', 'Aeroporto Humberto Delgado (Linha Vermelha Terminus)'],
+    undergroundTheme: {
+      wallPrimary: '#e8eef5',
+      tileAccent: '#dc2626',
+      platformFloor: '#d4dce6',
+      trim: '#1e3a8a',
+      artLabel: 'SANTIAGO CALATRAVA VAULT - 11 GLOBAL ARTISTS OCEAN MURALS',
+      architect: 'Santiago Calatrava & Sanchez Jorge (1998)',
+      artist: 'Hundertwasser, Yayoi Kusama, Erro, Raza, Zao Wou-Ki & Abakanowicz',
+      muralStyle: 'calatrava-oceans-mural',
+      nextTrainDest: 'Aeroporto (via Moscavide & Encarnacao)',
+      oppositeDest: 'Sao Sebastiao (via Alameda & Saldanha)',
+      transferLine: 'Gare do Oriente Rail, Telecabine Lisboa & Aeroporto'
+    },
+    note: 'Monumental Expo 98 intermodal station designed by Santiago Calatrava featuring ceramic ocean murals by 11 artists from all five continents, extending north to Aeroporto.'
+  }
+];
+
+export const ALL_METRO_STATIONS = [...METRO_STATIONS, ...CITY_METRO_STATIONS];
+
+// Walkable 3D & 2D Lisbon City Districts connected to the 9 city-wide Metropolitano de Lisboa stations
+export const LISBOA_CITY_DISTRICTS = [
+  {
+    id: 'district-cais-sodre-belem',
+    stationId: 'metro-cais-sodre',
+    name: 'Cais do Sodre & Belem Waterfront Corridor',
+    shortName: 'Cais do Sodre / Belem',
+    zoneBadge: '[LINHA VERDE + ELETRICO 15E]',
+    accentColor: '#16a34a',
+    skylineStyle: 'belem-tower',
+    transitSummary: 'Linha Verde Terminus | Eletrico 15E to Belem | CP Cascais Line | Transtejo Ferries',
+    description: 'Walk from the Linha Verde riverfront terminus along the Tagus avenue served by Eletrico 15E toward Mosteiro dos Jeronimos, Torre de Belem, and Padrao dos Descobrimentos.',
+    plazaNote: 'Stroll the riverfront calçada plaza: savor warm custard tarts or ginjinha at the Belem pastry terrace, ride Eletrico 15E past Torre de Belem, or pick up maritime keepsakes.',
+    phrase: {
+      pt: 'O eletrico quinze vai do Cais do Sodre direto para Belem.',
+      pronunciation: 'Oo eh-leh-tree-koo keen-zeh vah-ee doo Kah-eesh doo Soh-dreh dee-reh-too pah-rah Beh-leym.',
+      en: 'Tram 15 goes from Cais do Sodre straight to Belem.'
+    },
+    townSpots: [
+      {
+        id: 'belem-confeitaria',
+        kind: 'eatery',
+        name: 'Antiga Confeitaria da Ribeira & Belem',
+        badge: '[PASTELARIA]',
+        host: 'Mestre Goncalo',
+        x: 155,
+        y: 192,
+        note: 'Historic blue-and-white azulejo pastry hall serving cinnamon-dusted custard tarts on porcelain plates and chilled port wine in stemmed glasses.',
+        items: [
+          {
+            id: 'item-pastéis-belem-plate',
+            name: 'Pasteis de Belem com Canela',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 4.2,
+            fullnessDelta: 28,
+            energyDelta: 24,
+            description: 'Pair of warm flaky custard tarts baked by the 1837 monastic recipe, served on a porcelain plate with cinnamon and powdered sugar.'
+          },
+          {
+            id: 'item-porto-tawny-glass',
+            name: 'Calice de Vinho do Porto Tawny',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'wine-red',
+            costEur: 4.5,
+            fullnessDelta: 10,
+            energyDelta: 22,
+            description: 'Velvety 10-year amber Tawny Port poured into a crystal tasting glass.'
+          }
+        ]
+      },
+      {
+        id: 'belem-torre-15e',
+        kind: 'landmark',
+        name: 'Torre de Belem & Eletrico 15E Esplanade',
+        badge: '[MONUMENT & 15E]',
+        host: 'Carris Inspector Rui',
+        x: 380,
+        y: 192,
+        note: '1515 UNESCO Manueline limestone fortress guarding the Tagus estuary alongside Carris Eletrico 15E and the CP Cascais coastal railway. Free waterfront rest (+25 Energy).'
+      },
+      {
+        id: 'belem-maritime-shop',
+        kind: 'shop',
+        name: 'Atelier dos Descobrimentos',
+        badge: '[MARITIME SHOP]',
+        host: 'Mariana',
+        x: 605,
+        y: 192,
+        note: 'Riverfront heritage shop offering carved Lioz stone miniatures and brass astrolabes.',
+        items: [
+          {
+            id: 'item-torre-belem-mini',
+            name: 'Lioz Limestone Torre de Belem',
+            kind: 'souvenir',
+            costEur: 14.0,
+            fullnessDelta: 0,
+            energyDelta: 6,
+            description: 'Hand-carved cream limestone miniature of the 1515 Manueline watchtower.'
+          },
+          {
+            id: 'item-armillary-astrolabe',
+            name: 'Brass Armillary Sphere Charm',
+            kind: 'souvenir',
+            costEur: 11.5,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Polished nautical brass sphere inspired by the stonework of Mosteiro dos Jeronimos.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-rossio-restauradores',
+    stationId: 'metro-rossio',
+    name: 'Praca do Rossio, Restauradores & Santa Justa',
+    shortName: 'Rossio / Baixa',
+    zoneBadge: '[LINHA VERDE + SANTA JUSTA]',
+    accentColor: '#15803d',
+    skylineStyle: 'rossio-santa-justa',
+    transitSummary: 'Linha Verde (Rossio - Martim Moniz) | Elevador de Santa Justa (1902) | CP Sintra Rail',
+    description: 'Step out onto the rolling Mar Largo wave mosaic of Praca Dom Pedro IV (Rossio), framed by bronze French fountains, Neo-Manueline Rossio Station, and the 45-meter cast-iron Elevador de Santa Justa.',
+    plazaNote: 'Admire the 1902 Neo-Gothic iron lattice of Elevador de Santa Justa, sip traditional cherry Ginjinha in a glass or dine on codfish croquettes, and browse Baixa theatre playbills.',
+    phrase: {
+      pt: 'Vamos subir no Elevador de Santa Justa para ver a Baixa!',
+      pronunciation: 'Vah-moosh soo-beer noo Eh-leh-vah-dohr deh Sahn-tah Zhoosh-tah pah-rah vehr ah Bye-shah!',
+      en: 'Let us ride the Santa Justa Lift up to see the Baixa!'
+    },
+    townSpots: [
+      {
+        id: 'rossio-ginjinha-cafe',
+        kind: 'eatery',
+        name: 'A Ginjinha & Cafe Nicola do Rossio',
+        badge: '[CAFE & GINJINHA]',
+        host: 'Senhor Fernando',
+        x: 155,
+        y: 192,
+        note: 'Landmark 1840 Rossio tavern and literary cafe pouring sour-cherry liqueur in shot glasses alongside hot savory croquettes on porcelain plates.',
+        items: [
+          {
+            id: 'item-rossio-ginjinha-glass',
+            name: 'Copo de Ginjinha com Elas (1840)',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'ginjinha',
+            costEur: 2.5,
+            fullnessDelta: 8,
+            energyDelta: 22,
+            description: 'Traditional Morello cherry liqueur served in a small glass with a steeped cherry at the bottom.'
+          },
+          {
+            id: 'item-rossio-empada-plate',
+            name: 'Empadas de Pato & Croquetes',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 6.5,
+            fullnessDelta: 38,
+            energyDelta: 20,
+            description: 'Golden flaky duck pastry pie and crispy beef croquettes served on a porcelain bistro plate.'
+          }
+        ]
+      },
+      {
+        id: 'rossio-santa-justa-lift',
+        kind: 'landmark',
+        name: 'Elevador de Santa Justa (1902) & Rossio Fountains',
+        badge: '[1902 VERTICAL LIFT]',
+        host: 'Lift Operator Jorge',
+        x: 380,
+        y: 192,
+        note: '45-meter Neo-Gothic wrought-iron vertical public transit lift built by Raoul Mesnier du Ponsard in 1902, linking downtown Baixa to Largo do Carmo. Free panoramic rest (+25 Energy).'
+      },
+      {
+        id: 'rossio-chapelaria',
+        kind: 'shop',
+        name: 'Chapelaria & Luvaria da Baixa (1886)',
+        badge: '[HABERDASHERY]',
+        host: 'Dona Helena',
+        x: 605,
+        y: 192,
+        note: 'Centuries-old Pombaline storefront crafting wool fedoras, leather gloves, and theatre memorabilia.',
+        items: [
+          {
+            id: 'item-rossio-fedora-pin',
+            name: 'Pombaline Brass Tram & Lift Pin Set',
+            kind: 'souvenir',
+            costEur: 9.0,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Enamel collector pins depicting Elevador de Santa Justa and Eletrico 12E.'
+          },
+          {
+            id: 'item-sintra-rail-poster',
+            name: 'Estacao do Rossio Horseshoe Arch Print',
+            kind: 'souvenir',
+            costEur: 11.0,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Architectural lithograph of the 1890 Neo-Manueline twin horseshoe portals of Rossio Railway Station.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-marques-pombal-avenida',
+    stationId: 'metro-marques-pombal',
+    name: 'Marques de Pombal, Avenida da Liberdade & Parque Eduardo VII',
+    shortName: 'Marques de Pombal',
+    zoneBadge: '[LINHA AZUL + LINHA AMARELA]',
+    accentColor: '#2563eb',
+    skylineStyle: 'marques-pombal',
+    transitSummary: 'Linha Azul & Linha Amarela Interchange | Elevador do Lavra (1884) | Avenida Bus Corridor',
+    description: 'Emerge at Lisbon grand circular rotunda crowned by the 36-meter Monumento ao Marques de Pombal, looking north up the sculpted boxwood hedges of Parque Eduardo VII and south down tree-lined Avenida da Liberdade.',
+    plazaNote: 'Relax at an open-air Avenida quiosque under plane trees and acacias, ride Lisbon oldest funicular (Elevador do Lavra, 1884), or browse Estufa Fria botanical prints.',
+    phrase: {
+      pt: 'Na estacao do Marques de Pombal mudamos da Linha Azul para a Linha Amarela.',
+      pronunciation: 'Nah ehsh-tah-sow doo Mahr-kehsh deh Pohm-bahl moo-dah-moosh dah Lee-nyah Ah-zool pah-rah ah Lee-nyah Ah-mah-reh-lah.',
+      en: 'At Marques de Pombal station we transfer from the Blue Line to the Yellow Line.'
+    },
+    townSpots: [
+      {
+        id: 'avenida-quiosque-ribeira',
+        kind: 'eatery',
+        name: 'Quiosque da Avenida da Liberdade',
+        badge: '[BOULEVARD CAFE]',
+        host: 'Carolina',
+        x: 155,
+        y: 192,
+        note: 'Shaded Art Deco boulevard pavilion set upon ornate floral calçada mosaics beside water ponds, serving fresh orchard mazagran in tall glasses and savory pastries on plates.',
+        items: [
+          {
+            id: 'item-avenida-mazagran-glass',
+            name: 'Mazagran de Cafe & Limao',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'limonada',
+            costEur: 3.4,
+            fullnessDelta: 12,
+            energyDelta: 24,
+            description: 'Chilled Portuguese espresso shaken with fresh lemon juice, mint, and ice in a tall crystal glass.'
+          },
+          {
+            id: 'item-avenida-folhado-plate',
+            name: 'Folhado de Queijo da Serra & Presunto',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 6.0,
+            fullnessDelta: 36,
+            energyDelta: 20,
+            description: 'Warm puff pastry filled with creamy Serra da Estrela cheese and cured ham on a porcelain plate.'
+          }
+        ]
+      },
+      {
+        id: 'pombal-monument-lavra',
+        kind: 'landmark',
+        name: 'Monumento ao Marques de Pombal & Elevador do Lavra (1884)',
+        badge: '[ROTUNDA & FUNICULAR]',
+        host: 'Park Conservator Tiago',
+        x: 380,
+        y: 192,
+        note: 'The 1934 bronze statue of Marques de Pombal with his lion overlooking Parque Eduardo VII, linked to Avenida da Liberdade and Elevador do Lavra (Lisbon oldest funicular, opened 1884). Free rest (+25 Energy).'
+      },
+      {
+        id: 'estufa-fria-boutique',
+        kind: 'shop',
+        name: 'Boutique Botanica da Estufa Fria',
+        badge: '[BOTANICAL SHOP]',
+        host: 'Doutora Marta',
+        x: 605,
+        y: 192,
+        note: 'Greenhouse conservatory pavilion from Parque Eduardo VII offering pressed fern folios and jacaranda scents.',
+        items: [
+          {
+            id: 'item-estufa-fria-herbarium',
+            name: 'Estufa Fria Botanical Folio',
+            kind: 'souvenir',
+            costEur: 12.0,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Illustrated botanical guide to the tree ferns, camellias, and greenhouses of Parque Eduardo VII.'
+          },
+          {
+            id: 'item-avenida-calcada-tile',
+            name: 'Avenida Floral Calcada Plaque',
+            kind: 'souvenir',
+            costEur: 8.5,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Carved limestone and basalt rosette reproducing the famous mosaics of Avenida da Liberdade.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-rato-principe-real',
+    stationId: 'metro-rato',
+    name: 'Largo do Rato, Principe Real & Aguas Livres Aqueduct',
+    shortName: 'Rato / Principe Real',
+    zoneBadge: '[LINHA AMARELA + ELETRICO 24E]',
+    accentColor: '#eab308',
+    skylineStyle: 'rato-aqueduct',
+    transitSummary: 'Linha Amarela Terminus | Eletrico 24E (Campolide - Camoes) | Carris Buses 758 / 773',
+    description: 'Ascend to Largo do Rato where the 18th-century stone arches of the Aguas Livres Aqueduct meet the Mae d Agua reservoir, the giant cedar umbrella of Jardim do Principe Real, and the revived yellow Eletrico 24E.',
+    plazaNote: 'Dine under the Principe Real cypress cedar, admire the 1746 Mae d Agua baroque water hall and Eletrico 24E, or visit the Casa Museu Amalia Rodrigues shop.',
+    phrase: {
+      pt: 'O eletrico vinte e quatro liga o Largo do Rato ao Principe Real e ao Chiado.',
+      pronunciation: 'Oo eh-leh-tree-koo veen-teh ee kwah-troo lee-gah oo Lahr-goo doo Rah-too ow Preen-see-peh Reh-ahl ee ow Shee-ah-doo.',
+      en: 'Tram 24 connects Largo do Rato to Principe Real and Chiado.'
+    },
+    townSpots: [
+      {
+        id: 'principe-real-esplanada',
+        kind: 'eatery',
+        name: 'Esplanada do Cedro - Principe Real',
+        badge: '[GARDEN BISTRO]',
+        host: 'Lourenco',
+        x: 155,
+        y: 192,
+        note: 'Romantic garden terrace beneath the 20-meter spreading branches of the giant 19th-century cedar of Jardim do Principe Real.',
+        items: [
+          {
+            id: 'item-rato-prego-plate',
+            name: 'Prego no Prato com Batata Frita',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 9.5,
+            fullnessDelta: 48,
+            energyDelta: 26,
+            description: 'Garlic-seared tenderloin steak served on a porcelain dinner plate with crisp fries and mustard sauce.'
+          },
+          {
+            id: 'item-rato-vinho-verde-glass',
+            name: 'Copo de Vinho Verde Alvarinho',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'wine-white',
+            costEur: 4.0,
+            fullnessDelta: 10,
+            energyDelta: 22,
+            description: 'Crisp, lightly effervescent northern Portuguese Alvarinho white wine served chilled in a stemmed glass.'
+          }
+        ]
+      },
+      {
+        id: 'rato-mae-dagua-24e',
+        kind: 'landmark',
+        name: 'Mae d Agua das Amoreiras (1746) & Eletrico 24E',
+        badge: '[AQUEDUCT & 24E]',
+        host: 'Aqueduct Curator Sofia',
+        x: 380,
+        y: 192,
+        note: 'Vaulted 18th-century stone water reservoir terminus of the Aguas Livres Aqueduct designed by Carlos Mardel, right beside the historic Eletrico 24E streetcar stop. Free terrace rest (+25 Energy).'
+      },
+      {
+        id: 'rato-ceramica-amalia',
+        kind: 'shop',
+        name: 'Galeria de Azulejos & Casa da Amalia',
+        badge: '[TILE ATELIER]',
+        host: 'Mestre Vicente',
+        x: 605,
+        y: 192,
+        note: 'Artisan ceramic studio celebrating the Rato tilework tradition and nearby Rua de Sao Bento.',
+        items: [
+          {
+            id: 'item-cargaleiro-tile',
+            name: 'Cargaleiro Geometric Azulejo Panel',
+            kind: 'souvenir',
+            costEur: 13.5,
+            fullnessDelta: 0,
+            energyDelta: 6,
+            description: 'Hand-glazed polychrome ceramic tile inspired by Manuel Cargaleiro Rato Metro murals.'
+          },
+          {
+            id: 'item-aqueduct-etching',
+            name: 'Aqueduto das Aguas Livres Arch Print',
+            kind: 'souvenir',
+            costEur: 9.5,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Fine-line architectural drawing of the 65-meter stone pointed arches crossing the Alcantara valley.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-saldanha-campo-pequeno',
+    stationId: 'metro-saldanha-campo-pequeno',
+    name: 'Saldanha, Avenidas Novas & Campo Pequeno (1892)',
+    shortName: 'Saldanha / Campo Pequeno',
+    zoneBadge: '[LINHA AMARELA + LINHA VERMELHA]',
+    accentColor: '#d97706',
+    skylineStyle: 'campo-pequeno',
+    transitSummary: 'Linha Amarela & Linha Vermelha Hub | CP Entre Campos Rail | Carris Avenidas Express',
+    description: 'Walk the broad modernist boulevards of Avenidas Novas from Praca Duque de Saldanha to the iconic 1892 octagonal red-brick domes and horseshoe arches of Campo Pequeno.',
+    plazaNote: 'Feast on seafood platters or enjoy a chilled draft Imperial at a classic Avenidas Novas cervejaria, admire the 1892 Neo-Moorish brick bullring dome, or browse Art Nouveau design books.',
+    phrase: {
+      pt: 'No Saldanha cruzam-se a Linha Amarela e a Linha Vermelha para o Aeroporto.',
+      pronunciation: 'Noo Sahl-dah-nyah kroo-zahm-seh ah Lee-nyah Ah-mah-reh-lah ee ah Lee-nyah Vehr-meh-lyah pah-rah oo Ah-eh-roh-pohr-too.',
+      en: 'At Saldanha the Yellow Line and the Red Line to the Airport intersect.'
+    },
+    townSpots: [
+      {
+        id: 'saldanha-cervejaria',
+        kind: 'eatery',
+        name: 'Cervejaria Marisqueira das Avenidas',
+        badge: '[CERVEJARIA]',
+        host: 'Senhor Ramiro',
+        x: 155,
+        y: 192,
+        note: 'Bustling marble-counter Avenidas Novas seafood beer hall famous for garlic tiger prawns on plates and frosty draft imperials in tall glasses.',
+        items: [
+          {
+            id: 'item-saldanha-gambas-plate',
+            name: 'Gambas ao Alhinho & Pao Torrado',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 12.5,
+            fullnessDelta: 50,
+            energyDelta: 30,
+            description: 'Sizzling garlic and chili prawns with buttered toasted bread served on a ceramic platter.'
+          },
+          {
+            id: 'item-saldanha-imperial-glass',
+            name: 'Imperial Fresquinha de Pressao',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'imperial',
+            costEur: 2.6,
+            fullnessDelta: 10,
+            energyDelta: 18,
+            description: 'Crisp golden Lisbon draft pilsner poured with a dense white foam collar in a chilled pilsner glass.'
+          }
+        ]
+      },
+      {
+        id: 'campo-pequeno-dome',
+        kind: 'landmark',
+        name: 'Praca do Campo Pequeno (1892) & Saldanha Rotunda',
+        badge: '[1892 BRICK DOME]',
+        host: 'Architect Guide Nuno',
+        x: 380,
+        y: 192,
+        note: 'Monumental 1892 red-brick Neo-Moorish rotunda designed by Antonio Jose Dias da Silva with eight onion-domed towers and landscaped gardens above the Linha Amarela tunnel. Free rest (+25 Energy).'
+      },
+      {
+        id: 'avenidas-art-nouveau-shop',
+        kind: 'shop',
+        name: 'Livraria & Design Avenidas Novas',
+        badge: '[ARCHITECTURE]',
+        host: 'Beatriz V.',
+        x: 605,
+        y: 192,
+        note: 'Design bookstore celebrating Premio Valmor mansions and Almada Negreiros modernist murals.',
+        items: [
+          {
+            id: 'item-valmor-architecture-book',
+            name: 'Premio Valmor Lisbon Mansions Guide',
+            kind: 'souvenir',
+            costEur: 13.0,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Hardcover photographic survey of early 20th-century Art Nouveau and modernist facades in Avenidas Novas.'
+          },
+          {
+            id: 'item-almada-sketch-print',
+            name: 'Almada Negreiros Geometric Line Print',
+            kind: 'souvenir',
+            costEur: 10.0,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Reproduction of mid-century modernist incised line drawings from Saldanha.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-sao-sebastiao-sete-rios',
+    stationId: 'metro-sao-sebastiao-zoologico',
+    name: 'Sao Sebastiao, Gulbenkian Gardens, Sete Rios Zoo & Reboleira Corridor',
+    shortName: 'Sao Sebastiao / Zoo',
+    zoneBadge: '[LINHA AZUL + LINHA VERMELHA]',
+    accentColor: '#1d4ed8',
+    skylineStyle: 'gulbenkian-zoo',
+    transitSummary: 'Linha Azul (to Jardim Zoologico, Luz & Reboleira) | Linha Vermelha Origin | Zoo Teleferico',
+    description: 'Explore the western Linha Azul & Linha Vermelha hub spanning the modernist water gardens of Fundacao Calouste Gulbenkian, the aerial cable car of Jardim Zoologico in Sete Rios, and the northwestern stations to Reboleira.',
+    plazaNote: 'Dine overlooking the Gulbenkian duck ponds, ride the Jardim Zoologico aerial Teleferico cable baskets, or collect museum art editions.',
+    phrase: {
+      pt: 'A Linha Azul segue de Sao Sebastiao para o Jardim Zoologico e a Reboleira.',
+      pronunciation: 'Ah Lee-nyah Ah-zool seh-geh deh Sow Seh-bahsh-tee-ow pah-rah oo Zhahr-deem Zoh-oh-loh-zhee-koo ee ah Heh-boh-lay-rah.',
+      en: 'The Blue Line continues from Sao Sebastiao to the Zoo and Reboleira.'
+    },
+    townSpots: [
+      {
+        id: 'gulbenkian-garden-cafe',
+        kind: 'eatery',
+        name: 'Cafetaria dos Jardins da Gulbenkian',
+        badge: '[MUSEUM TERRACE]',
+        host: 'Teresa M.',
+        x: 155,
+        y: 192,
+        note: 'Tranquil cantilevered concrete terrace designed by Goncalo Ribeiro Telles overlooking water lilies, willow trees, and modernist sculptures.',
+        items: [
+          {
+            id: 'item-gulbenkian-quiche-plate',
+            name: 'Quiche de Espinafres & Queijo de Cabra',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 7.5,
+            fullnessDelta: 40,
+            energyDelta: 24,
+            description: 'Warm baked spinach and goat cheese tart with mixed garden greens served on a stoneware plate.'
+          },
+          {
+            id: 'item-gulbenkian-hibisco-glass',
+            name: 'Cha Frio de Hibisco & Hortela',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'sangria',
+            costEur: 3.5,
+            fullnessDelta: 12,
+            energyDelta: 20,
+            description: 'Ruby chilled hibiscus blossom and garden mint infusion served over ice in a glass.'
+          }
+        ]
+      },
+      {
+        id: 'gulbenkian-zoo-teleferico',
+        kind: 'landmark',
+        name: 'Jardins da Gulbenkian & Teleferico do Jardim Zoologico',
+        badge: '[GARDENS & CABLE CAR]',
+        host: 'Curator Andre',
+        x: 380,
+        y: 192,
+        note: 'Award-winning 1969 modernist museum park paired with the aerial Teleferico cable-car baskets gliding over Jardim Zoologico at Sete Rios along Linha Azul. Free rest (+25 Energy).'
+      },
+      {
+        id: 'gulbenkian-museum-shop',
+        kind: 'shop',
+        name: 'Loja do Museu & Azulejos Julio Pomar',
+        badge: '[MUSEUM SHOP]',
+        host: 'Claudia',
+        x: 605,
+        y: 192,
+        note: 'Museum gift pavilion featuring Lalique dragonfly motifs and Julio Pomar ceramic animal prints.',
+        items: [
+          {
+            id: 'item-lalique-dragonfly-brooch',
+            name: 'Rene Lalique Enamel Dragonfly Replica',
+            kind: 'souvenir',
+            costEur: 15.0,
+            fullnessDelta: 0,
+            energyDelta: 6,
+            description: 'Translucent blue-green cloisonne pin inspired by the crown jewel of the Gulbenkian collection.'
+          },
+          {
+            id: 'item-pomar-tiger-tile',
+            name: 'Julio Pomar Zoo Fauna Ceramic Coaster',
+            kind: 'souvenir',
+            costEur: 8.5,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Colorful glazed tile celebrating Julio Pomar lively animal murals inside Jardim Zoologico station.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-campo-grande-alvalade',
+    stationId: 'metro-campo-grande-alvalade',
+    name: 'Campo Grande, Cidade Universitaria, Alvalade & Odivelas/Telheiras',
+    shortName: 'Campo Grande / Alvalade',
+    zoneBadge: '[LINHA AMARELA + LINHA VERDE]',
+    accentColor: '#16a34a',
+    skylineStyle: 'campo-grande-university',
+    transitSummary: 'Linha Amarela (to Lumiar & Odivelas) | Linha Verde (to Telheiras & Alvalade) | University Hub',
+    description: 'Stroll the tree-canopied gardens of Jardim do Campo Grande and the monumental porcelain-tiled Reitoria of Cidade Universitaria, where Linha Amarela and Linha Verde converge in northern Lisbon.',
+    plazaNote: 'Enjoy a student bifana plate or fresh orange juice glass at an Alvalade pastry counter, rest beside the Campo Grande rowing lake, or pick up university notebooks.',
+    phrase: {
+      pt: 'No Campo Grande apanhamos a Linha Verde para Telheiras ou a Linha Amarela para Odivelas.',
+      pronunciation: 'Noo Kahm-poo Grahn-deh ah-pah-nyah-moosh ah Lee-nyah Vehr-deh pah-rah Teh-lyay-rash oh ah Lee-nyah Ah-mah-reh-lah pah-rah Oh-dee-veh-lash.',
+      en: 'At Campo Grande we catch the Green Line to Telheiras or the Yellow Line to Odivelas.'
+    },
+    townSpots: [
+      {
+        id: 'alvalade-pastelaria-universitaria',
+        kind: 'eatery',
+        name: 'Pastelaria & Cervejaria de Alvalade',
+        badge: '[CAFE & SNACK]',
+        host: 'Senhor Artur',
+        x: 155,
+        y: 192,
+        note: 'Classic 1950s Alvalade neighborhood cafe serving university faculty and students with hearty plates and freshly squeezed Algarve orange juice in tall glasses.',
+        items: [
+          {
+            id: 'item-alvalade-bitoque-plate',
+            name: 'Bitoque de Vaca com Ovo a Cavalo',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 10.5,
+            fullnessDelta: 54,
+            energyDelta: 28,
+            description: 'Traditional Lisbon pan-seared steak topped with a fried egg, rice, and fries on a large dinner plate.'
+          },
+          {
+            id: 'item-alvalade-sumo-laranja-glass',
+            name: 'Copo de Sumo de Laranja do Algarve',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'limonada',
+            costEur: 3.2,
+            fullnessDelta: 16,
+            energyDelta: 22,
+            description: 'Freshly pressed sweet Algarve oranges served cold in a tall glass.'
+          }
+        ]
+      },
+      {
+        id: 'campo-grande-reitoria-lake',
+        kind: 'landmark',
+        name: 'Reitoria da Universidade de Lisboa & Jardim do Campo Grande',
+        badge: '[UNIVERSITY & PARK]',
+        host: 'Professor Henrique',
+        x: 380,
+        y: 192,
+        note: 'Monumental academic plaza adorned with Fred Kradolfer and Almada Negreiros murals beside the 18th-century tree-shaded rowing lake of Jardim do Campo Grande. Free rest (+25 Energy).'
+      },
+      {
+        id: 'alvalade-livraria-academica',
+        kind: 'shop',
+        name: 'Papelaria & Livraria Academica',
+        badge: '[UNIVERSITY SHOP]',
+        host: 'Diogo',
+        x: 605,
+        y: 192,
+        note: 'Campus bookshop stocking Eduardo Nery baroque tile prints and embossed leather academic journals.',
+        items: [
+          {
+            id: 'item-nery-convite-figurine',
+            name: 'Eduardo Nery Baroque Sentinel Plaque',
+            kind: 'souvenir',
+            costEur: 11.5,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Blue-and-white glazed ceramic cutout figure modeled after the Campo Grande Metro station guardians.'
+          },
+          {
+            id: 'item-ul-embossed-notebook',
+            name: 'Cidade Universitaria Crest Journal',
+            kind: 'souvenir',
+            costEur: 9.0,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Stitched linen notebook stamped with the botanical seal of northern Lisbon gardens.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-alameda-arroios',
+    stationId: 'metro-alameda',
+    name: 'Alameda Dom Afonso Henriques, Fonte Luminosa & Olaias',
+    shortName: 'Alameda / Fonte Luminosa',
+    zoneBadge: '[LINHA VERDE + LINHA VERMELHA]',
+    accentColor: '#dc2626',
+    skylineStyle: 'alameda-fountain',
+    transitSummary: 'Linha Verde & Linha Vermelha Interchange | Carris 708 / 717 / 720 / 735 | IST Campus',
+    description: 'Stand before the monumental 1948 Lioz limestone basin and cascading water jets of Fonte Luminosa across the wide green lawn of Alameda Dom Afonso Henriques, crowned on the hill by Instituto Superior Tecnico.',
+    plazaNote: 'Enjoy warm pastries or a cool imperial glass on the Alameda terrace, watch the high water jets of Fonte Luminosa (1948), or explore the polychrome architectural art of nearby Olaias.',
+    phrase: {
+      pt: 'Na Alameda apanhamos a Linha Vermelha direta para o Oriente e o Aeroporto.',
+      pronunciation: 'Nah Ah-lah-meh-dah ah-pah-nyah-moosh ah Lee-nyah Vehr-meh-lyah dee-reh-tah pah-rah oo Oh-ree-eyn-teh ee oo Ah-eh-roh-pohr-too.',
+      en: 'At Alameda we catch the Red Line direct to Oriente and the Airport.'
+    },
+    townSpots: [
+      {
+        id: 'alameda-esplanada-luminosa',
+        kind: 'eatery',
+        name: 'Esplanada da Fonte Luminosa',
+        badge: '[PARK TERRACE]',
+        host: 'Dona Fatima',
+        x: 155,
+        y: 192,
+        note: 'Sunlit parkside cafe overlooking the Alameda lawns, serving codfish brás on plates and fruit sangria in chilled glasses.',
+        items: [
+          {
+            id: 'item-alameda-bacalhau-plate',
+            name: 'Bacalhau a Bras com Azeitonas',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 11.0,
+            fullnessDelta: 52,
+            energyDelta: 28,
+            description: 'Shredded salt cod sauteed with matchstick potatoes, golden eggs, parsley, and black olives on a porcelain plate.'
+          },
+          {
+            id: 'item-alameda-sangria-glass',
+            name: 'Copo de Sangria de Maracuja & Hortela',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'sangria',
+            costEur: 4.0,
+            fullnessDelta: 12,
+            energyDelta: 22,
+            description: 'Sparkling white sangria infused with passionfruit, citrus, and mint served in a tall stemmed glass.'
+          }
+        ]
+      },
+      {
+        id: 'alameda-fonte-luminosa-monument',
+        kind: 'landmark',
+        name: 'Fonte Luminosa Monumental (1948) & IST Hilltop',
+        badge: '[1948 FOUNTAIN]',
+        host: 'Fountain Engineer Vasco',
+        x: 380,
+        y: 192,
+        note: 'Monumental 1948 limestone water fountain designed by Carlos and Guilherme Rebelo de Andrade with sculptural bas-reliefs of the Tagus Nymphs by Maximiano Alves and Diogo de Macedo. Free rest (+25 Energy).'
+      },
+      {
+        id: 'olaias-galeria-arquitetura',
+        kind: 'shop',
+        name: 'Galeria Policromatica Alameda & Olaias',
+        badge: '[ART & CERAMICS]',
+        host: 'Arquiteta Rita',
+        x: 605,
+        y: 192,
+        note: 'Gallery celebrating the world-renowned underground architecture of the 1998 Linha Vermelha stations.',
+        items: [
+          {
+            id: 'item-olaias-stained-glass-print',
+            name: 'Olaias Polychrome Vault Art Print',
+            kind: 'souvenir',
+            costEur: 12.5,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Vibrant architectural print of Tomas Taveira steel-and-glass cathedral arches at Olaias station.'
+          },
+          {
+            id: 'item-fonte-luminosa-medal',
+            name: 'Fonte Luminosa Bas-Relief Coaster',
+            kind: 'souvenir',
+            costEur: 8.0,
+            fullnessDelta: 0,
+            energyDelta: 4,
+            description: 'Carved limestone coaster depicting the Tagus river nymphs of Alameda.'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'district-oriente-parque-nacoes',
+    stationId: 'metro-oriente-aeroporto',
+    name: 'Parque das Nacoes, Gare do Oriente, Oceanario & Aeroporto',
+    shortName: 'Oriente / Parque das Nacoes',
+    zoneBadge: '[LINHA VERMELHA + TELECABINE]',
+    accentColor: '#dc2626',
+    skylineStyle: 'oriente-calatrava',
+    transitSummary: 'Linha Vermelha (Oriente to Aeroporto) | Gare do Oriente Rail | Telecabine Lisboa',
+    description: 'Experience modern riverfront Lisboa at Parque das Nacoes: walk beneath Santiago Calatrava soaring white steel gothic tree-arches at Gare do Oriente, ride the aerial Telecabine Lisboa along the Tagus beside Oceanario de Lisboa, and connect north to Aeroporto Humberto Delgado.',
+    plazaNote: 'Dine along the Marina Parque das Nacoes waterfront, ride the Telecabine Lisboa river gondola past Oceanario and Ponte Vasco da Gama, or browse Oceanario keepsakes.',
+    phrase: {
+      pt: 'A Linha Vermelha liga a Gare do Oriente e o Parque das Nacoes ao Aeroporto de Lisboa.',
+      pronunciation: 'Ah Lee-nyah Vehr-meh-lyah lee-gah ah Gah-reh doo Oh-ree-eyn-teh ee oo Pahr-keh dash Nah-soysh ow Ah-eh-roh-pohr-too deh Leesh-boh-ah.',
+      en: 'The Red Line connects Gare do Oriente and Parque das Nacoes to Lisbon Airport.'
+    },
+    townSpots: [
+      {
+        id: 'oriente-marina-restaurante',
+        kind: 'eatery',
+        name: 'Restaurante Doca das Nacoes',
+        badge: '[WATERFRONT DINING]',
+        host: 'Chef Pedro',
+        x: 155,
+        y: 192,
+        note: 'Sleek riverfront terrace facing the Oceanario dock and Ponte Vasco da Gama, serving grilled sea bass on porcelain plates and sparkling sangria in stemmed glasses.',
+        items: [
+          {
+            id: 'item-oriente-robalo-plate',
+            name: 'Robalo Grelhado do Tejo com Legumes',
+            kind: 'food',
+            servingType: 'plate',
+            costEur: 14.0,
+            fullnessDelta: 58,
+            energyDelta: 32,
+            description: 'Char-grilled Atlantic sea bass fillet with roasted potatoes and olive oil served on a porcelain plate.'
+          },
+          {
+            id: 'item-oriente-espumante-glass',
+            name: 'Flute de Espumante Bruto Portugues',
+            kind: 'food',
+            servingType: 'glass',
+            glassStyle: 'wine-white',
+            costEur: 4.5,
+            fullnessDelta: 10,
+            energyDelta: 24,
+            description: 'Chilled Bairrada sparkling brut wine served in a tall crystal flute overlooking the Tagus.'
+          }
+        ]
+      },
+      {
+        id: 'oriente-calatrava-telecabine',
+        kind: 'landmark',
+        name: 'Gare do Oriente (Calatrava), Oceanario & Telecabine Lisboa',
+        badge: '[CALATRAVA & TELECABINE]',
+        host: 'Station Master Duarte',
+        x: 380,
+        y: 192,
+        note: 'Santiago Calatrava soaring 1998 steel-and-glass tree canopy uniting Linha Vermelha (to Aeroporto), high-speed trains, Oceanario de Lisboa, and the riverfront Telecabine Lisboa gondola overlooking the 12.3 km Ponte Vasco da Gama. Free rest (+25 Energy).'
+      },
+      {
+        id: 'oriente-oceanario-loja',
+        kind: 'shop',
+        name: 'Loja do Oceanario & Pavilhao dos Oceanos',
+        badge: '[OCEANARIO SHOP]',
+        host: 'Ines C.',
+        x: 605,
+        y: 192,
+        note: 'Eco-marine gift pavilion celebrating Oceanario de Lisboa sea otters, sunfish, and Expo 98 ceramic art.',
+        items: [
+          {
+            id: 'item-oceanario-lontra-keepsake',
+            name: 'Oceanario Sea Otter Ceramic Figure',
+            kind: 'souvenir',
+            costEur: 13.0,
+            fullnessDelta: 0,
+            energyDelta: 6,
+            description: 'Hand-painted glazed ceramic sea otter commemorating Peter Chermayeff Oceanario de Lisboa.'
+          },
+          {
+            id: 'item-vasco-gama-bridge-print',
+            name: 'Ponte Vasco da Gama & Calatrava Print',
+            kind: 'souvenir',
+            costEur: 11.0,
+            fullnessDelta: 0,
+            energyDelta: 5,
+            description: 'Panoramic architectural print of Gare do Oriente and the cable-stayed Ponte Vasco da Gama.'
+          }
+        ]
+      }
+    ]
+  }
+];
+
+export function getMetroLineById(lineId) {
+  return METRO_NETWORK_LINES.find((l) => l.id === lineId) || null;
+}
+
+export function getMetroLineByName(lineName) {
+  return METRO_NETWORK_LINES.find((l) => l.name === lineName) || null;
+}
+
+export function getStationLineIds(stationOrId) {
+  const station =
+    typeof stationOrId === 'string'
+      ? ALL_METRO_STATIONS.find((s) => s.id === stationOrId)
+      : stationOrId;
+  if (!station) return ['linha-azul'];
+  const stopName = station.canonicalStopName || '';
+  const ids = METRO_NETWORK_LINES
+    .filter((ln) => ln.stations.includes(stopName))
+    .map((ln) => ln.id);
+  if (ids.length > 0) return ids;
+  return (station.lines || ['Linha Azul'])
+    .map((name) => getMetroLineByName(name)?.id)
+    .filter(Boolean);
+}
+
+export function getTransferHubForStopName(stopName) {
+  if (!stopName) return null;
+  return ALL_METRO_STATIONS.find((s) => s.canonicalStopName === stopName) || null;
+}
+
+/**
+ * Returns every interactive station physically reachable directly on `lineId` from `stationId`,
+ * ordered along the official track sequence of `METRO_NETWORK_LINES`.
+ */
+export function getDirectStationsOnLine(stationId, lineId) {
+  const line = getMetroLineById(lineId);
+  const origin = ALL_METRO_STATIONS.find((s) => s.id === stationId);
+  if (!line || !origin) return [];
+  const originStop = origin.canonicalStopName || '';
+  const originIdx = line.stations.indexOf(originStop);
+  if (originIdx === -1) return [];
+
+  return ALL_METRO_STATIONS
+    .filter((st) => st.id !== origin.id && line.stations.includes(st.canonicalStopName || ''))
+    .map((st) => {
+      const destIdx = line.stations.indexOf(st.canonicalStopName || '');
+      const dir = destIdx > originIdx ? 1 : -1;
+      const stopPath = [];
+      for (let i = originIdx; i !== destIdx; i += dir) {
+        stopPath.push(line.stations[i]);
+      }
+      stopPath.push(line.stations[destIdx]);
+      return {
+        station: st,
+        line,
+        originIdx,
+        destIdx,
+        direction: dir,
+        hopCount: Math.abs(destIdx - originIdx),
+        stopPath,
+        intermediateStops: stopPath.slice(1, -1)
+      };
+    })
+    .sort((a, b) => a.hopCount - b.hopCount || a.destIdx - b.destIdx);
+}
+
+/**
+ * Computes the exact shortest multi-line path across the 56-station 4-line Metropolitano de Lisboa graph
+ * between any two interactive stations in ALL_METRO_STATIONS, with full leg-by-leg transfer hub details.
+ */
+export function computeMetroNetworkRoute(fromStationId, toStationId, preferredStartLineId = null) {
+  const fromStation = ALL_METRO_STATIONS.find((s) => s.id === fromStationId) || ALL_METRO_STATIONS[0];
+  const toStation = ALL_METRO_STATIONS.find((s) => s.id === toStationId) || ALL_METRO_STATIONS[1];
+  const startStop = fromStation.canonicalStopName || 'Baixa-Chiado';
+  const endStop = toStation.canonicalStopName || 'Santa Apolonia';
+
+  // Build adjacency list over all 56 official stations on the 4 lines
+  const adj = new Map();
+  const addEdge = (u, v, line) => {
+    if (!adj.has(u)) adj.set(u, []);
+    adj.get(u).push({ neighbor: v, line });
+  };
+
+  for (const line of METRO_NETWORK_LINES) {
+    for (let i = 0; i < line.stations.length - 1; i += 1) {
+      const a = line.stations[i];
+      const b = line.stations[i + 1];
+      addEdge(a, b, line);
+      addEdge(b, a, line);
+    }
+  }
+
+  // Check if a direct single-line route exists first (preferring preferredStartLineId when provided)
+  let bestSteps = null;
+  const candidateLines = preferredStartLineId
+    ? [
+        ...METRO_NETWORK_LINES.filter((l) => l.id === preferredStartLineId),
+        ...METRO_NETWORK_LINES.filter((l) => l.id !== preferredStartLineId)
+      ]
+    : METRO_NETWORK_LINES;
+
+  for (const line of candidateLines) {
+    const idxA = line.stations.indexOf(startStop);
+    const idxB = line.stations.indexOf(endStop);
+    if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
+      const dir = idxB > idxA ? 1 : -1;
+      const steps = [];
+      for (let i = idxA; i !== idxB; i += dir) {
+        steps.push({ from: line.stations[i], to: line.stations[i + 1], line });
+      }
+      if (!bestSteps || (preferredStartLineId && line.id === preferredStartLineId) || (!preferredStartLineId && steps.length < bestSteps.length)) {
+        bestSteps = steps;
+        if (preferredStartLineId && line.id === preferredStartLineId) break;
+      }
+    }
+  }
+
+  // Otherwise run weighted BFS minimizing (transfers * 2.5 + hops) across the 56-station 4-line graph
+  if (!bestSteps && startStop !== endStop) {
+    const queue = [{ stop: startStop, steps: [], cost: 0 }];
+    const bestCostByState = new Map();
+
+    while (queue.length > 0) {
+      queue.sort((a, b) => a.cost - b.cost);
+      const curr = queue.shift();
+      if (curr.stop === endStop) {
+        bestSteps = curr.steps;
+        break;
+      }
+      const prevLineId = curr.steps.length > 0 ? curr.steps[curr.steps.length - 1].line.id : null;
+      const stateKey = `${curr.stop}|${prevLineId || 'start'}`;
+      if (bestCostByState.has(stateKey) && bestCostByState.get(stateKey) < curr.cost) {
+        continue;
+      }
+      for (const edge of adj.get(curr.stop) || []) {
+        if (curr.steps.some((s) => s.from === edge.neighbor || s.to === edge.neighbor)) {
+          continue;
+        }
+        const initialSwitchPenalty =
+          !prevLineId && preferredStartLineId && edge.line.id !== preferredStartLineId ? 0.6 : 0;
+        const transferPenalty = prevLineId && prevLineId !== edge.line.id ? 2.5 : 0;
+        const nextCost = curr.cost + 1 + transferPenalty + initialSwitchPenalty;
+        const nextKey = `${edge.neighbor}|${edge.line.id}`;
+        if (!bestCostByState.has(nextKey) || nextCost < bestCostByState.get(nextKey)) {
+          bestCostByState.set(nextKey, nextCost);
+          queue.push({
+            stop: edge.neighbor,
+            steps: [...curr.steps, { from: curr.stop, to: edge.neighbor, line: edge.line }],
+            cost: nextCost
+          });
+        }
+      }
+    }
+  }
+
+  const steps = bestSteps || [];
+  const stationPath = [startStop, ...steps.map((s) => s.to)];
+  const intermediateStops = stationPath.slice(1, -1);
+  const linesUsed = [];
+  const legs = [];
+  let transferStation = null;
+
+  for (let i = 0; i < steps.length; i += 1) {
+    const stepLine = steps[i].line;
+    if (linesUsed.length === 0 || linesUsed[linesUsed.length - 1].id !== stepLine.id) {
+      if (linesUsed.length > 0 && !transferStation) {
+        transferStation = steps[i].from;
+      }
+      linesUsed.push({
+        id: stepLine.id,
+        name: stepLine.name,
+        badge: stepLine.badge,
+        color: stepLine.color
+      });
+      legs.push({
+        lineId: stepLine.id,
+        lineName: stepLine.name,
+        color: stepLine.color,
+        fromStop: steps[i].from,
+        toStop: steps[i].to,
+        stops: [steps[i].from, steps[i].to]
+      });
+    } else {
+      const curLeg = legs[legs.length - 1];
+      curLeg.toStop = steps[i].to;
+      curLeg.stops.push(steps[i].to);
+    }
+  }
+
+  for (const leg of legs) {
+    leg.fromStationId = getTransferHubForStopName(leg.fromStop)?.id || null;
+    leg.toStationId = getTransferHubForStopName(leg.toStop)?.id || null;
+  }
+
+  if (linesUsed.length === 0) {
+    const fallbackLine =
+      METRO_NETWORK_LINES.find((l) => l.name === (fromStation.lines && fromStation.lines[0])) ||
+      METRO_NETWORK_LINES[0];
+    linesUsed.push({
+      id: fallbackLine.id,
+      name: fallbackLine.name,
+      badge: fallbackLine.badge,
+      color: fallbackLine.color
+    });
+  }
+
+  const transferStationObj = transferStation ? getTransferHubForStopName(transferStation) : null;
+  const transferStationId = transferStationObj?.id || null;
+  const hopCount = Math.max(1, steps.length);
+  const travelMinutes = Math.max(4, hopCount * 2 + (transferStation ? 3 : 0));
+  const primaryColor = linesUsed[0].color;
+  const arrivalColor = linesUsed[linesUsed.length - 1].color;
+  const summary = transferStation
+    ? `${linesUsed[0].name} -> Transfer at ${transferStation} -> ${linesUsed[linesUsed.length - 1].name} (${hopCount} stops)`
+    : `${linesUsed[0].name} direct (${hopCount} ${hopCount === 1 ? 'stop' : 'stops'})`;
+
+  return {
+    fromStationId: fromStation.id,
+    toStationId: toStation.id,
+    fromStop: startStop,
+    toStop: endStop,
+    stationPath,
+    intermediateStops,
+    hopCount,
+    travelMinutes,
+    linesUsed,
+    legs,
+    transferStation,
+    transferStationId,
+    isDirect: !transferStation && linesUsed.length === 1,
+    primaryColor,
+    arrivalColor,
+    summary
+  };
+}
 
 export const VENUES = [
   // BAIRRO ALTO

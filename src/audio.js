@@ -1,4 +1,4 @@
-import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, REST_SPOTS, getMonthInfo, isBairroAltoPartyTime } from './data.js';
+import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, LISBOA_CITY_DISTRICTS, REST_SPOTS, getMonthInfo, isBairroAltoPartyTime } from './data.js';
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -162,6 +162,20 @@ export function computeSoundscapeProfile(state) {
       rainLevel: outdoorRain,
       badgeTone: isSailing || !isSouthBank ? 'water' : 'warm',
       activeLabel: isSailing ? 'Tagus Ferry Crossing' : portLabel
+    };
+  }
+
+  if (state.mode === 'city-district') {
+    const district = LISBOA_CITY_DISTRICTS.find((d) => d.id === state.cityDistrictId);
+    const isRiverfront =
+      district?.skylineStyle === 'oriente-calatrava' || district?.skylineStyle === 'belem-tower';
+    return {
+      ...EMPTY_PROFILE,
+      riverWater: isRiverfront ? 0.58 : district?.skylineStyle === 'alameda-fountain' ? 0.35 : 0,
+      folkGuitar: 0.42,
+      rainLevel: outdoorRain,
+      badgeTone: isRiverfront ? 'water' : 'warm',
+      activeLabel: district ? `${district.shortName} Plaza` : 'Lisboa City District'
     };
   }
 

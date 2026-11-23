@@ -11,7 +11,14 @@ import {
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
   METRO_LINE,
+  METRO_NETWORK_LINES,
   METRO_STATIONS,
+  CITY_METRO_STATIONS,
+  ALL_METRO_STATIONS,
+  LISBOA_CITY_DISTRICTS,
+  computeMetroNetworkRoute,
+  getStationLineIds,
+  getDirectStationsOnLine,
   VENUES,
   REST_SPOTS,
   TRANSIT_LINES,
@@ -49,6 +56,8 @@ import {
   isOverworldPositionValid,
   isInteriorPositionValid,
   isFerryPierPositionValid,
+  isCityDistrictPositionValid,
+  getCityDistrictById,
   isPointInVehicleLane,
   isPointOnSidewalk,
   pointIntersectsVehicle,
@@ -1693,6 +1702,251 @@ test('AC-09: location-specific soundscapes (bakery oven, Fado, sardine grill, es
   sound.dispose();
   assert.equal(closed, true);
   assert.ok(startedNodes >= 25, `Expected comprehensive audio nodes started, got ${startedNodes}`);
+});
+
+test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfer routing & walkable city districts', () => {
+  // 1. Verify official 4-line Metropolitano de Lisboa topology (metrolisboa.pt)
+  assert.equal(METRO_NETWORK_LINES.length, 4);
+  assert.deepEqual(
+    METRO_NETWORK_LINES.map((l) => l.name),
+    ['Linha Azul', 'Linha Amarela', 'Linha Verde', 'Linha Vermelha']
+  );
+
+  const azul = METRO_NETWORK_LINES.find((l) => l.id === 'linha-azul');
+  const amarela = METRO_NETWORK_LINES.find((l) => l.id === 'linha-amarela');
+  const verde = METRO_NETWORK_LINES.find((l) => l.id === 'linha-verde');
+  const vermelha = METRO_NETWORK_LINES.find((l) => l.id === 'linha-vermelha');
+
+  assert.equal(azul.stations.length, 18, 'Linha Azul has 18 factual stations (Reboleira to Santa Apolonia)');
+  assert.equal(azul.stations[0], 'Reboleira');
+  assert.equal(azul.stations[17], 'Santa Apolonia');
+
+  assert.equal(amarela.stations.length, 13, 'Linha Amarela has 13 factual stations (Odivelas to Rato)');
+  assert.equal(amarela.stations[0], 'Odivelas');
+  assert.equal(amarela.stations[12], 'Rato');
+
+  assert.equal(verde.stations.length, 13, 'Linha Verde has 13 factual stations (Telheiras to Cais do Sodre)');
+  assert.equal(verde.stations[0], 'Telheiras');
+  assert.equal(verde.stations[12], 'Cais do Sodre');
+
+  assert.equal(vermelha.stations.length, 12, 'Linha Vermelha has 12 factual stations (Sao Sebastiao to Aeroporto)');
+  assert.equal(vermelha.stations[0], 'Sao Sebastiao');
+  assert.equal(vermelha.stations[11], 'Aeroporto');
+
+  const totalLineStops = METRO_NETWORK_LINES.reduce((sum, l) => sum + l.stations.length, 0);
+  assert.equal(totalLineStops, 56, 'All 4 Metropolitano de Lisboa lines sum to 56 factual station stops');
+
+  // Verify every single one of the 56 official station stops is covered by ALL_METRO_STATIONS corridorStops
+  const coveredStops = new Set(ALL_METRO_STATIONS.flatMap((s) => s.corridorStops || [s.canonicalStopName]));
+  for (const line of METRO_NETWORK_LINES) {
+    for (const stopName of line.stations) {
+      assert.ok(coveredStops.has(stopName), `Expected official Metro stop "${stopName}" (${line.name}) to be covered`);
+    }
+  }
+
+  assert.equal(CITY_METRO_STATIONS.length, 9);
+  assert.equal(ALL_METRO_STATIONS.length, 12);
+  assert.equal(LISBOA_CITY_DISTRICTS.length, 9);
+
+  // Every city district must include both a plate food item and a glass drink item in its eatery
+  for (const dist of LISBOA_CITY_DISTRICTS) {
+    assert.equal(dist.townSpots.length, 3, `${dist.id} must have eatery, landmark, and shop`);
+    const eatery = dist.townSpots.find((s) => s.kind === 'eatery');
+    assert.ok(eatery && eatery.items.some((i) => i.servingType === 'plate'), `${dist.id} eatery must serve a plate food item`);
+    assert.ok(eatery && eatery.items.some((i) => i.servingType === 'glass'), `${dist.id} eatery must serve a glass drink item`);
+  }
+
+  // 2. Verify exact multi-line BFS shortest-path and transfer hub computation
+  const directVerde = computeMetroNetworkRoute('metro-baixa-chiado', 'metro-cais-sodre');
+  assert.equal(directVerde.transferStation, null);
+  assert.equal(directVerde.linesUsed.length, 1);
+  assert.equal(directVerde.linesUsed[0].id, 'linha-verde');
+  assert.deepEqual(directVerde.stationPath, ['Baixa-Chiado', 'Cais do Sodre']);
+
+  const toOriente = computeMetroNetworkRoute('metro-baixa-chiado', 'metro-oriente-aeroporto');
+  assert.equal(toOriente.transferStation, 'Alameda', 'Baixa-Chiado to Oriente transfers at Alameda (Linha Verde -> Linha Vermelha)');
+  assert.deepEqual(toOriente.linesUsed.map((l) => l.id), ['linha-verde', 'linha-vermelha']);
+  assert.ok(toOriente.stationPath.includes('Olaias'));
+  assert.equal(toOriente.stationPath[toOriente.stationPath.length - 1], 'Oriente');
+
+  const toRato = computeMetroNetworkRoute('metro-baixa-chiado', 'metro-rato');
+  assert.equal(toRato.transferStation, 'Marques de Pombal', 'Baixa-Chiado to Rato transfers at Marques de Pombal (Linha Azul -> Linha Amarela)');
+  assert.deepEqual(toRato.linesUsed.map((l) => l.id), ['linha-azul', 'linha-amarela']);
+
+  // 3. Verify strict factual single-line boarding & Correspondencia physical line transfers:
+  //    3A) Terreiro do Paco (Linha Azul ONLY) -> MUST reject Yellow Line (Rato) directly -> ride Blue to Marques de Pombal -> Correspondencia to Linha Amarela -> ride Yellow to Rato (single 1.80 EUR ticket covers free transfers!)
+  const tpDirectBlueIds = getDirectStationsOnLine('metro-terreiro-paco', 'linha-azul').map((d) => d.station.id);
+  assert.ok(tpDirectBlueIds.includes('metro-marques-pombal'));
+  assert.ok(tpDirectBlueIds.includes('metro-baixa-chiado'));
+  assert.equal(tpDirectBlueIds.includes('metro-rato'), false, 'Rato (Linha Amarela) is NOT directly reachable from Terreiro do Paco (Linha Azul)');
+  assert.equal(tpDirectBlueIds.includes('metro-oriente-aeroporto'), false, 'Oriente (Linha Vermelha) is NOT directly reachable from Terreiro do Paco');
+  assert.deepEqual(getStationLineIds('metro-terreiro-paco'), ['linha-azul']);
+  assert.deepEqual(getStationLineIds('metro-marques-pombal'), ['linha-azul', 'linha-amarela']);
+
+  const engine = new MemoriesGameEngine();
+  const state = engine.getState();
+  const startEuros = state.euros;
+
+  const openTp = engine.openMetroStation('metro-terreiro-paco');
+  assert.equal(openTp.ok, true);
+  assert.equal(openTp.activeLineId, 'linha-azul');
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.activeLineId, 'linha-azul');
+
+  // Cannot switch to Linha Amarela at Terreiro do Paco (not an interchange!)
+  const badTransferAtTp = engine.transferMetroLine('linha-amarela');
+  assert.equal(badTransferAtTp.ok, false);
+
+  // Cannot board Linha Amarela (Rato) directly at Terreiro do Paco!
+  const blockedYellow = engine.rideMetro('metro-terreiro-paco', 'metro-rato');
+  assert.equal(blockedYellow.ok, false);
+  assert.equal(blockedYellow.transferRequired, true);
+  assert.equal(blockedYellow.transferStationId, 'metro-marques-pombal');
+  assert.equal(blockedYellow.nextLegStationId, 'metro-marques-pombal');
+
+  // Leg 1: Board Linha Azul from Terreiro do Paco to official Blue/Yellow transfer hub Marques de Pombal (pays 1.80 EUR once)
+  const leg1Blue = engine.rideMetro('metro-terreiro-paco', 'metro-marques-pombal');
+  assert.equal(leg1Blue.ok, true);
+  assert.equal(leg1Blue.fareEur, METRO_LINE.fareEur);
+  assert.equal(leg1Blue.activeLineId, 'linha-azul');
+  for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.stationId, 'metro-marques-pombal');
+  assert.equal(state.metro.activeLineId, 'linha-azul');
+  assert.equal(state.metro.ticketPaid, true);
+
+  // Still standing on Linha Azul platform at Marques de Pombal -> attempting to board Rato (Linha Amarela) prompts Correspondencia transfer first!
+  const needPlatformSwitch = engine.rideMetro('metro-marques-pombal', 'metro-rato');
+  assert.equal(needPlatformSwitch.ok, false);
+  assert.equal(needPlatformSwitch.platformTransferRequired, true);
+  assert.equal(needPlatformSwitch.targetLineId, 'linha-amarela');
+
+  // Walk through free Correspondencia underground passage at Marques de Pombal to Linha Amarela platform!
+  const trToYellow = engine.transferMetroLine('linha-amarela');
+  assert.equal(trToYellow.ok, true);
+  assert.equal(state.metro.phase, 'transferring');
+  assert.equal(state.metro.transferToLineId, 'linha-amarela');
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.activeLineId, 'linha-amarela');
+
+  // Leg 2: Board Linha Amarela to Rato with 0.00 EUR transfer fare included!
+  const leg2Yellow = engine.rideMetro('metro-marques-pombal', 'metro-rato');
+  assert.equal(leg2Yellow.ok, true);
+  assert.equal(leg2Yellow.fareEur, 0, 'Connecting Metro leg inside gates must be covered by single 1.80 EUR Navegante ticket');
+  assert.equal(leg2Yellow.activeLineId, 'linha-amarela');
+  assert.equal(state.euros, Number((startEuros - METRO_LINE.fareEur).toFixed(2)));
+  for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.stationId, 'metro-rato');
+  assert.equal(state.metro.activeLineId, 'linha-amarela');
+
+  // Exit gates at Rato to walkable Principe Real district (resets ticketPaid)
+  engine.exitMetroStation();
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.mode, 'city-district');
+  assert.equal(state.cityDistrictId, 'district-rato-principe-real');
+  assert.equal(state.metro.ticketPaid, false);
+
+  //    3B) Full factual 2-line transfer journey: Baixa-Chiado (Blue -> Green) -> Alameda (Green -> Red) -> Oriente -> City District Plaza -> Plate vs Glass -> Landmark -> Shop -> Return via Alameda -> Baixa-Chiado
+  const openRes = engine.openMetroStation('metro-baixa-chiado');
+  assert.equal(openRes.ok, true);
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.activeLineId, 'linha-azul');
+
+  // Direct ride Baixa-Chiado -> Oriente MUST be rejected (Red Line is not served at Baixa-Chiado!)
+  const blockedOriente = engine.rideMetro('metro-baixa-chiado', 'metro-oriente-aeroporto');
+  assert.equal(blockedOriente.ok, false);
+  assert.equal(blockedOriente.transferRequired, true);
+  assert.equal(blockedOriente.transferStationId, 'metro-alameda');
+
+  // Switch platform at Baixa-Chiado to Linha Verde -> ride direct to Alameda -> switch to Linha Vermelha -> ride direct to Oriente!
+  assert.equal(engine.transferMetroLine('linha-verde').ok, true);
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.activeLineId, 'linha-verde');
+
+  const toAlameda = engine.rideMetro('metro-baixa-chiado', 'metro-alameda');
+  assert.equal(toAlameda.ok, true);
+  assert.equal(state.metro.phase, 'riding');
+  for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.stationId, 'metro-alameda');
+  assert.equal(state.metro.activeLineId, 'linha-verde');
+
+  assert.equal(engine.transferMetroLine('linha-vermelha').ok, true);
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.activeLineId, 'linha-vermelha');
+
+  const rideRes = engine.rideMetro('metro-alameda', 'metro-oriente-aeroporto');
+  assert.equal(rideRes.ok, true);
+  assert.equal(rideRes.fareEur, 0);
+  assert.equal(state.metro.phase, 'riding');
+  for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.phase, 'platform');
+  assert.equal(state.metro.stationId, 'metro-oriente-aeroporto');
+  assert.equal(state.metro.activeLineId, 'linha-vermelha');
+
+  // Ascend escalator into walkable Parque das Nacoes / Gare do Oriente city district
+  const ascRes = engine.exitMetroStation();
+  assert.equal(ascRes.ok, true);
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.mode, 'city-district');
+  assert.equal(state.cityDistrictId, 'district-oriente-parque-nacoes');
+  assert.ok(state.visitedCityDistricts.includes('district-oriente-parque-nacoes'));
+  assert.equal(isCityDistrictPositionValid(state.player.x, state.player.y), true);
+
+  // Verify soundscape reacts to riverfront Parque das Nacoes city district
+  const orienteSound = computeSoundscapeProfile(state);
+  assert.ok(orienteSound.riverWater >= 0.5, 'Oriente riverfront district should have Tagus river ambience');
+
+  // Order a drink (Glass) at Oriente waterfront eatery
+  const drinkRes = engine.purchaseCityDistrictItem('oriente-marina-restaurante', 'item-oriente-espumante-glass');
+  assert.equal(drinkRes.ok, true);
+  assert.equal(state.seatedDining.servingType, 'glass');
+  assert.ok(state.statusMessage.includes('Received a glass of'));
+
+  // Order food (Plate) at Oriente waterfront eatery
+  const foodRes = engine.purchaseCityDistrictItem('oriente-marina-restaurante', 'item-oriente-robalo-plate');
+  assert.equal(foodRes.ok, true);
+  assert.equal(state.seatedDining.servingType, 'plate');
+  assert.ok(state.statusMessage.includes('Received a plate of'));
+
+  // Explore iconic landmark & Telecabine Lisboa (+25 Energy)
+  state.energy = 60;
+  const lmRes = engine.interactWithCityDistrictSpot('oriente-calatrava-telecabine');
+  assert.equal(lmRes.ok, true);
+  assert.equal(state.energy, 85);
+  assert.ok(state.cityDistrictFeedback && state.cityDistrictFeedback.title.includes('Gare do Oriente'));
+
+  // Buy Oceanario keepsake into Satchel
+  const shopRes = engine.purchaseCityDistrictItem('oriente-oceanario-loja', 'item-oceanario-lontra-keepsake');
+  assert.equal(shopRes.ok, true);
+  assert.ok(state.satchel.some((s) => s.id === 'item-oceanario-lontra-keepsake'));
+
+  // Descend back into Metro Oriente (Linha Vermelha) -> ride to Alameda -> transfer Linha Verde -> ride to Baixa-Chiado -> Historic Overworld
+  const backMetro = engine.enterMetroFromCityDistrict();
+  assert.equal(backMetro.ok, true);
+  assert.equal(state.mode, 'metro');
+  assert.equal(state.metro.stationId, 'metro-oriente-aeroporto');
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.phase, 'platform');
+
+  assert.equal(engine.rideMetro('metro-oriente-aeroporto', 'metro-alameda').ok, true);
+  for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.stationId, 'metro-alameda');
+  assert.equal(engine.transferMetroLine('linha-verde').ok, true);
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+
+  const rideBack = engine.rideMetro('metro-alameda', 'metro-baixa-chiado');
+  assert.equal(rideBack.ok, true);
+  assert.equal(rideBack.fareEur, 0);
+  for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.stationId, 'metro-baixa-chiado');
+  engine.exitMetroStation();
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.mode, 'overworld');
+  assert.equal(getCityDistrictById('district-marques-pombal-avenida').shortName, 'Marques de Pombal');
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {

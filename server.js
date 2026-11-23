@@ -10,6 +10,7 @@ import {
   TRANSIT_LINES,
   FUNICULAR_LINES,
   METRO_STATIONS,
+  ALL_METRO_STATIONS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
   REST_SPOTS,
@@ -265,8 +266,8 @@ export function createMultiplayerServer({
   }));
 
   function triggerServerMetroDoorChime(fromStationId, toStationId, triggeredBy = 'Metropolitano de Lisboa') {
-    const dest = METRO_STATIONS.find((s) => s.id === toStationId);
-    const destName = dest ? dest.name.replace('Metro ', '') : 'Linha Azul';
+    const dest = ALL_METRO_STATIONS.find((s) => s.id === toStationId);
+    const destName = dest ? dest.name.replace('Metro ', '') : 'Metropolitano de Lisboa';
     metroChimeSeq += 1;
     sharedMetro.doorChime = {
       id: metroChimeSeq,
@@ -866,6 +867,7 @@ export function createMultiplayerServer({
       isMoving: p.isMoving,
       mode: p.mode,
       currentVenueId: p.currentVenueId,
+      cityDistrictId: p.cityDistrictId || null,
       metroStationId: p.metroStationId,
       metroPhase: p.metroPhase,
       ferryPortId: p.ferryPortId || null,
@@ -1095,9 +1097,12 @@ export function createMultiplayerServer({
         if (['up', 'down', 'left', 'right'].includes(st.facing)) record.facing = st.facing;
         if (Number.isFinite(st.walkPhase)) record.walkPhase = st.walkPhase;
         if (typeof st.isMoving === 'boolean') record.isMoving = st.isMoving;
-        if (['overworld', 'interior', 'metro', 'ferry'].includes(st.mode)) record.mode = st.mode;
+        if (['overworld', 'interior', 'metro', 'ferry', 'city-district'].includes(st.mode)) record.mode = st.mode;
         if (st.currentVenueId === null || typeof st.currentVenueId === 'string') {
           record.currentVenueId = st.currentVenueId;
+        }
+        if (st.cityDistrictId === null || typeof st.cityDistrictId === 'string') {
+          record.cityDistrictId = st.cityDistrictId;
         }
         if (st.metroStationId === null || typeof st.metroStationId === 'string') {
           record.metroStationId = st.metroStationId;
@@ -1257,24 +1262,24 @@ export function createMultiplayerServer({
         }
 
         if (body.action === 'metro-depart') {
-          const origin = METRO_STATIONS.find((s) => s.id === body.fromStationId);
-          const dest = METRO_STATIONS.find((s) => s.id === body.toStationId);
+          const origin = ALL_METRO_STATIONS.find((s) => s.id === body.fromStationId);
+          const dest = ALL_METRO_STATIONS.find((s) => s.id === body.toStationId);
           if (!origin || !dest || origin.id === dest.id) {
             sendJson(res, 400, { ok: false, error: 'Invalid Metro route.' });
             return;
           }
           const triggeredBy =
-            body.triggeredBy || players.get(requesterId)?.name || 'Linha Azul Passenger';
+            body.triggeredBy || players.get(requesterId)?.name || 'Metro Passenger';
           const companionRiding = [...players.values()].some(
             (p) => p.id !== requesterId && p.mode === 'metro' && p.metroPhase === 'riding'
           );
           if (!companionRiding || (sharedMetro.fromStationId === origin.id && sharedMetro.toStationId === dest.id)) {
-            const hops = Math.max(1, Math.abs((dest.order ?? 0) - (origin.order ?? 0)));
+            const hops = Math.max(1, Math.min(4, Math.abs((dest.order ?? 0) - (origin.order ?? 0))));
             sharedMetro.fromStationId = origin.id;
             sharedMetro.toStationId = dest.id;
             sharedMetro.stationId = origin.id;
             sharedMetro.direction = (dest.order ?? 0) >= (origin.order ?? 0) ? 1 : -1;
-            sharedMetro.rideDuration = 3.0 + (hops - 1) * 1.2;
+            sharedMetro.rideDuration = 3.0 + (hops - 1) * 0.8;
             if (sharedMetro.phase !== 'riding') {
               sharedMetro.phase = 'riding';
               sharedMetro.progress = 0;

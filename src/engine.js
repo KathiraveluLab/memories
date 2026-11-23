@@ -9,7 +9,15 @@ import {
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
   METRO_LINE,
+  METRO_NETWORK_LINES,
   METRO_STATIONS,
+  CITY_METRO_STATIONS,
+  ALL_METRO_STATIONS,
+  LISBOA_CITY_DISTRICTS,
+  getMetroLineById,
+  getStationLineIds,
+  getDirectStationsOnLine,
+  computeMetroNetworkRoute,
   VENUES,
   REST_SPOTS,
   TRANSIT_LINES,
@@ -52,7 +60,8 @@ export const CRITICAL_LOW_ENERGY_THRESHOLD = 20;
 export const PROPORTIONAL_SLOWDOWN_THRESHOLD = 70;
 
 const VENUE_MAP = new Map(VENUES.map((v) => [v.id, v]));
-const METRO_MAP = new Map(METRO_STATIONS.map((m) => [m.id, m]));
+const METRO_MAP = new Map(ALL_METRO_STATIONS.map((m) => [m.id, m]));
+const CITY_DISTRICT_MAP = new Map(LISBOA_CITY_DISTRICTS.map((d) => [d.id, d]));
 const FERRY_DEST_MAP = new Map(FERRY_DESTINATIONS.map((d) => [d.id, d]));
 const REST_SPOT_MAP = new Map(REST_SPOTS.map((s) => [s.id, s]));
 const RIVERSIDE_BENCH_MAP = new Map(RIVERSIDE_BENCHES.map((b) => [b.id, b]));
@@ -109,10 +118,14 @@ export const METRO_PLATFORM_ZONES = {
   escalatorExitTriggerY: 172,
   escalatorHalfWidth: 56,
   boardingZoneY: 266,
-  boardingHalfWidth: 165
+  boardingHalfWidth: 165,
+  transferX: 658,
+  transferY: 206,
+  transferRadius: 68
 };
 
 export const METRO_ESCALATOR_DURATION = 1.0;
+export const METRO_TRANSFER_DURATION = 1.1;
 export const METRO_RIDE_BASE_DURATION = 3.0;
 export const METRO_RIDE_EXTRA_HOP_DURATION = 1.2;
 
@@ -155,6 +168,10 @@ export function getVenueById(venueId) {
 
 export function getMetroStationById(stationId) {
   return METRO_MAP.get(stationId) || null;
+}
+
+export function getCityDistrictById(districtId) {
+  return CITY_DISTRICT_MAP.get(districtId) || null;
 }
 
 export function getFerryDestinationById(destId) {
@@ -279,6 +296,13 @@ export function isMetroPlatformPositionValid(x, y, radius = PLAYER_RADIUS) {
 
 export function isFerryPierPositionValid(x, y, radius = PLAYER_RADIUS) {
   // Walkable Transtejo timber & limestone pier safely north of the Tagus water edge
+  if (x < 64 + radius || x > INTERIOR_WIDTH - 64 - radius) return false;
+  if (y < 156 + radius || y > 282 - radius) return false;
+  return true;
+}
+
+export function isCityDistrictPositionValid(x, y, radius = PLAYER_RADIUS) {
+  // Walkable calçada portuguesa city district plaza linking eatery, landmark/transit, shop, and Metro entrance
   if (x < 64 + radius || x > INTERIOR_WIDTH - 64 - radius) return false;
   if (y < 156 + radius || y > 282 - radius) return false;
   return true;
@@ -465,16 +489,25 @@ export function createInitialState() {
     currentVenueId: null,
     visitedVenues: [],
     activeMetroStationId: null,
+    visitedMetroStations: [],
+    cityDistrictId: null,
+    visitedCityDistricts: [],
+    activeCityDistrictSpotId: null,
+    cityDistrictFeedback: null,
     metro: {
       stationId: null,
-      phase: null, // 'descending' | 'platform' | 'riding' | 'ascending'
+      activeLineId: null, // 'linha-azul' | 'linha-amarela' | 'linha-verde' | 'linha-vermelha'
+      transferToLineId: null,
+      ticketPaid: false,
+      phase: null, // 'descending' | 'platform' | 'transferring' | 'riding' | 'ascending'
       phaseProgress: 0,
       fromStationId: null,
       toStationId: null,
       rideDuration: METRO_RIDE_BASE_DURATION,
-      direction: 1, // 1 = eastbound (Baixa-Chiado -> Santa Apolonia), -1 = westbound
+      direction: 1, // 1 = eastbound/southbound, -1 = westbound/northbound
       trainX: 380,
-      tunnelOffset: 0
+      tunnelOffset: 0,
+      route: null
     },
     ferry: {
       portId: null, // 'cais-do-sodre' | 'cacilhas' | 'seixal' | 'montijo'
@@ -596,6 +629,7 @@ export class MemoriesGameEngine {
       if (s.ridingVehicleId) return rp.ridingVehicleId === s.ridingVehicleId;
       if (s.mode === 'interior') return rp.mode === 'interior' && rp.currentVenueId === s.currentVenueId;
       if (s.mode === 'metro') return rp.mode === 'metro' && rp.metroStationId === s.metro?.stationId;
+      if (s.mode === 'city-district') return rp.mode === 'city-district' && rp.cityDistrictId === s.cityDistrictId;
       if (s.mode === 'ferry') return rp.mode === 'ferry' && (rp.ferryPortId === s.ferry?.portId || rp.ferryPhase === s.ferry?.phase);
       return (
         rp.mode === 'overworld' &&
@@ -613,6 +647,13 @@ export class MemoriesGameEngine {
       return {
         locationKey: `venue:${s.currentVenueId}`,
         locationName: v ? v.name : 'Lisboa Venue'
+      };
+    }
+    if (s.mode === 'city-district' && s.cityDistrictId) {
+      const dist = getCityDistrictById(s.cityDistrictId);
+      return {
+        locationKey: `district:${s.cityDistrictId}`,
+        locationName: dist ? dist.name : 'Lisboa City District'
       };
     }
     if (s.mode === 'ferry' && s.ferry?.portId) {
@@ -692,6 +733,7 @@ export class MemoriesGameEngine {
       s.stats.mealsEaten * 30 +
       s.stats.souvenirsBought * 35 +
       (s.visitedFerryPorts || []).length * 50 +
+      (s.visitedCityDistricts || []).length * 45 +
       (s.postcards || []).length * 30
     );
   }
@@ -1575,6 +1617,7 @@ export class MemoriesGameEngine {
         prev &&
         prev.mode === (raw.mode || 'overworld') &&
         prev.currentVenueId === (raw.currentVenueId || null) &&
+        prev.cityDistrictId === (raw.cityDistrictId || null) &&
         prev.metroStationId === (raw.metroStationId || null) &&
         prev.ferryPortId === (raw.ferryPortId || null);
       const targetX = Number.isFinite(raw.x) ? raw.x : 950;
@@ -1596,6 +1639,7 @@ export class MemoriesGameEngine {
         isMoving: Boolean(raw.isMoving),
         mode: raw.mode || 'overworld',
         currentVenueId: raw.currentVenueId || null,
+        cityDistrictId: raw.cityDistrictId || null,
         metroStationId: raw.metroStationId || null,
         metroPhase: raw.metroPhase || null,
         ferryPortId: raw.ferryPortId || null,
@@ -1665,6 +1709,7 @@ export class MemoriesGameEngine {
       isMoving: s.player.isMoving,
       mode: s.mode,
       currentVenueId: s.currentVenueId,
+      cityDistrictId: s.mode === 'city-district' ? s.cityDistrictId : null,
       metroStationId: s.mode === 'metro' ? s.metro.stationId : null,
       metroPhase: s.mode === 'metro' ? s.metro.phase : null,
       ferryPortId: s.mode === 'ferry' ? s.ferry.portId : null,
@@ -1699,6 +1744,11 @@ export class MemoriesGameEngine {
   getCurrentVenue() {
     if (!this.state.currentVenueId) return null;
     return getVenueById(this.state.currentVenueId);
+  }
+
+  getCurrentCityDistrict() {
+    if (!this.state.cityDistrictId) return null;
+    return getCityDistrictById(this.state.cityDistrictId);
   }
 
   getActiveMetroStation() {
@@ -1804,6 +1854,12 @@ export class MemoriesGameEngine {
         rp.ferryPhase === 'terminal'
       );
     }
+    if (this.state.mode === 'city-district') {
+      return (
+        rp.mode === 'city-district' &&
+        rp.cityDistrictId === this.state.cityDistrictId
+      );
+    }
     return false;
   }
 
@@ -1870,6 +1926,12 @@ export class MemoriesGameEngine {
     }
     if (this.state.mode === 'ferry') {
       if (!isFerryPierPositionValid(x, y)) return { ok: false, blocker: null };
+      const blockingPeer = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
+      if (blockingPeer) return { ok: false, blocker: blockingPeer };
+      return { ok: true, blocker: null };
+    }
+    if (this.state.mode === 'city-district') {
+      if (!isCityDistrictPositionValid(x, y)) return { ok: false, blocker: null };
       const blockingPeer = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
       if (blockingPeer) return { ok: false, blocker: blockingPeer };
       return { ok: true, blocker: null };
@@ -2625,6 +2687,14 @@ export class MemoriesGameEngine {
         ) {
           this.exitFerryTerminal();
         }
+      } else if (this.state.mode === 'city-district') {
+        if (
+          vy > 0.25 &&
+          player.y >= 262 &&
+          Math.abs(player.x - 380) <= 78
+        ) {
+          this.enterMetroFromCityDistrict();
+        }
       }
     } else {
       player.isMoving = false;
@@ -2739,9 +2809,13 @@ export class MemoriesGameEngine {
       this.exitVenue();
     } else if (action.type === 'exitMetro') {
       this.exitMetroStation();
+    } else if (action.type === 'transferMetroLine' && action.lineId) {
+      this.transferMetroLine(action.lineId);
     } else if (action.type === 'boardNextMetro') {
       const origin = this.state.metro.stationId;
-      const dest = METRO_STATIONS.find((s) => s.id !== origin);
+      const lineId = this.state.metro.activeLineId || getStationLineIds(origin)[0];
+      const direct = getDirectStationsOnLine(origin, lineId);
+      const dest = direct[0]?.station || null;
       if (origin && dest) {
         this.rideMetro(origin, dest.id);
       }
@@ -2754,6 +2828,10 @@ export class MemoriesGameEngine {
       this.boardFerry(target);
     } else if (action.type === 'southBankSpot' && action.spotId) {
       this.interactWithSouthBankSpot(action.spotId);
+    } else if (action.type === 'cityDistrictSpot' && action.spotId) {
+      this.interactWithCityDistrictSpot(action.spotId);
+    } else if (action.type === 'enterCityDistrictMetro') {
+      this.enterMetroFromCityDistrict();
     }
   }
 
@@ -2813,9 +2891,37 @@ export class MemoriesGameEngine {
         m.trainX = 380;
         player.y = METRO_PLATFORM_ZONES.escalatorBottomY + 8;
         const station = getMetroStationById(m.stationId);
+        const curLine = getMetroLineById(m.activeLineId) || getMetroLineById(getStationLineIds(station)[0]);
+        const otherLines = getStationLineIds(station).filter((id) => id !== curLine?.id);
+        const xferHint = otherLines.length > 0
+          ? ` Or take the free Correspondencia corridor to ${getMetroLineById(otherLines[0])?.name}.`
+          : '';
         this.state.statusMessage = station
-          ? `Arrived on ${station.name} underground platform (${station.lines.join(' & ')}). Choose a Linha Azul destination or ride the escalator back to the street.`
+          ? `Arrived on ${station.name} (${curLine ? curLine.name : station.lines[0]} platform). Board a direct ${curLine ? curLine.name : 'Metro'} train or ride the escalator to the street.${xferHint}`
           : 'Arrived on the underground Metro platform.';
+      }
+      return;
+    }
+
+    if (m.phase === 'transferring') {
+      m.phaseProgress = Math.min(1, m.phaseProgress + dt / METRO_TRANSFER_DURATION);
+      player.isMoving = false;
+      m.tunnelOffset = (m.tunnelOffset + dt * 220) % 1200;
+      if (m.phaseProgress >= 1) {
+        const station = getMetroStationById(m.stationId);
+        const nextLineId = m.transferToLineId || getStationLineIds(station)[0];
+        const nextLine = getMetroLineById(nextLineId);
+        m.activeLineId = nextLineId;
+        m.transferToLineId = null;
+        m.phase = 'platform';
+        m.phaseProgress = 0;
+        m.trainX = 380;
+        player.x = 380;
+        player.y = METRO_PLATFORM_ZONES.escalatorBottomY + 24;
+        player.facing = 'down';
+        this.state.cameraYaw = Math.PI * 0.5;
+        this.state.cameraPitch = 0.02;
+        this.state.statusMessage = `Walked through the Correspondencia corridor at ${station ? station.name : 'station'} onto the ${nextLine ? nextLine.name : 'connecting'} platform (free transfer).`;
       }
       return;
     }
@@ -2847,6 +2953,7 @@ export class MemoriesGameEngine {
 
       if (m.phaseProgress >= 1) {
         const dest = getMetroStationById(m.toStationId);
+        const curLine = getMetroLineById(m.activeLineId) || getMetroLineById(getStationLineIds(dest)[0]);
         m.stationId = m.toStationId;
         this.state.activeMetroStationId = m.toStationId;
         m.phase = 'platform';
@@ -2856,15 +2963,25 @@ export class MemoriesGameEngine {
         player.y = 254;
         player.facing = 'up';
         if (dest) {
-          player.overworldX = dest.spawnOutside.x;
-          player.overworldY = dest.spawnOutside.y;
-          const hood = getNeighborhoodForX(dest.spawnOutside.x);
-          this.state.currentNeighborhoodId = hood.id;
-          this.state.currentNeighborhoodName = hood.name;
-          if (!this.state.visitedNeighborhoods.includes(hood.id)) {
-            this.state.visitedNeighborhoods.push(hood.id);
+          const otherLineIds = getStationLineIds(dest).filter((id) => id !== curLine?.id);
+          const xferNote = otherLineIds.length > 0
+            ? ` Free Correspondencia transfer available to ${getMetroLineById(otherLineIds[0])?.name}!`
+            : '';
+          if (dest.spawnOutside) {
+            player.overworldX = dest.spawnOutside.x;
+            player.overworldY = dest.spawnOutside.y;
+            const hood = getNeighborhoodForX(dest.spawnOutside.x);
+            this.state.currentNeighborhoodId = hood.id;
+            this.state.currentNeighborhoodName = hood.name;
+            if (!this.state.visitedNeighborhoods.includes(hood.id)) {
+              this.state.visitedNeighborhoods.push(hood.id);
+            }
+            this.state.statusMessage = `${curLine ? curLine.name : 'Metro'} train arrived at ${dest.name}. Take the ascending escalator to ${hood.name}.${xferNote}`;
+          } else if (dest.districtId) {
+            const district = getCityDistrictById(dest.districtId);
+            this.state.currentNeighborhoodName = district ? district.shortName : (dest.zoneLabel || dest.name);
+            this.state.statusMessage = `${curLine ? curLine.name : 'Metro'} train arrived at ${dest.name}. Take the escalator up to explore ${district ? district.name : dest.name}.${xferNote}`;
           }
-          this.state.statusMessage = `Metro train arrived at ${dest.name}. Step onto the ascending escalator (or press Esc) to exit onto the ${hood.name} sidewalk.`;
         }
       }
       return;
@@ -2882,23 +2999,7 @@ export class MemoriesGameEngine {
 
       if (m.phaseProgress >= 1) {
         const station = getMetroStationById(m.stationId);
-        this.state.mode = 'overworld';
-        this.state.activeMetroStationId = null;
-        this.doorEntryCooldown = 0.55;
-        m.phase = null;
-        m.phaseProgress = 0;
-        m.stationId = null;
-        m.fromStationId = null;
-        m.toStationId = null;
-        if (station) {
-          player.x = station.spawnOutside.x;
-          player.y = station.spawnOutside.y;
-          player.overworldX = station.spawnOutside.x;
-          player.overworldY = station.spawnOutside.y;
-          player.facing = 'down';
-          this.updateNeighborhoodTracking();
-          this.state.statusMessage = `Rode the escalator up from ${station.name} onto the Lisboa sidewalk.`;
-        }
+        this.completeMetroExitToStreet(station, { forceOverworld: false });
       }
       return;
     }
@@ -2984,7 +3085,10 @@ export class MemoriesGameEngine {
       }
     }
 
-    if (this.state.mode === 'interior' && this.state.seatedDining) {
+    if (
+      (this.state.mode === 'interior' || this.state.mode === 'city-district') &&
+      this.state.seatedDining
+    ) {
       const sd = this.state.seatedDining;
       if (distance(this.state.player.x, this.state.player.y, sd.seatX, sd.seatY) > 28) {
         this.state.seatedDining = null;
@@ -2996,6 +3100,17 @@ export class MemoriesGameEngine {
       if (this.state.mode === 'metro' && this.state.metro.phase === 'platform') {
         this.movePlayerByInput(input.x || 0, input.y || 0, dt);
       }
+      return this.state;
+    }
+
+    if (this.state.mode === 'city-district') {
+      if (this.state.cityDistrictFeedback && this.state.cityDistrictFeedback.timer > 0) {
+        this.state.cityDistrictFeedback.timer = Math.max(0, this.state.cityDistrictFeedback.timer - dt);
+        if (this.state.cityDistrictFeedback.timer === 0) {
+          this.state.cityDistrictFeedback = null;
+        }
+      }
+      this.movePlayerByInput(input.x || 0, input.y || 0, dt);
       return this.state;
     }
 
@@ -3106,25 +3221,35 @@ export class MemoriesGameEngine {
     if (state.mode === 'metro') {
       const m = state.metro;
       const station = getMetroStationById(m.stationId);
+      const curLineId = m.activeLineId || getStationLineIds(station)[0];
+      const curLine = getMetroLineById(curLineId);
       if (m.phase === 'descending') {
         return {
           type: 'metro-transition',
           label: `Descending escalators into ${station ? station.name : 'Metro'}...`,
-          sublabel: 'Heading underground to the Linha Azul platform'
+          sublabel: `Heading underground to the ${curLine ? curLine.name : 'Metro'} platform`
         };
       }
       if (m.phase === 'ascending') {
         return {
           type: 'metro-transition',
           label: `Riding escalators up to ${station ? station.name : 'street'}...`,
-          sublabel: 'Returning to the sunlit Lisboa sidewalk'
+          sublabel: station?.districtId ? 'Ascending to the Lisboa city district plaza' : 'Returning to the sunlit Lisboa sidewalk'
+        };
+      }
+      if (m.phase === 'transferring') {
+        const toLine = getMetroLineById(m.transferToLineId);
+        return {
+          type: 'metro-transition',
+          label: `Transferring at ${station ? station.name : 'Station'} -> ${toLine ? toLine.name : 'Connecting Line'}...`,
+          sublabel: 'Walking through the underground Correspondencia corridor (Free transfer)'
         };
       }
       if (m.phase === 'riding') {
         const dest = getMetroStationById(m.toStationId);
         return {
           type: 'metro-transition',
-          label: `Riding Metropolitano de Lisboa -> ${dest ? dest.name : 'next station'}`,
+          label: `Riding ${curLine ? curLine.name : 'Metropolitano de Lisboa'} -> ${dest ? dest.name : 'next station'}`,
           sublabel: 'Press [E] to ring shared Atencao as Portas door chime'
         };
       }
@@ -3141,14 +3266,74 @@ export class MemoriesGameEngine {
           sublabel: 'Press [E] or walk up onto the escalator to return outside'
         };
       }
+      // Official 2-line transfer corridor on the east concourse wall (ONLY at the 6 real interchange stations!)
+      const otherLineIds = getStationLineIds(station).filter((id) => id !== curLineId);
+      if (
+        otherLineIds.length > 0 &&
+        distance(px, py, METRO_PLATFORM_ZONES.transferX, METRO_PLATFORM_ZONES.transferY) <= METRO_PLATFORM_ZONES.transferRadius
+      ) {
+        const targetLine = getMetroLineById(otherLineIds[0]);
+        return {
+          type: 'metro-transfer',
+          targetLineId: otherLineIds[0],
+          label: `Transfer to ${targetLine ? targetLine.name : 'Connecting Line'} Platform (Free Correspondencia)`,
+          sublabel: `Press [E] to walk through the underground transfer passage at ${station ? station.name : 'this hub'}`
+        };
+      }
       if (py >= 242 && Math.abs(px - 380) <= METRO_PLATFORM_ZONES.boardingHalfWidth) {
-        const nextDest = METRO_STATIONS.find((s) => s.id !== m.stationId);
+        const directOptions = getDirectStationsOnLine(m.stationId, curLineId);
+        const nextDest = directOptions[0]?.station || null;
+        const fareLabel = m.ticketPaid ? 'Transfer Included (0.00 EUR)' : `${METRO_LINE.fareEur.toFixed(2)} EUR`;
         return {
           type: 'metro-board',
           destId: nextDest?.id || null,
-          label: `Board Metro Linha Azul -> ${nextDest ? nextDest.name : 'Next Station'} (${METRO_LINE.fareEur.toFixed(2)} EUR)`,
-          sublabel: 'Press [E] to board now, or pick any station in the Metro panel'
+          lineId: curLineId,
+          label: `Board ${curLine ? curLine.name : 'Metro'} -> ${nextDest ? nextDest.name : 'Next Station'} (${fareLabel})`,
+          sublabel: `Press [E] to board direct on ${curLine ? curLine.name : 'this line'}, or choose a station in the Metro panel`
         };
+      }
+      return null;
+    }
+
+    if (state.mode === 'city-district') {
+      const district = this.getCurrentCityDistrict();
+      if (!district) return null;
+      const station = getMetroStationById(district.stationId);
+      const px = state.player.x;
+      const py = state.player.y;
+      if (py >= 238 && Math.abs(px - 380) <= FERRY_PIER_ZONES.gangwayHalfWidth) {
+        return {
+          type: 'city-district-metro',
+          stationId: district.stationId,
+          label: `Descend into ${station ? station.name : 'Metro Station'} [METRO]`,
+          sublabel: `${station ? station.lines.join(' & ') : 'Metropolitano de Lisboa'} - Press [E] to enter the underground 4-line Metro network`
+        };
+      }
+      if (Array.isArray(district.townSpots)) {
+        let bestSpot = null;
+        let bestDist = 78;
+        for (const spot of district.townSpots) {
+          const d = distance(px, py, spot.x, Math.min(spot.y, 184));
+          if (d <= bestDist) {
+            bestDist = d;
+            bestSpot = spot;
+          }
+        }
+        if (bestSpot) {
+          return {
+            type: 'city-district-spot',
+            spotId: bestSpot.id,
+            spot: bestSpot,
+            label:
+              bestSpot.kind === 'landmark'
+                ? `Explore ${bestSpot.name}`
+                : `Explore ${bestSpot.name} ${bestSpot.badge}`,
+            sublabel:
+              bestSpot.kind === 'landmark'
+                ? `Press [E] to rest (+25 Energy) & experience ${district.shortName} transit and monument`
+                : `Host: ${bestSpot.host} - Press [E] to open menu & chat (then [1] or [2] to order plate/glass or buy)`
+          };
+        }
       }
       return null;
     }
@@ -3475,6 +3660,9 @@ export class MemoriesGameEngine {
     if (nearby.type === 'metro-exit') {
       return this.exitMetroStation();
     }
+    if (nearby.type === 'metro-transfer' && nearby.targetLineId) {
+      return this.transferMetroLine(nearby.targetLineId);
+    }
     if (nearby.type === 'metro-board' && nearby.destId) {
       return this.rideMetro(this.state.metro.stationId, nearby.destId);
     }
@@ -3501,6 +3689,12 @@ export class MemoriesGameEngine {
     }
     if (nearby.type === 'south-bank-spot' && nearby.spotId) {
       return this.interactWithSouthBankSpot(nearby.spotId);
+    }
+    if (nearby.type === 'city-district-metro') {
+      return this.enterMetroFromCityDistrict();
+    }
+    if (nearby.type === 'city-district-spot' && nearby.spotId) {
+      return this.interactWithCityDistrictSpot(nearby.spotId);
     }
     if (nearby.type === 'venue') {
       return this.enterVenue(nearby.id);
@@ -3875,7 +4069,7 @@ export class MemoriesGameEngine {
     return { ok: true, dest, spot, item, state: this.state };
   }
 
-  openMetroStation(stationId) {
+  openMetroStation(stationId, { lineId = null } = {}) {
     if (this.state.ridingVehicleId || this.state.ridingFunicularId) {
       return { ok: false, error: 'Step off surface transit before descending into the Metro.' };
     }
@@ -3887,10 +4081,22 @@ export class MemoriesGameEngine {
       return { ok: false, error: `Unknown metro station: ${stationId}` };
     }
 
+    const stationLineIds = getStationLineIds(station);
+    const chosenLineId = lineId && stationLineIds.includes(lineId) ? lineId : stationLineIds[0];
+    const chosenLine = getMetroLineById(chosenLineId);
+
     this.state.mode = 'metro';
     this.state.activeMetroStationId = station.id;
-    this.state.player.overworldX = station.spawnOutside.x;
-    this.state.player.overworldY = station.spawnOutside.y;
+    this.state.seatedDining = null;
+    this.state.indoorActivity = null;
+    this.state.cityDistrictFeedback = null;
+    if (!this.state.visitedMetroStations.includes(station.id)) {
+      this.state.visitedMetroStations.push(station.id);
+    }
+    if (station.spawnOutside) {
+      this.state.player.overworldX = station.spawnOutside.x;
+      this.state.player.overworldY = station.spawnOutside.y;
+    }
     this.state.player.x = 380;
     this.state.player.y = METRO_PLATFORM_ZONES.escalatorTopY;
     this.state.player.facing = 'down';
@@ -3902,6 +4108,9 @@ export class MemoriesGameEngine {
 
     this.state.metro = {
       stationId: station.id,
+      activeLineId: chosenLineId,
+      transferToLineId: null,
+      ticketPaid: false,
       phase: 'descending',
       phaseProgress: 0,
       fromStationId: station.id,
@@ -3909,20 +4118,90 @@ export class MemoriesGameEngine {
       rideDuration: METRO_RIDE_BASE_DURATION,
       direction: 1,
       trainX: -260,
-      tunnelOffset: 0
+      tunnelOffset: 0,
+      route: null
     };
 
-    this.state.statusMessage = `Descending the escalators into ${station.name} (${station.lines.join(' & ')})...`;
-    recordLog(this.state, 'metro', `Entered ${station.name} underground station.`);
+    this.state.statusMessage = `Descending the escalators into ${station.name} (${chosenLine ? chosenLine.name : station.lines[0]} platform)...`;
+    recordLog(this.state, 'metro', `Entered ${station.name} underground station (${chosenLine ? chosenLine.name : station.lines[0]}).`);
+    return { ok: true, station, activeLineId: chosenLineId, state: this.state };
+  }
+
+  completeMetroExitToStreet(station, { forceOverworld = false } = {}) {
+    const m = this.state.metro;
+    const player = this.state.player;
+    this.state.activeMetroStationId = null;
+    this.doorEntryCooldown = 0.55;
+    m.phase = null;
+    m.phaseProgress = 0;
+    m.stationId = null;
+    m.activeLineId = null;
+    m.transferToLineId = null;
+    m.ticketPaid = false;
+    m.fromStationId = null;
+    m.toStationId = null;
+    m.route = null;
+
+    if (station && station.districtId && !forceOverworld) {
+      const district = getCityDistrictById(station.districtId);
+      this.state.mode = 'city-district';
+      this.state.cityDistrictId = station.districtId;
+      this.state.activeCityDistrictSpotId = null;
+      this.state.cityDistrictFeedback = null;
+      this.state.seatedDining = null;
+      this.state.indoorActivity = null;
+      player.x = 380;
+      player.y = 228;
+      player.facing = 'up';
+      player.walkTarget = null;
+      player.walkQueue = [];
+      player.isMoving = false;
+      this.state.cameraYaw = -Math.PI * 0.5;
+      this.state.cameraPitch = 0.03;
+
+      if (!this.state.visitedCityDistricts.includes(station.districtId)) {
+        this.state.visitedCityDistricts.push(station.districtId);
+      }
+      if (district) {
+        this.state.currentNeighborhoodName = district.shortName;
+        recordPhrase(this.state, district.phrase, district.name);
+        this.state.statusMessage = `Emerged from ${station.name} onto ${district.name}! ${district.plazaNote}`;
+        recordLog(this.state, 'metro', `Emerged at ${district.name} (${district.transitSummary}).`);
+      } else {
+        this.state.statusMessage = `Emerged from ${station.name} onto the city plaza.`;
+      }
+      return { ok: true, station, district, state: this.state };
+    }
+
+    this.state.mode = 'overworld';
+    this.state.cityDistrictId = null;
+    this.state.activeCityDistrictSpotId = null;
+    this.state.cityDistrictFeedback = null;
+    this.state.seatedDining = null;
+    if (station && station.spawnOutside) {
+      player.x = station.spawnOutside.x;
+      player.y = station.spawnOutside.y;
+      player.overworldX = station.spawnOutside.x;
+      player.overworldY = station.spawnOutside.y;
+      player.facing = 'down';
+      this.updateNeighborhoodTracking();
+      this.state.statusMessage = `Rode the escalator up from ${station.name} onto the Lisboa sidewalk.`;
+    } else {
+      player.x = player.overworldX || 950;
+      player.y = player.overworldY || 544;
+      player.facing = 'down';
+      this.updateNeighborhoodTracking();
+      this.state.statusMessage = 'Returned to historic central Lisboa sidewalks.';
+    }
     return { ok: true, station, state: this.state };
   }
 
-  exitMetroStation({ immediate = false } = {}) {
+  exitMetroStation({ immediate = false, forceOverworld = false } = {}) {
     if (this.state.mode !== 'metro') {
       return { ok: false, error: 'You are not currently inside a Metro station.' };
     }
-    if (this.state.metro.phase === 'riding') {
-      return { ok: false, error: 'Wait until the Metro train arrives at the platform before exiting.' };
+    if (this.state.metro.phase === 'riding' || this.state.metro.phase === 'transferring') {
+      return { ok: false, error: 'Wait until your Metro train or Correspondencia transfer completes before exiting.' };
     }
 
     const station = getMetroStationById(this.state.metro.stationId);
@@ -3930,20 +4209,7 @@ export class MemoriesGameEngine {
     this.state.player.walkQueue = [];
 
     if (immediate) {
-      this.state.mode = 'overworld';
-      this.state.activeMetroStationId = null;
-      this.state.metro.phase = null;
-      this.state.metro.phaseProgress = 0;
-      this.state.metro.stationId = null;
-      if (station) {
-        this.state.player.x = station.spawnOutside.x;
-        this.state.player.y = station.spawnOutside.y;
-        this.state.player.overworldX = station.spawnOutside.x;
-        this.state.player.overworldY = station.spawnOutside.y;
-        this.state.player.facing = 'down';
-        this.updateNeighborhoodTracking();
-      }
-      return { ok: true, station, state: this.state };
+      return this.completeMetroExitToStreet(station, { forceOverworld });
     }
 
     this.state.metro.phase = 'ascending';
@@ -3951,7 +4217,11 @@ export class MemoriesGameEngine {
     this.state.player.x = 380;
     this.state.player.y = METRO_PLATFORM_ZONES.escalatorBottomY;
     this.state.player.facing = 'up';
-    this.state.statusMessage = `Riding the escalator up to ${station ? station.name : 'street'} exit...`;
+    const exitTargetLabel =
+      station && station.districtId
+        ? (getCityDistrictById(station.districtId)?.shortName || station.name)
+        : (station ? station.name : 'street');
+    this.state.statusMessage = `Riding the escalator up to ${exitTargetLabel} exit...`;
     return { ok: true, station, state: this.state };
   }
 
@@ -3963,12 +4233,255 @@ export class MemoriesGameEngine {
     return { ok: true, state: this.state };
   }
 
+  enterMetroFromCityDistrict() {
+    if (this.state.mode !== 'city-district') {
+      return { ok: false, error: 'You are not currently in a city district plaza.' };
+    }
+    const district = this.getCurrentCityDistrict();
+    const stationId = district?.stationId || 'metro-baixa-chiado';
+    return this.openMetroStation(stationId);
+  }
+
+  interactWithCityDistrictSpot(spotId) {
+    if (this.state.mode !== 'city-district') {
+      return { ok: false, error: 'Ride the Metro to a city district station and exit to the plaza first.' };
+    }
+    const district = this.getCurrentCityDistrict();
+    const spot = district?.townSpots?.find((s) => s.id === spotId);
+    if (!district || !spot) {
+      return { ok: false, error: 'City district location not found.' };
+    }
+    this.state.activeCityDistrictSpotId = spot.id;
+    this.announcementSeq += 1;
+
+    if (spot.kind === 'landmark') {
+      const before = this.state.energy;
+      this.state.energy = clamp(this.state.energy + 25, 0, 100);
+      const gained = Math.round(this.state.energy - before);
+      this.state.stats.restsTaken += 1;
+      this.advanceMinutes(15);
+      recordPhrase(this.state, district.phrase, district.name);
+      this.state.statusMessage = `Explored ${spot.name} in ${district.shortName} (+25 Energy restored). ${spot.note}`;
+      this.state.cityDistrictFeedback = {
+        id: this.announcementSeq,
+        spotId: spot.id,
+        title: `${spot.name} (${district.shortName})`,
+        speaker: spot.host,
+        badge: spot.badge,
+        text: spot.note,
+        actionHint: gained > 0
+          ? `Landmark & transit visit complete (+${gained} Energy -> ${Math.round(this.state.energy)}/100) | ${district.transitSummary}`
+          : `Refreshed at full Energy (${Math.round(this.state.energy)}/100) | ${district.transitSummary}`,
+        timer: 8.5
+      };
+      recordLog(this.state, 'rest', `Visited ${spot.name} in ${district.shortName} (+25 Energy).`);
+    } else {
+      const menuLine = (spot.items || [])
+        .map((it, idx) => `[${idx + 1}] ${it.name} (${it.costEur.toFixed(2)} EUR)`)
+        .join('   |   ');
+      this.state.statusMessage = `${spot.host} at ${spot.name} (${district.shortName}): "${spot.note}" Press [1] or [2] to order/buy, or use the right panel.`;
+      this.state.cityDistrictFeedback = {
+        id: this.announcementSeq,
+        spotId: spot.id,
+        title: `${spot.name}  -  Host: ${spot.host}`,
+        speaker: spot.host,
+        badge: spot.badge,
+        text: spot.note,
+        actionHint: menuLine ? `Quick Order: ${menuLine}` : 'Browse items in the right panel',
+        timer: 9.0
+      };
+      recordLog(this.state, 'venue', `Explored ${spot.name} in ${district.shortName}.`);
+    }
+    return { ok: true, district, spot, feedback: this.state.cityDistrictFeedback, state: this.state };
+  }
+
+  purchaseActiveCityDistrictItemByIndex(itemIndex) {
+    if (this.state.mode !== 'city-district') {
+      return { ok: false, error: 'Explore a city district eatery or shop first.' };
+    }
+    const district = this.getCurrentCityDistrict();
+    const nearby = this.getNearbyInteraction();
+    const spotId =
+      this.state.activeCityDistrictSpotId ||
+      (nearby?.type === 'city-district-spot' ? nearby.spotId : null);
+    const spot = district?.townSpots?.find((s) => s.id === spotId);
+    const item = spot?.items?.[itemIndex];
+    if (!spot || !item) {
+      return { ok: false, error: 'No menu item selected at this city district spot.' };
+    }
+    return this.purchaseCityDistrictItem(spot.id, item.id);
+  }
+
+  purchaseCityDistrictItem(spotId, itemId) {
+    if (this.state.mode !== 'city-district') {
+      return { ok: false, error: 'Visit a city district plaza before ordering or shopping.' };
+    }
+    const district = this.getCurrentCityDistrict();
+    const spot = district?.townSpots?.find((s) => s.id === spotId);
+    const item = spot?.items?.find((i) => i.id === itemId);
+    if (!district || !spot || !item) {
+      return { ok: false, error: 'Item not available at this city district location.' };
+    }
+    if (this.state.euros < item.costEur) {
+      this.state.statusMessage = `Not enough EUR (${this.state.euros.toFixed(2)} EUR) for ${item.name} (${item.costEur.toFixed(2)} EUR).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    this.state.euros = roundMoney(this.state.euros - item.costEur);
+    this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + item.costEur);
+    this.state.fullness = clamp(this.state.fullness + (item.fullnessDelta || 0), 0, 100);
+    this.state.energy = clamp(this.state.energy + (item.energyDelta || 0), 0, 100);
+
+    if (item.kind === 'food' || item.kind === 'drink') {
+      const servingType = getItemServingType(item);
+      const isGlass = servingType === 'glass';
+      const glassStyle = item.glassStyle || (isGlass ? 'drink' : null);
+      this.state.needsMealToRecoverSpeed = false;
+      this.state.stats.mealsEaten += 1;
+      if (!this.state.tastedFoods.some((f) => f.id === item.id)) {
+        this.state.tastedFoods.push({
+          id: item.id,
+          name: item.name,
+          servingType,
+          venueName: `${spot.name} (${district.shortName})`,
+          day: this.state.day
+        });
+      }
+      const seatX = 166;
+      const seatY = 198;
+      this.state.player.x = seatX;
+      this.state.player.y = seatY;
+      this.state.player.facing = 'up';
+      this.state.player.walkTarget = null;
+      this.state.player.walkQueue = [];
+      this.state.player.isMoving = false;
+      this.state.seatedDining = {
+        active: true,
+        servingType,
+        glassStyle,
+        itemId: item.id,
+        itemName: item.name,
+        costEur: item.costEur,
+        fullnessDelta: item.fullnessDelta || 0,
+        energyDelta: item.energyDelta || 0,
+        venueId: spot.id,
+        venueName: `${spot.name} (${district.shortName})`,
+        seatX,
+        seatY,
+        tableX: 155,
+        tableY: 184,
+        plateX: 155,
+        plateY: 184
+      };
+      this.state.indoorActivity = {
+        type: 'dining',
+        servingType,
+        glassStyle,
+        itemId: item.id,
+        itemName: item.name,
+        costEur: item.costEur,
+        fullnessDelta: item.fullnessDelta || 0,
+        energyDelta: item.energyDelta || 0,
+        venueId: spot.id,
+        venueName: spot.name,
+        proprietor: spot.host,
+        timer: 14.0
+      };
+      this.advanceMinutes(isGlass ? 12 : 18);
+      unlockMemory(this.state, MILESTONE_MEMORIES.taste);
+      const purchaseMsg = isGlass
+        ? `Received a glass of ${item.name} and sat at the terrace table in ${spot.name} (${district.shortName}) (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`
+        : `Received a plate of ${item.name} and sat at the dining table in ${spot.name} (${district.shortName}) (-${item.costEur.toFixed(2)} EUR, +${item.fullnessDelta} Fullness, +${item.energyDelta} Energy).`;
+      this.triggerSharedToast({ itemName: item.name, preserveIndoorActivity: true });
+      this.state.statusMessage = purchaseMsg;
+      recordLog(
+        this.state,
+        'dining',
+        `Ordered ${item.name} (${isGlass ? 'served in a glass' : 'served on a plate'}) at ${spot.name} in ${district.shortName} (-${item.costEur.toFixed(2)} EUR).`
+      );
+    } else {
+      this.state.seatedDining = null;
+      this.state.stats.souvenirsBought += 1;
+      this.state.satchel.push({
+        id: item.id,
+        name: item.name,
+        venueName: spot.name,
+        neighborhood: district.name,
+        costEur: item.costEur,
+        day: this.state.day
+      });
+      this.state.indoorActivity = {
+        type: 'souvenir',
+        itemId: item.id,
+        itemName: item.name,
+        costEur: item.costEur,
+        venueId: spot.id,
+        venueName: spot.name,
+        proprietor: spot.host,
+        timer: 12.0
+      };
+      this.advanceMinutes(10);
+      unlockMemory(this.state, MILESTONE_MEMORIES.keepsake);
+      this.state.statusMessage = `Wrapped ${item.name} at ${spot.name} (${district.shortName}) and added it to your satchel (-${item.costEur.toFixed(2)} EUR).`;
+      recordLog(this.state, 'shop', `Bought ${item.name} at ${spot.name} in ${district.shortName} (-${item.costEur.toFixed(2)} EUR).`);
+    }
+
+    recordPhrase(this.state, district.phrase, district.name);
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
+    return { ok: true, district, spot, item, state: this.state };
+  }
+
+  transferMetroLine(targetLineId) {
+    if (this.state.mode !== 'metro') {
+      return { ok: false, error: 'Enter a Metropolitano de Lisboa interchange station first to change lines.' };
+    }
+    if (this.state.metro.phase !== 'platform') {
+      return { ok: false, error: 'Wait until you reach the station platform before taking a transfer corridor.' };
+    }
+    const station = getMetroStationById(this.state.metro.stationId);
+    if (!station) {
+      return { ok: false, error: 'Current Metro station not found.' };
+    }
+    const stationLineIds = getStationLineIds(station);
+    const currentLineId = this.state.metro.activeLineId || stationLineIds[0];
+    const targetLine = getMetroLineById(targetLineId);
+    if (!targetLine || !stationLineIds.includes(targetLineId)) {
+      const servedNames = stationLineIds.map((id) => getMetroLineById(id)?.name || id).join(' & ');
+      const msg = `${station.name} only serves ${servedNames} and does not connect to ${targetLine ? targetLine.name : targetLineId}. Ride to a transfer hub first!`;
+      this.state.statusMessage = msg;
+      return { ok: false, error: msg, state: this.state };
+    }
+    if (targetLineId === currentLineId) {
+      return { ok: true, alreadyOnLine: true, activeLineId: currentLineId, state: this.state };
+    }
+
+    const fromLine = getMetroLineById(currentLineId);
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+    this.state.metro.phase = 'transferring';
+    this.state.metro.phaseProgress = 0;
+    this.state.metro.transferToLineId = targetLineId;
+    this.advanceMinutes(2);
+
+    this.state.statusMessage = `Walking through the Correspondencia underground passage at ${station.name} from ${fromLine ? fromLine.name : currentLineId} to ${targetLine.name} (Free transfer)...`;
+    recordLog(this.state, 'metro', `Transferred at ${station.name} from ${fromLine ? fromLine.name : currentLineId} to ${targetLine.name} (Correspondencia).`);
+    return {
+      ok: true,
+      station,
+      fromLineId: currentLineId,
+      toLineId: targetLineId,
+      state: this.state
+    };
+  }
+
   rideMetro(fromStationId, toStationId) {
     if (this.state.ridingVehicleId || this.state.mode === 'interior') {
       return { ok: false, error: 'Enter a Metro station before riding the Metro.' };
     }
-    if (this.state.mode === 'metro' && this.state.metro.phase === 'riding') {
-      return { ok: false, error: 'Already riding a Metro train underground.' };
+    if (this.state.mode === 'metro' && (this.state.metro.phase === 'riding' || this.state.metro.phase === 'transferring')) {
+      return { ok: false, error: 'Wait until your current Metro ride or transfer completes.' };
     }
 
     const originId = fromStationId || this.state.metro.stationId || this.state.activeMetroStationId;
@@ -3980,29 +4493,102 @@ export class MemoriesGameEngine {
     if (origin.id === destination.id) {
       return { ok: false, error: `You are already at ${origin.name}.` };
     }
-    if (this.state.euros < METRO_LINE.fareEur) {
-      this.state.statusMessage = `Need ${METRO_LINE.fareEur.toFixed(2)} EUR for Metropolitano de Lisboa (you have ${this.state.euros.toFixed(2)} EUR).`;
+
+    const originLineIds = getStationLineIds(origin);
+    const destLineIds = getStationLineIds(destination);
+    const currentLineId =
+      this.state.mode === 'metro' &&
+      this.state.metro.stationId === origin.id &&
+      this.state.metro.activeLineId &&
+      originLineIds.includes(this.state.metro.activeLineId)
+        ? this.state.metro.activeLineId
+        : originLineIds[0];
+    const currentLine = getMetroLineById(currentLineId);
+    const sharedLineIds = originLineIds.filter((id) => destLineIds.includes(id));
+
+    // STRICT FACTUAL RULE 1: Cannot directly board a destination that is NOT on ANY line served by this station!
+    if (sharedLineIds.length === 0) {
+      const plannedRoute = computeMetroNetworkRoute(origin.id, destination.id, currentLineId);
+      const firstLeg = plannedRoute.legs[0];
+      const nextLegStationId = firstLeg?.toStationId || plannedRoute.transferStationId;
+      const transferName = plannedRoute.transferStation || 'a transfer hub';
+      const destLineLabel = destLineIds.map((id) => getMetroLineById(id)?.name || id).join(' / ');
+      const originLineLabel = originLineIds.map((id) => getMetroLineById(id)?.name || id).join(' / ');
+      const firstLineName = firstLeg?.lineName || (currentLine ? currentLine.name : originLineLabel);
+      const msg = `Cannot board ${destLineLabel} directly at ${origin.name} (${originLineLabel} only). Ride ${firstLineName} to ${transferName} first, then transfer lines!`;
+      this.state.statusMessage = msg;
+      return {
+        ok: false,
+        transferRequired: true,
+        transferStationId: plannedRoute.transferStationId,
+        transferStationName: plannedRoute.transferStation,
+        nextLegStationId,
+        nextLegLineId: firstLeg?.lineId || currentLineId,
+        route: plannedRoute,
+        error: msg,
+        state: this.state
+      };
+    }
+
+    // STRICT FACTUAL RULE 2: At a 2-line transfer hub, if standing on the OTHER line's platform, must transfer platforms first!
+    if (!sharedLineIds.includes(currentLineId)) {
+      const requiredLineId = sharedLineIds[0];
+      const requiredLine = getMetroLineById(requiredLineId);
+      const msg = `You are on the ${currentLine ? currentLine.name : currentLineId} platform at ${origin.name}. Walk through the free Correspondencia transfer corridor to the ${requiredLine ? requiredLine.name : requiredLineId} platform to board toward ${destination.name}!`;
+      this.state.statusMessage = msg;
+      return {
+        ok: false,
+        platformTransferRequired: true,
+        targetLineId: requiredLineId,
+        targetLineName: requiredLine ? requiredLine.name : requiredLineId,
+        error: msg,
+        state: this.state
+      };
+    }
+
+    // Valid direct single-line ride along `currentLineId`!
+    const route = computeMetroNetworkRoute(origin.id, destination.id, currentLineId);
+    const alreadyPaidInsideGates = this.state.mode === 'metro' && Boolean(this.state.metro.ticketPaid);
+    const fareToCharge = alreadyPaidInsideGates ? 0 : METRO_LINE.fareEur;
+
+    if (fareToCharge > 0 && this.state.euros < fareToCharge) {
+      this.state.statusMessage = `Need ${fareToCharge.toFixed(2)} EUR for Metropolitano de Lisboa (you have ${this.state.euros.toFixed(2)} EUR).`;
       return { ok: false, error: this.state.statusMessage, state: this.state };
     }
 
-    this.state.euros = roundMoney(this.state.euros - METRO_LINE.fareEur);
-    this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + METRO_LINE.fareEur);
+    if (fareToCharge > 0) {
+      this.state.euros = roundMoney(this.state.euros - fareToCharge);
+      this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + fareToCharge);
+    }
     this.state.stats.metroRides += 1;
     this.state.energy = clamp(this.state.energy + 4, 0, 100);
-    this.advanceMinutes(METRO_LINE.travelMinutes);
+    this.advanceMinutes(Math.max(METRO_LINE.travelMinutes, route.travelMinutes || 6));
 
-    const hops = Math.max(1, Math.abs((destination.order ?? 0) - (origin.order ?? 0)));
-    const direction = (destination.order ?? 0) >= (origin.order ?? 0) ? 1 : -1;
+    if (!this.state.visitedMetroStations.includes(origin.id)) {
+      this.state.visitedMetroStations.push(origin.id);
+    }
+    if (!this.state.visitedMetroStations.includes(destination.id)) {
+      this.state.visitedMetroStations.push(destination.id);
+    }
+
+    const originIdxOnLine = currentLine ? currentLine.stations.indexOf(origin.canonicalStopName || '') : 0;
+    const destIdxOnLine = currentLine ? currentLine.stations.indexOf(destination.canonicalStopName || '') : 1;
+    const hops = Math.max(1, Math.min(4, route.hopCount || 1));
+    const direction = destIdxOnLine >= originIdxOnLine ? 1 : -1;
     const rideDuration =
-      METRO_RIDE_BASE_DURATION + (hops - 1) * METRO_RIDE_EXTRA_HOP_DURATION;
+      METRO_RIDE_BASE_DURATION + (hops - 1) * (METRO_RIDE_EXTRA_HOP_DURATION * 0.65);
 
     this.state.mode = 'metro';
     this.state.activeMetroStationId = origin.id;
+    this.state.seatedDining = null;
     this.state.player.walkTarget = null;
     this.state.player.walkQueue = [];
     this.state.player.isMoving = false;
     this.state.metro = {
       stationId: origin.id,
+      activeLineId: currentLineId,
+      transferToLineId: null,
+      ticketPaid: true,
       phase: 'riding',
       phaseProgress: 0,
       fromStationId: origin.id,
@@ -4010,14 +4596,16 @@ export class MemoriesGameEngine {
       rideDuration,
       direction,
       trainX: 380,
-      tunnelOffset: 0
+      tunnelOffset: 0,
+      route
     };
 
     const newPhrase = recordPhrase(this.state, METRO_LINE.phrase, METRO_LINE.name);
     const newMemory = unlockMemory(this.state, METRO_LINE.memory);
 
-    this.state.statusMessage = `Boarded Metropolitano de Lisboa (Linha Azul) from ${origin.name} toward ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`;
-    recordLog(this.state, 'metro', `Boarded Metro Linha Azul from ${origin.name} to ${destination.name} (-${METRO_LINE.fareEur.toFixed(2)} EUR).`);
+    const fareText = fareToCharge > 0 ? `-${fareToCharge.toFixed(2)} EUR` : 'Transfer Included - 0.00 EUR';
+    this.state.statusMessage = `Boarded ${currentLine ? currentLine.name : 'Metropolitano de Lisboa'} from ${origin.name} toward ${destination.name} (${route.hopCount} ${route.hopCount === 1 ? 'stop' : 'stops'}, ${fareText}).`;
+    recordLog(this.state, 'metro', `Boarded ${currentLine ? currentLine.name : 'Metro'} from ${origin.name} to ${destination.name} (${fareText}).`);
     const destShort = destination.name.replace('Metro ', '');
     this.signalSeq += 1;
     this.lastLocalMetroChimeAt = Date.now();
@@ -4044,6 +4632,9 @@ export class MemoriesGameEngine {
       ok: true,
       origin,
       destination,
+      activeLineId: currentLineId,
+      fareEur: fareToCharge,
+      route,
       newPhrase,
       newMemory,
       state: this.state
@@ -4056,9 +4647,13 @@ export class MemoriesGameEngine {
     }
     const m = this.state.metro;
     const fromId = m.fromStationId || m.stationId || this.state.activeMetroStationId;
-    const toId = m.toStationId || METRO_STATIONS.find((s) => s.id !== fromId)?.id || fromId;
+    const toId =
+      m.toStationId ||
+      METRO_STATIONS.find((s) => s.id !== fromId)?.id ||
+      ALL_METRO_STATIONS.find((s) => s.id !== fromId)?.id ||
+      fromId;
     const dest = getMetroStationById(toId);
-    const destShort = dest ? dest.name.replace('Metro ', '') : 'Linha Azul';
+    const destShort = dest ? dest.name.replace('Metro ', '') : 'Metropolitano de Lisboa';
     const ringer = this.state.player.name || 'Traveler';
 
     this.signalSeq += 1;
@@ -4071,7 +4666,7 @@ export class MemoriesGameEngine {
       text: `Atencao as portas - Doors closing for ${destShort}`,
       timer: 3.4
     };
-    this.state.statusMessage = `Metro Linha Azul door-closing chime: "Atencao as portas - Doors closing for ${destShort}!"`;
+    this.state.statusMessage = `Metropolitano de Lisboa door-closing chime: "Atencao as portas - Doors closing for ${destShort}!"`;
     if (this.globalTransitSynced) {
       this.emitTransitIntent({
         action: 'metro-chime',
@@ -5045,7 +5640,10 @@ export class MemoriesGameEngine {
         this.state.metro.stationId = this.state.metro.toStationId;
         this.state.metro.phase = 'platform';
       }
-      this.exitMetroStation({ immediate: true });
+      this.exitMetroStation({ immediate: true, forceOverworld: true });
+    }
+    if (this.state.mode === 'city-district') {
+      this.completeMetroExitToStreet(null, { forceOverworld: true });
     }
     if (this.state.mode === 'ferry') {
       this.state.ferry.phase = 'terminal';
