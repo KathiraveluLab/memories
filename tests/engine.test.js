@@ -10,6 +10,8 @@ import {
   FADO_TRACKS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
+  SANTA_JUSTA_LIFT,
+  SANTA_JUSTA_PANORAMA_LANDMARKS,
   METRO_LINE,
   METRO_NETWORK_LINES,
   METRO_STATIONS,
@@ -1947,6 +1949,91 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   assert.equal(state.mode, 'overworld');
   assert.equal(getCityDistrictById('district-marques-pombal-avenida').shortName, 'Marques de Pombal');
+});
+
+test('Elevador de Santa Justa (1902): enterable lift on Rua do Carmo & Rossio, 45m climb, and factual 360-degree Lisbon panorama', () => {
+  assert.equal(SANTA_JUSTA_LIFT.yearBuilt, 1902);
+  assert.equal(SANTA_JUSTA_LIFT.heightMeters, 45);
+  assert.equal(isOverworldPositionValid(SANTA_JUSTA_LIFT.spawnOutside.x, SANTA_JUSTA_LIFT.spawnOutside.y), true);
+  assert.equal(isPointInVehicleLane(SANTA_JUSTA_LIFT.spawnOutside.x, SANTA_JUSTA_LIFT.spawnOutside.y), false);
+
+  // Verify factual compass bearings of key Lisbon landmarks from Santa Justa 45m summit
+  const byId = new Map(SANTA_JUSTA_PANORAMA_LANDMARKS.map((l) => [l.id, l]));
+  assert.equal(byId.get('sj-rossio').compassLabel, 'N');
+  assert.equal(byId.get('sj-castelo').compassLabel, 'E');
+  assert.equal(byId.get('sj-se-panteao').compassLabel, 'SE');
+  assert.equal(byId.get('sj-rua-augusta-tejo').compassLabel, 'S');
+  assert.equal(byId.get('sj-ponte-cristo-rei').compassLabel, 'SSW');
+  assert.equal(byId.get('sj-convento-carmo').compassLabel, 'W');
+
+  const engine = new MemoriesGameEngine();
+  const state = engine.getState();
+  const startEuros = state.euros;
+
+  // 1. Walk up to Elevador de Santa Justa on Rua do Carmo and enter via [E]
+  state.player.x = SANTA_JUSTA_LIFT.spawnOutside.x;
+  state.player.y = SANTA_JUSTA_LIFT.spawnOutside.y;
+  const nearEntrance = engine.getNearbyInteraction();
+  assert.equal(nearEntrance?.type, 'santa-justa');
+
+  const enterRes = engine.triggerNearbyInteraction();
+  assert.equal(enterRes.ok, true);
+  assert.equal(state.mode, 'santa-justa');
+  assert.equal(state.santaJusta.phase, 'lobby');
+  assert.equal(state.santaJusta.altitudeMeters, 0);
+
+  // 2. Board mahogany cabin -> animated 45m climb (1.80 EUR) -> open-air 45m miradouro
+  const ascendRes = engine.ascendSantaJusta();
+  assert.equal(ascendRes.ok, true);
+  assert.equal(state.santaJusta.phase, 'ascending');
+  assert.equal(state.euros, Number((startEuros - SANTA_JUSTA_LIFT.fareEur).toFixed(2)));
+  for (let i = 0; i < 10; i += 1) engine.tick(0.16, { x: 0, y: 0 });
+  assert.ok(state.santaJusta.altitudeMeters > 10 && state.santaJusta.altitudeMeters < 45, 'Lift must smoothly climb 0m -> 45m');
+  for (let i = 0; i < 30; i += 1) engine.tick(0.15, { x: 0, y: 0 });
+  assert.equal(state.santaJusta.phase, 'miradouro');
+  assert.equal(state.santaJusta.altitudeMeters, 45);
+  assert.equal(state.visitedSantaJustaMiradouro, true);
+
+  // 3. Look around 360 degrees at real factual Lisbon landmarks & verify audio + postcard
+  engine.lookAtSantaJustaLandmark('sj-rossio');
+  assert.equal(state.santaJusta.focusedLandmarkId, 'sj-rossio');
+  engine.lookAtSantaJustaLandmark('sj-rua-augusta-tejo');
+  assert.equal(state.santaJusta.focusedLandmarkId, 'sj-rua-augusta-tejo');
+  engine.lookAtSantaJustaLandmark('sj-convento-carmo');
+  assert.equal(state.santaJusta.focusedLandmarkId, 'sj-convento-carmo');
+  engine.lookAtSantaJustaLandmark('sj-castelo');
+  assert.equal(state.santaJusta.focusedLandmarkId, 'sj-castelo');
+
+  const sound = computeSoundscapeProfile(state);
+  assert.equal(sound.activeLabel, 'Santa Justa 45m Miradouro');
+  const pcRes = engine.triggerSharedPostcard();
+  assert.equal(pcRes.ok, true);
+  assert.ok(pcRes.postcard.locationName.includes('Elevador de Santa Justa'));
+
+  // 4. Descend back to Rua do Carmo free of charge
+  const descRes = engine.descendSantaJusta();
+  assert.equal(descRes.ok, true);
+  assert.equal(state.santaJusta.phase, 'descending');
+  for (let i = 0; i < 30; i += 1) engine.tick(0.15, { x: 0, y: 0 });
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.euros, Number((startEuros - SANTA_JUSTA_LIFT.fareEur).toFixed(2)), 'Return descent must be free');
+
+  // 5. Verify entering Elevador de Santa Justa from Rossio / Baixa City District also works & returns to Rossio!
+  engine.openMetroStation('metro-rossio');
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  engine.exitMetroStation();
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.mode, 'city-district');
+  assert.equal(state.cityDistrictId, 'district-rossio-restauradores');
+
+  const fromRossio = engine.interactWithCityDistrictSpot('rossio-santa-justa-lift');
+  assert.equal(fromRossio.ok, true);
+  assert.equal(state.mode, 'santa-justa');
+  assert.equal(state.santaJusta.returnMode, 'city-district');
+  assert.equal(state.santaJusta.returnDistrictId, 'district-rossio-restauradores');
+  engine.descendSantaJusta({ immediate: true });
+  assert.equal(state.mode, 'city-district');
+  assert.equal(state.cityDistrictId, 'district-rossio-restauradores');
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {

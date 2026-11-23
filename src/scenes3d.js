@@ -3,6 +3,8 @@ import {
   INTERIOR_HEIGHT,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
+  SANTA_JUSTA_LIFT,
+  SANTA_JUSTA_PANORAMA_LANDMARKS,
   METRO_STATIONS,
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
@@ -3844,5 +3846,1217 @@ export class LisboaScenes3DRenderer {
         ]
       }
     );
+  }
+
+  // =========================================================================
+  // 5. ELEVADOR DE SANTA JUSTA (1902): LOBBY, 45M VERTICAL CLIMB & FACTUAL 360 LISBON PANORAMA
+  // =========================================================================
+  renderSantaJusta3D(ctx, state, nearbyInteraction, animTime = 0) {
+    this.lastHitTargets = [];
+    const sj = state.santaJusta || { phase: 'lobby', altitudeMeters: 0, phaseProgress: 0 };
+    const phase = getDayPhase(state.minutesOfDay);
+    const monthInfo = getMonthInfo(state.month);
+    const isEvening = phase.id === 'evening';
+    const isGolden = phase.id === 'golden';
+    const isRainy = (monthInfo.rainIntensity || 0) >= 0.45;
+    const isJacaranda = (monthInfo.jacarandaBloom || 0) >= 0.4;
+    const w = this.viewWidth;
+    const h = this.viewHeight;
+
+    // -----------------------------------------------------------------------
+    // A) GROUND-FLOOR 1902 NEO-GOTHIC LOBBY & MAHOGANY WOOD-PANELED CABIN
+    // -----------------------------------------------------------------------
+    if (sj.phase === 'lobby') {
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, '#17202d');
+      bg.addColorStop(0.55, '#253142');
+      bg.addColorStop(1, '#121822');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      // Ornate Neo-Gothic cast-iron arched lobby ribs framing the wooden lift cabin
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 4;
+      for (let i = 0; i < 3; i += 1) {
+        const pad = 26 + i * 28;
+        ctx.beginPath();
+        ctx.moveTo(pad, h);
+        ctx.lineTo(pad, 132 + i * 14);
+        ctx.quadraticCurveTo(w * 0.5, 16 + i * 24, w - pad, 132 + i * 14);
+        ctx.lineTo(w - pad, h);
+        ctx.stroke();
+      }
+
+      // Checkered Baixa limestone-and-basalt lobby floor
+      ctx.fillStyle = '#d6cfc2';
+      ctx.fillRect(110, h - 108, w - 220, 108);
+      ctx.fillStyle = '#334155';
+      for (let rx = 120; rx < w - 120; rx += 56) {
+        ctx.beginPath();
+        ctx.moveTo(rx + 28, h - 96);
+        ctx.lineTo(rx + 50, h - 60);
+        ctx.lineTo(rx + 28, h - 24);
+        ctx.lineTo(rx + 6, h - 60);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Polished Brazilian Mahogany & Brass 1902 Vertical Lift Cabin (clickable to ascend!)
+      const cabX = 240;
+      const cabY = 122;
+      const cabW = 440;
+      const cabH = 336;
+      const cabPoly = [
+        { x: cabX, y: cabY },
+        { x: cabX + cabW, y: cabY },
+        { x: cabX + cabW, y: cabY + cabH },
+        { x: cabX, y: cabY + cabH }
+      ];
+      this.lastHitTargets.push({ kind: 'santa-justa-ascend', poly: cabPoly });
+
+      // Rich varnished mahogany wooden exterior surround
+      const woodGrad = ctx.createLinearGradient(cabX, cabY, cabX + cabW, cabY + cabH);
+      woodGrad.addColorStop(0, '#6b2f17');
+      woodGrad.addColorStop(0.5, '#8c3f20');
+      woodGrad.addColorStop(1, '#4c1f0e');
+      drawRoundedRect(ctx, cabX, cabY, cabW, cabH, 10);
+      ctx.fillStyle = woodGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Open glowing cabin interior with beveled mirror, brass handrails & warm globe chandelier
+      drawRoundedRect(ctx, cabX + 54, cabY + 42, cabW - 108, cabH - 54, 6);
+      const innerGrad = ctx.createLinearGradient(0, cabY + 42, 0, cabY + cabH);
+      innerGrad.addColorStop(0, '#fef3c7');
+      innerGrad.addColorStop(0.35, '#9a4d22');
+      innerGrad.addColorStop(1, '#431d0c');
+      ctx.fillStyle = innerGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Beveled vintage mirror & wood wainscoting slats inside cabin
+      ctx.fillStyle = 'rgba(186, 230, 253, 0.36)';
+      ctx.fillRect(cabX + 128, cabY + 76, cabW - 256, 118);
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 2.4;
+      ctx.strokeRect(cabX + 128, cabY + 76, cabW - 256, 118);
+
+      // Warm milk-glass globe lamp glowing at cabin ceiling
+      const lampGrad = ctx.createRadialGradient(w * 0.5, cabY + 62, 4, w * 0.5, cabY + 62, 46);
+      lampGrad.addColorStop(0, '#ffffff');
+      lampGrad.addColorStop(0.4, 'rgba(254, 240, 138, 0.85)');
+      lampGrad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+      ctx.fillStyle = lampGrad;
+      ctx.beginPath();
+      ctx.arc(w * 0.5, cabY + 62, 46, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Polished horizontal brass safety handrail across cabin rear wall
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(cabX + 76, cabY + 214, cabW - 152, 7);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(cabX + 76, cabY + 214, cabW - 152, 2.5);
+
+      // Authentic Semicircular Brass Elevation Indicator Dial above cabin door (0m -> 45m)
+      const dialCx = w * 0.5;
+      const dialCy = cabY + 2;
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(dialCx, dialCy, 56, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '700 9px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('0m', dialCx - 40, dialCy - 8);
+      ctx.fillText('22m', dialCx, dialCy - 38);
+      ctx.fillText('45m', dialCx + 38, dialCy - 8);
+      // Brass pointer resting at 0m
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(dialCx, dialCy - 4);
+      ctx.lineTo(dialCx - 34, dialCy - 18);
+      ctx.stroke();
+
+      // Lift Operator Jorge standing politely beside the left entrance post of the 1902 cabin (never obscured by plaque!)
+      const opX = cabX - 46;
+      const opY = cabY + cabH - 36;
+      ctx.fillStyle = '#1e3a5f';
+      drawRoundedRect(ctx, opX - 18, opY - 54, 36, 62, 8);
+      ctx.fill();
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(opX - 3, opY - 48, 6, 42);
+      ctx.fillStyle = '#f1cbb0';
+      ctx.beginPath();
+      ctx.arc(opX, opY - 68, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(opX - 16, opY - 84, 32, 9);
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(opX - 13, opY - 76, 26, 3);
+      // Small operator nameplate
+      drawRoundedRect(ctx, opX - 34, opY + 14, 68, 18, 4);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '700 8.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('JORGE (CARRIS)', opX, opY + 26);
+
+      // Call-to-action brass boarding plaque inside cabin
+      drawRoundedRect(ctx, w * 0.5 - 156, cabY + 250, 312, 46, 8);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 12px Georgia, serif';
+      ctx.fillText('BOARD CABIN -> 45m MIRADOURO [E]', w * 0.5, cabY + 271);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '600 10px "Segoe UI", sans-serif';
+      ctx.fillText(`Raoul Mesnier du Ponsard (1902)  |  ${SANTA_JUSTA_LIFT.fareEur.toFixed(2)} EUR`, w * 0.5, cabY + 288);
+
+      // Top header banner
+      drawRoundedRect(ctx, 170, 14, 580, 48, 8);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 13px Georgia, serif';
+      ctx.fillText('ELEVADOR DE SANTA JUSTA (1902)  -  GROUND LOBBY (0m)', w * 0.5, 35, 556);
+      ctx.fillStyle = '#bae6fd';
+      ctx.font = '600 10px "Segoe UI", sans-serif';
+      ctx.fillText('Click Mahogany Cabin or Press [E] to Ascend 45m for a 360-Degree View of Lisboa  |  [Esc] Exit', w * 0.5, 53, 556);
+      ctx.textAlign = 'left';
+      return;
+    }
+
+    // -----------------------------------------------------------------------
+    // B) ANIMATED 45M VERTICAL LIFT RIDE THROUGH THE NEO-GOTHIC IRON SHAFT
+    // -----------------------------------------------------------------------
+    if (sj.phase === 'ascending' || sj.phase === 'descending') {
+      const alt = clamp(sj.altitudeMeters || 0, 0, 45);
+      const frac = alt / 45; // 0 = street level, 1 = 45m summit!
+
+      // Outside Lisbon sky & rising view of Baixa rooftops + Castelo de Sao Jorge as cabin climbs!
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      if (isEvening) {
+        sky.addColorStop(0, '#0a1630');
+        sky.addColorStop(0.65, '#1e355c');
+        sky.addColorStop(1, '#31446b');
+      } else if (isGolden) {
+        sky.addColorStop(0, '#36588f');
+        sky.addColorStop(0.55, '#db8556');
+        sky.addColorStop(1, '#fde68a');
+      } else {
+        sky.addColorStop(0, '#1d5eb8');
+        sky.addColorStop(0.6, '#6cbdf0');
+        sky.addColorStop(1, '#e0f2fe');
+      }
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+
+      // As altitude rises (frac 0 -> 1), Castelo hill and Baixa terracotta roofs sink downward revealing wider city!
+      const cityBaseY = Math.round(h * 0.36 + frac * 175);
+      // Distant Castelo de Sao Jorge hill rising cleanly into view once cabin clears surrounding eaves
+      ctx.fillStyle = isEvening ? '#1a2844' : '#597462';
+      ctx.beginPath();
+      ctx.moveTo(0, cityBaseY + 20);
+      ctx.quadraticCurveTo(w * 0.3, cityBaseY - 72, w * 0.55, cityBaseY - 82);
+      ctx.quadraticCurveTo(w * 0.82, cityBaseY - 64, w, cityBaseY + 20);
+      ctx.closePath();
+      ctx.fill();
+      // Castle silhouette crowning the hill
+      ctx.fillStyle = isEvening ? '#a18a62' : '#d6c7ad';
+      ctx.fillRect(w * 0.44, cityBaseY - 102, 128, 28);
+      for (const tx of [0, 32, 66, 98]) {
+        ctx.fillRect(w * 0.44 + tx, cityBaseY - 116, 20, 20);
+      }
+
+      // Baixa Pombalina terracotta rooftops descending below as cabin climbs 0m -> 45m!
+      for (let row = 0; row < 4; row += 1) {
+        const ry = cityBaseY - 24 + row * 48;
+        for (let bx = 90; bx < w - 90; bx += 92) {
+          ctx.fillStyle = row % 2 === 0 ? '#e6d8c3' : '#f1d9b8';
+          ctx.fillRect(bx, ry + 14, 82, 42);
+          ctx.fillStyle = isEvening ? '#7c3424' : '#b84a32';
+          ctx.beginPath();
+          ctx.moveTo(bx - 4, ry + 16);
+          ctx.lineTo(bx + 10, ry);
+          ctx.lineTo(bx + 72, ry);
+          ctx.lineTo(bx + 86, ry + 16);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      // Riveted Neo-Gothic Cast-Iron Lattice Girders scrolling downward past the cabin windows!
+      const girderSpacing = 124;
+      const scrollY = (alt * 28) % girderSpacing;
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 7;
+      for (let gy = -girderSpacing + scrollY; gy < h + girderSpacing; gy += girderSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(116, gy);
+        ctx.lineTo(w - 116, gy);
+        ctx.stroke();
+        // Gothic X-lattice & pointed iron arch between floors
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(30, 41, 59, 0.78)';
+        ctx.beginPath();
+        ctx.moveTo(130, gy);
+        ctx.lineTo(w - 130, gy + girderSpacing);
+        ctx.moveTo(w - 130, gy);
+        ctx.lineTo(130, gy + girderSpacing);
+        ctx.stroke();
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = '#1e293b';
+      }
+
+      // Foreground 1902 Mahogany Wood Cabin Window Frame & Brass Handrails
+      const hum = Math.sin(animTime * 16) * 0.9;
+      ctx.save();
+      ctx.translate(0, hum);
+      ctx.fillStyle = '#5c2612';
+      ctx.fillRect(0, 0, w, 78);
+      ctx.fillRect(0, 0, 122, h);
+      ctx.fillRect(w - 122, 0, 122, h);
+      ctx.fillRect(0, h - 102, w, 102);
+      // Center mahogany vertical window mullion posts
+      for (const mx of [356, 564]) {
+        ctx.fillStyle = '#6b2f17';
+        ctx.fillRect(mx - 8, 76, 16, h - 176);
+        ctx.fillStyle = '#eab308';
+        ctx.fillRect(mx - 2, 76, 4, h - 176);
+      }
+      // Brass interior cabin rail
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(122, h - 108, w - 244, 9);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(122, h - 108, w - 244, 3);
+
+      // Overhead Live Brass Elevation Dial & Altitude Readout
+      drawRoundedRect(ctx, 210, 10, 500, 58, 8);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 13px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        `ELEVADOR DE SANTA JUSTA  -  ${sj.phase === 'ascending' ? 'ASCENDING' : 'DESCENDING'}  ${Math.round(alt)}m / 45m`,
+        w * 0.5,
+        32,
+        480
+      );
+      // Progress altitude bar inside brass header
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(260, 44, 400, 10);
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(260, 44, Math.round(400 * frac), 10);
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(260, 44, 400, 10);
+      ctx.restore();
+      ctx.textAlign = 'left';
+      return;
+    }
+
+    // -----------------------------------------------------------------------
+    // C) 45-METER OPEN-AIR MIRADOURO: FULL 360-DEGREE FACTUAL VIEW OF LISBOA CITY!
+    // -----------------------------------------------------------------------
+    const yawDeg = (((state.cameraYaw || 0) * 180) / Math.PI + 360) % 360;
+    const centerBearing = (yawDeg + 90) % 360; // 0 = N, 90 = E, 180 = S, 270 = W
+    const pitchPx = clamp((state.cameraPitch || 0) * 320, -88, 88);
+    const hy = Math.round(h * 0.42 + pitchPx);
+    const fovDeg = 78;
+    const pxPerDeg = w / fovDeg;
+    const angleDiff = (targetDeg) => ((targetDeg - centerBearing + 540) % 360) - 180;
+    const bx = (targetDeg) => w * 0.5 + angleDiff(targetDeg) * pxPerDeg;
+    const isVisibleDeg = (targetDeg, margin = 26) => Math.abs(angleDiff(targetDeg)) <= fovDeg * 0.5 + margin;
+
+    // 1. Dynamic Lisbon Sky Dome (Morning / Afternoon / Golden Hour / Evening + Atlantic Weather)
+    const sky = ctx.createLinearGradient(0, 0, 0, hy + 18);
+    if (isEvening) {
+      sky.addColorStop(0, '#071126');
+      sky.addColorStop(0.55, '#15294d');
+      sky.addColorStop(1, '#2a436e');
+    } else if (isRainy) {
+      sky.addColorStop(0, '#3e4f63');
+      sky.addColorStop(0.55, '#6b7e94');
+      sky.addColorStop(1, '#a9b8c8');
+    } else if (isGolden) {
+      sky.addColorStop(0, '#2c4a82');
+      sky.addColorStop(0.5, '#d67b4d');
+      sky.addColorStop(0.84, '#f5b96b');
+      sky.addColorStop(1, '#fef08a');
+    } else {
+      sky.addColorStop(0, '#1854ad');
+      sky.addColorStop(0.58, '#5bb5ef');
+      sky.addColorStop(1, '#dff4ff');
+    }
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    // Stars & crescent moon at night OR golden sun over SW Tagus / Atlantic
+    if (isEvening) {
+      ctx.fillStyle = 'rgba(255, 250, 224, 0.85)';
+      for (let s = 0; s < 42; s += 1) {
+        const sDeg = (s * 43 + 11) % 360;
+        if (!isVisibleDeg(sDeg, 4)) continue;
+        const sx = bx(sDeg);
+        const sy = 22 + ((s * 67) % Math.max(40, hy - 44));
+        ctx.fillRect(sx, sy, s % 3 === 0 ? 2.4 : 1.6, s % 3 === 0 ? 2.4 : 1.6);
+      }
+      if (isVisibleDeg(152, 12)) {
+        const mx = bx(152);
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath();
+        ctx.arc(mx, Math.max(44, hy - 118), 16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (!isRainy) {
+      const sunDeg = isGolden ? 236 : 168;
+      if (isVisibleDeg(sunDeg, 20)) {
+        const sx = bx(sunDeg);
+        const sy = isGolden ? hy - 54 : Math.max(48, hy - 134);
+        const sg = ctx.createRadialGradient(sx, sy, 8, sx, sy, isGolden ? 96 : 64);
+        sg.addColorStop(0, '#fffbeb');
+        sg.addColorStop(0.35, isGolden ? 'rgba(253, 186, 116, 0.78)' : 'rgba(254, 240, 138, 0.55)');
+        sg.addColorStop(1, 'rgba(254, 240, 138, 0)');
+        ctx.fillStyle = sg;
+        ctx.beginPath();
+        ctx.arc(sx, sy, isGolden ? 96 : 64, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Soft drifting Atlantic clouds
+    ctx.fillStyle = isEvening ? 'rgba(148, 163, 184, 0.14)' : isGolden ? 'rgba(254, 215, 170, 0.42)' : 'rgba(255, 255, 255, 0.58)';
+    for (let c = 0; c < 12; c += 1) {
+      const cDeg = (c * 31 + animTime * 0.35) % 360;
+      if (!isVisibleDeg(cDeg, 18)) continue;
+      const cx = bx(cDeg);
+      const cy = 54 + (c % 4) * 28;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 46 + (c % 3) * 14, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. Continuous 360-Degree Horizon Topography: Lisbon Seven Hills + Shimmering Tagus Estuary + Almada Cliffs!
+    // Base urban valley fill below horizon
+    const valleyGrad = ctx.createLinearGradient(0, hy - 6, 0, h);
+    valleyGrad.addColorStop(0, isEvening ? '#182436' : '#c9b79f');
+    valleyGrad.addColorStop(1, isEvening ? '#0f172a' : '#8c7258');
+    ctx.fillStyle = valleyGrad;
+    ctx.fillRect(0, hy - 4, w, h - hy + 4);
+
+    // Sample Lisbon 360-degree factual hill profile (peaks at Graca NE 42, Castelo E 84, Alfama SE 130, Almada SSW 214, Chiado/Carmo W 272, Parque Eduardo VII NNW 330)
+    const hillHeightAtDeg = (deg) => {
+      const d = ((deg % 360) + 360) % 360;
+      const bump = (center, width, amp) => {
+        const diff = Math.abs(((d - center + 540) % 360) - 180);
+        if (diff >= width) return 0;
+        const u = diff / width;
+        return amp * 0.5 * (1 + Math.cos(u * Math.PI));
+      };
+      return (
+        10 +
+        bump(332, 36, 36) + // Avenida da Liberdade / Parque Eduardo VII
+        bump(42, 38, 66) +  // Miradouro da Graca & Senhora do Monte
+        bump(84, 34, 72) +  // Castelo de Sao Jorge hill
+        bump(130, 32, 34) + // Alfama & Se ridge
+        bump(216, 48, 22) + // Distant Almada cliffs across Tagus
+        bump(268, 44, 54)   // Chiado / Carmo / Bairro Alto hill directly west!
+      );
+    };
+
+    ctx.fillStyle = isEvening ? '#19273f' : isGolden ? '#7d5b54' : '#658074';
+    ctx.beginPath();
+    ctx.moveTo(0, hy + 42);
+    for (let sx = 0; sx <= w; sx += 8) {
+      const deg = centerBearing + (sx - w * 0.5) / pxPerDeg;
+      ctx.lineTo(sx, hy - hillHeightAtDeg(deg));
+    }
+    ctx.lineTo(w, hy + 42);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2B. Shimmering Rio Tejo (Tagus River Estuary) sweeping naturally from SE (122 deg) through South (180 deg) to SW (242 deg)
+    // Tapered organic Lisbon riverfront shorelines on both the Alfama (E) and Chiado/Cais do Sodre (W) embankments!
+    const riverLeftX = bx(118);
+    const riverRightX = bx(244);
+    if (riverRightX > 0 && riverLeftX < w) {
+      const riverY0 = hy + 2;
+      const riverH = 88;
+      const rGrad = ctx.createLinearGradient(0, riverY0, 0, riverY0 + riverH);
+      if (isEvening) {
+        rGrad.addColorStop(0, '#0f2744');
+        rGrad.addColorStop(1, '#08182b');
+      } else if (isGolden) {
+        rGrad.addColorStop(0, '#44749c');
+        rGrad.addColorStop(0.5, '#c78c62');
+        rGrad.addColorStop(1, '#265c7e');
+      } else {
+        rGrad.addColorStop(0, '#1f78ab');
+        rGrad.addColorStop(1, '#124e75');
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(riverLeftX + 70, riverY0);
+      ctx.lineTo(riverRightX - 70, riverY0);
+      ctx.quadraticCurveTo(riverRightX - 12, riverY0 + 36, riverRightX - 58, riverY0 + riverH);
+      ctx.lineTo(riverLeftX + 58, riverY0 + riverH);
+      ctx.quadraticCurveTo(riverLeftX + 12, riverY0 + 36, riverLeftX + 70, riverY0);
+      ctx.closePath();
+      ctx.fillStyle = rGrad;
+      ctx.fill();
+      ctx.clip();
+
+      // Gentle Tagus wave glints clipped organically inside the curved estuary basin
+      const rx0 = Math.max(0, riverLeftX);
+      const rx1 = Math.min(w, riverRightX);
+      ctx.strokeStyle = isGolden ? 'rgba(254, 240, 138, 0.5)' : 'rgba(224, 242, 254, 0.36)';
+      ctx.lineWidth = 1.4;
+      for (let wy = riverY0 + 10; wy < riverY0 + riverH - 8; wy += 14) {
+        const waveShift = ((animTime * 12 + wy * 3) % 44);
+        for (let wx = rx0 - waveShift; wx < rx1; wx += 44) {
+          ctx.beginPath();
+          ctx.moveTo(wx, wy);
+          ctx.lineTo(wx + 18, wy);
+          ctx.stroke();
+        }
+      }
+      // Tiny Transtejo orange catamaran & white sailboat crossing the Tagus toward Cacilhas!
+      for (const [bDeg, bOffY, isFerry] of [[166 + Math.sin(animTime * 0.14) * 6, 36, true], [192 - Math.sin(animTime * 0.11) * 5, 28, false]]) {
+        if (!isVisibleDeg(bDeg, 4)) continue;
+        const bpx = bx(bDeg);
+        const bpy = riverY0 + bOffY;
+        if (isFerry) {
+          ctx.fillStyle = '#f97316';
+          ctx.fillRect(bpx - 9, bpy, 18, 4);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(bpx - 6, bpy - 3, 12, 3);
+        } else {
+          ctx.fillStyle = '#f8fafc';
+          ctx.beginPath();
+          ctx.moveTo(bpx - 4, bpy);
+          ctx.lineTo(bpx + 5, bpy);
+          ctx.lineTo(bpx, bpy - 12);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    // 3. FACTUAL 360-DEGREE LISBON ARCHITECTURAL MONUMENTS AT EXACT COMPASS BEARINGS!
+
+    // [SSW 214 deg] Ponte 25 de Abril (1966) Crimson Suspension Bridge & Santuario de Cristo Rei (1959) on Almada Cliff!
+    if (isVisibleDeg(214, 34)) {
+      const pCx = bx(214);
+      const t1X = pCx - 86;
+      const t2X = pCx + 42;
+      const bLeft = pCx - 172;
+      const bRight = pCx + 126;
+      const deckY = hy + 6;
+      const towerTopY = hy - 48;
+      const bRed = isEvening ? '#881b24' : '#c8232c';
+      const bHi = isEvening ? '#b91c1c' : '#ef4444';
+
+      // Main catenary cables
+      const cableY = (x) => {
+        if (x <= t1X) {
+          const u = (x - bLeft) / Math.max(1, t1X - bLeft);
+          return deckY - u * u * (deckY - (towerTopY + 3));
+        }
+        if (x >= t2X) {
+          const u = (bRight - x) / Math.max(1, bRight - t2X);
+          return deckY - u * u * (deckY - (towerTopY + 3));
+        }
+        const u = (x - t1X) / Math.max(1, t2X - t1X);
+        return (towerTopY + 3) + 4 * u * (1 - u) * ((deckY - 4) - (towerTopY + 3));
+      };
+      ctx.strokeStyle = 'rgba(220, 38, 38, 0.55)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      for (let sx = bLeft + 8; sx <= bRight - 8; sx += 9) {
+        ctx.moveTo(sx, cableY(sx));
+        ctx.lineTo(sx, deckY);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = bHi;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let sx = bLeft; sx <= bRight; sx += 5) {
+        const cy = cableY(sx);
+        if (sx === bLeft) ctx.moveTo(sx, cy);
+        else ctx.lineTo(sx, cy);
+      }
+      ctx.stroke();
+
+      // Double-deck stiffening roadway & twin crimson portal towers
+      ctx.fillStyle = bRed;
+      ctx.fillRect(bLeft, deckY, bRight - bLeft, 4.5);
+      for (const tx of [t1X, t2X]) {
+        ctx.fillStyle = bRed;
+        ctx.fillRect(tx - 5, towerTopY, 3, hy + 20 - towerTopY);
+        ctx.fillRect(tx + 2, towerTopY, 3, hy + 20 - towerTopY);
+        ctx.strokeStyle = bHi;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(tx - 4, towerTopY + 6);
+        ctx.lineTo(tx + 4, towerTopY + 6);
+        ctx.moveTo(tx - 4, towerTopY + 22);
+        ctx.lineTo(tx + 4, towerTopY + 22);
+        ctx.stroke();
+      }
+
+      // Santuario de Cristo Rei on Almada escarpment (left of bridge at ~201 deg)
+      const crX = bx(201);
+      const crBaseY = hy - 8;
+      ctx.fillStyle = isEvening ? '#e2e8f0' : '#ece5d6';
+      ctx.beginPath();
+      ctx.moveTo(crX - 7, crBaseY);
+      ctx.lineTo(crX - 4.5, crBaseY - 26);
+      ctx.lineTo(crX + 4.5, crBaseY - 26);
+      ctx.lineTo(crX + 7, crBaseY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(crX - 1.6, crBaseY - 36, 3.2, 10);
+      ctx.fillRect(crX - 8, crBaseY - 33, 16, 2.2);
+      if (isEvening) {
+        const cg = ctx.createRadialGradient(crX, crBaseY - 26, 2, crX, crBaseY - 26, 22);
+        cg.addColorStop(0, 'rgba(254, 240, 138, 0.55)');
+        cg.addColorStop(1, 'rgba(254, 240, 138, 0)');
+        ctx.fillStyle = cg;
+        ctx.beginPath();
+        ctx.arc(crX, crBaseY - 26, 22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // [E 84 deg] Castelo de Sao Jorge (11th c. Hilltop Citadel with 7 Crenellated Towers, Umbrella Pines & Portuguese Flag!)
+    if (isVisibleDeg(84, 30)) {
+      const cX = bx(84);
+      const cY = hy - 68;
+      // Warm evening architectural floodlight halo on medieval castle walls
+      if (isEvening) {
+        const halo = ctx.createRadialGradient(cX, cY - 8, 12, cX, cY - 8, 125);
+        halo.addColorStop(0, 'rgba(253, 224, 71, 0.34)');
+        halo.addColorStop(1, 'rgba(253, 224, 71, 0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(cX, cY - 8, 125, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Stone umbrella pines tucked along castle hilltop terrace
+      ctx.fillStyle = isEvening ? '#143326' : '#2d5a3e';
+      for (const [ox, oy, r] of [[-102, 12, 16], [-62, 4, 15], [44, 4, 16], [88, 10, 17], [118, 18, 14]]) {
+        ctx.beginPath();
+        ctx.ellipse(cX + ox, cY + oy, r * 1.4, r * 0.72, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Golden limestone medieval curtain wall & crenellated battlements
+      const stoneWall = isEvening ? '#a88d62' : '#d8c5a3';
+      const stoneShadow = isEvening ? '#7d6644' : '#b8a27e';
+      ctx.fillStyle = stoneWall;
+      ctx.fillRect(cX - 108, cY - 12, 216, 30);
+      ctx.fillStyle = stoneShadow;
+      ctx.fillRect(cX - 108, cY + 12, 216, 12);
+      // 7 iconic crenellated square limestone watchtowers along the citadel ridge
+      for (const [tx, tw, th] of [
+        [-104, 22, 34], [-64, 24, 42], [-22, 28, 48], [16, 22, 38], [52, 26, 44], [88, 22, 34]
+      ]) {
+        ctx.fillStyle = stoneWall;
+        ctx.fillRect(cX + tx, cY - th + 16, tw, th);
+        ctx.strokeStyle = stoneShadow;
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(cX + tx, cY - th + 16, tw, th);
+        // Merlon crenellations atop each tower
+        for (let m = 0; m < tw - 4; m += 7) {
+          ctx.fillRect(cX + tx + m, cY - th + 11, 4.5, 5);
+        }
+        // Narrow medieval arrow slit
+        ctx.fillStyle = '#292524';
+        ctx.fillRect(cX + tx + tw * 0.5 - 1.5, cY - th + 26, 3, 10);
+      }
+      // Fluttering Portuguese green-and-red flag over Torre de Ulisses!
+      const fx = cX - 8;
+      const fy = cY - 36;
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy + 6);
+      ctx.lineTo(fx, fy - 22);
+      ctx.stroke();
+      const wave = Math.sin(animTime * 4.5) * 2;
+      ctx.fillStyle = '#15803d';
+      ctx.fillRect(fx + 1, fy - 21 + wave * 0.3, 8, 11);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(fx + 9, fy - 21 + wave * 0.5, 12, 11);
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.arc(fx + 9, fy - 15.5 + wave * 0.4, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // [NE 42 deg] Miradouro da Graca Convent & Pine Belvedere on High Northeastern Ridge
+    if (isVisibleDeg(42, 24)) {
+      const gX = bx(42);
+      const gY = hy - 62;
+      ctx.fillStyle = isEvening ? '#cbd5e1' : '#f8fafc';
+      ctx.fillRect(gX - 38, gY - 12, 76, 26);
+      ctx.fillStyle = '#b84a32';
+      ctx.fillRect(gX - 42, gY - 18, 84, 7);
+      // Bell tower of Igreja da Graca
+      ctx.fillStyle = isEvening ? '#e2e8f0' : '#ffffff';
+      ctx.fillRect(gX - 8, gY - 34, 16, 24);
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(gX, gY - 34, 8, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = isEvening ? '#143326' : '#2d5a3e';
+      for (const ox of [-52, -28, 30, 52]) {
+        ctx.beginPath();
+        ctx.arc(gX + ox, gY + 6, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // [SE 136 deg] Se de Lisboa (1147 Twin Romanesque Towers) & [ESE 124 deg] Panteao Nacional White Dome!
+    if (isVisibleDeg(132, 26)) {
+      // Panteao Nacional gleaming white cupola farther east on Alfama crest
+      const panX = bx(123);
+      const panY = hy - 28;
+      ctx.fillStyle = isEvening ? '#cbd5e1' : '#f8fafc';
+      ctx.fillRect(panX - 18, panY - 8, 36, 20);
+      ctx.beginPath();
+      ctx.arc(panX, panY - 8, 16, Math.PI, 0);
+      ctx.fill();
+      ctx.fillRect(panX - 4, panY - 30, 8, 8);
+
+      // Se de Lisboa (1147) Romanesque fortress facade with twin crenellated bell towers & rose window
+      const seX = bx(136);
+      const seY = hy - 14;
+      const seStone = isEvening ? '#b8a993' : '#dfd5c3';
+      ctx.fillStyle = seStone;
+      ctx.fillRect(seX - 28, seY - 18, 56, 38);
+      ctx.fillRect(seX - 30, seY - 40, 18, 60);
+      ctx.fillRect(seX + 12, seY - 40, 18, 60);
+      ctx.strokeStyle = '#57534e';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(seX - 30, seY - 40, 18, 60);
+      ctx.strokeRect(seX + 12, seY - 40, 18, 60);
+      // Crenellations & blue-gold rose window
+      ctx.fillStyle = '#8c7e6a';
+      for (const ox of [-30, -22, -16, 12, 20, 26]) {
+        ctx.fillRect(seX + ox, seY - 45, 4, 5);
+      }
+      ctx.fillStyle = '#2563eb';
+      ctx.beginPath();
+      ctx.arc(seX, seY - 6, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.arc(seX, seY - 6, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // [S 174 deg] Rua Augusta Axis, Arco da Rua Augusta (1873) & Yellow Praca do Comercio Arcades overlooking Rio Tejo!
+    if (isVisibleDeg(174, 28)) {
+      const aX = bx(174);
+      const aY = hy + 68;
+      // Yellow Pombaline colonnade wings of Praca do Comercio framing the riverfront
+      ctx.fillStyle = isEvening ? '#b8861e' : '#eab308';
+      ctx.fillRect(aX - 116, aY - 18, 86, 26);
+      ctx.fillRect(aX + 30, aY - 18, 86, 26);
+      ctx.fillStyle = '#b84a32';
+      ctx.fillRect(aX - 118, aY - 23, 90, 6);
+      ctx.fillRect(aX + 28, aY - 23, 90, 6);
+      // Iconic white Lioz limestone Arco da Rua Augusta (1873) triumphal arch dead-center!
+      ctx.fillStyle = isEvening ? '#cbd5e1' : '#f5efe2';
+      ctx.fillRect(aX - 28, aY - 42, 56, 52);
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(aX - 28, aY - 42, 56, 52);
+      // Central triumphal arch opening showing sunlit Tagus water beyond
+      ctx.fillStyle = isEvening ? '#0f2744' : '#1d75a8';
+      ctx.beginPath();
+      ctx.arc(aX, aY - 4, 13, Math.PI, 0);
+      ctx.lineTo(aX + 13, aY + 10);
+      ctx.lineTo(aX - 13, aY + 10);
+      ctx.closePath();
+      ctx.fill();
+      // Clock face & Glory crowning sculptural pediment atop Arco da Rua Augusta
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath();
+      ctx.arc(aX, aY - 29, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = isEvening ? '#e2e8f0' : '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(aX - 16, aY - 42);
+      ctx.lineTo(aX, aY - 58);
+      ctx.lineTo(aX + 16, aY - 42);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // [NNW 332 deg] Estacao do Rossio (1890 Neo-Manueline Twin Horseshoe Arches) & [N 4 deg] Praca do Rossio + Teatro Nacional D. Maria II!
+    if (isVisibleDeg(348, 38)) {
+      // Estacao do Rossio (332 deg)
+      const estX = bx(332);
+      const estY = hy + 28;
+      ctx.fillStyle = isEvening ? '#cbd5e1' : '#f4eee2';
+      ctx.fillRect(estX - 48, estY - 36, 96, 46);
+      ctx.strokeStyle = '#78716c';
+      ctx.lineWidth = 1.3;
+      ctx.strokeRect(estX - 48, estY - 36, 96, 46);
+      // Signature twin Neo-Manueline horseshoe arch portals!
+      for (const hx of [-18, 18]) {
+        ctx.fillStyle = isEvening ? '#fde68a' : '#1e293b';
+        ctx.beginPath();
+        ctx.arc(estX + hx, estY - 6, 12, Math.PI * 0.85, Math.PI * 0.15);
+        ctx.lineTo(estX + hx + 9, estY + 10);
+        ctx.lineTo(estX + hx - 9, estY + 10);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Central stone pinnacle clocktower
+      ctx.fillStyle = isEvening ? '#e2e8f0' : '#f8f4ec';
+      ctx.fillRect(estX - 10, estY - 54, 20, 20);
+      ctx.beginPath();
+      ctx.moveTo(estX - 12, estY - 54);
+      ctx.lineTo(estX, estY - 68);
+      ctx.lineTo(estX + 12, estY - 54);
+      ctx.closePath();
+      ctx.fill();
+
+      // Praca Dom Pedro IV (Rossio) & Teatro Nacional D. Maria II (N 4 deg)!
+      const rX = bx(4);
+      const rY = hy + 34;
+      // Teatro Nacional D. Maria II (1846) neoclassical white 6-column portico & pediment at north end of Rossio
+      ctx.fillStyle = isEvening ? '#cbd5e1' : '#f8f5ef';
+      ctx.fillRect(rX - 66, rY - 40, 132, 34);
+      ctx.beginPath();
+      ctx.moveTo(rX - 44, rY - 40);
+      ctx.lineTo(rX, rY - 60);
+      ctx.lineTo(rX + 44, rY - 40);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      for (let col = -34; col <= 34; col += 13.6) {
+        ctx.fillStyle = isEvening ? '#94a3b8' : '#e2e8f0';
+        ctx.fillRect(rX + col - 2, rY - 38, 4, 30);
+      }
+
+      // Bird's-eye Rossio Square rolling Mar Largo wave calcada plaza directly below Teatro Nacional!
+      ctx.fillStyle = isEvening ? '#334155' : '#e7dfd0';
+      ctx.beginPath();
+      ctx.moveTo(rX - 96, rY - 4);
+      ctx.lineTo(rX + 96, rY - 4);
+      ctx.lineTo(rX + 148, rY + 86);
+      ctx.lineTo(rX - 148, rY + 86);
+      ctx.closePath();
+      ctx.fill();
+      // Undulating black basalt Mar Largo waves across Rossio plaza
+      ctx.strokeStyle = isEvening ? 'rgba(15, 23, 42, 0.7)' : 'rgba(30, 41, 59, 0.55)';
+      ctx.lineWidth = 2.6;
+      for (let wy = rY + 12; wy <= rY + 72; wy += 15) {
+        const spanW = 94 + ((wy - rY) / 86) * 48;
+        ctx.beginPath();
+        for (let wx = -spanW; wx <= spanW; wx += 14) {
+          const yOff = Math.sin(wx * 0.14) * 3.5;
+          if (wx === -spanW) ctx.moveTo(rX + wx, wy + yOff);
+          else ctx.lineTo(rX + wx, wy + yOff);
+        }
+        ctx.stroke();
+      }
+      // Twin Baroque French bronze fountains flanking Dom Pedro IV Column
+      for (const fx of [-58, 58]) {
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath();
+        ctx.ellipse(rX + fx, rY + 34, 15, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(rX + fx - 3, rY + 16, 6, 18);
+        ctx.strokeStyle = '#e0f2fe';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(rX + fx, rY + 16);
+        ctx.lineTo(rX + fx - 8, rY + 30);
+        ctx.moveTo(rX + fx, rY + 16);
+        ctx.lineTo(rX + fx + 8, rY + 30);
+        ctx.stroke();
+      }
+      // Iconic 27-meter Dom Pedro IV Column rising dead-center in Rossio!
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(rX - 4, rY - 22, 8, 58);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(rX - 9, rY + 28, 18, 10);
+      ctx.fillStyle = '#4d7c0f';
+      ctx.beginPath();
+      ctx.arc(rX, rY - 27, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 4. BIRD'S-EYE BAIXA POMBALINA 1755 GEOMETRIC ROOFTOP GRID (directly below the 45m deck!)
+    // Dense rows of uniform terracotta hipped roofs, ochre/cream/rose facades, attic dormers, and sunlit Baixa streets
+    const pombalineWallCols = ['#ebd9bd', '#f4ead8', '#e6c5b3', '#d8e3dd', '#efe1c4', '#e8d0c8'];
+    for (let layer = 0; layer < 4; layer += 1) {
+      const yTop = hy + 76 + layer * 44;
+      const roofH = 18 + layer * 6;
+      const wallH = 26 + layer * 8;
+      const degStep = 14 - layer * 1.6;
+      for (let d = 0; d < 360; d += degStep) {
+        // Leave Rossio plaza (N 350..18), Rua Augusta corridor (S 168..182), and Carmo skybridge gap (W 262..286) clearly readable!
+        if ((d >= 352 || d <= 16) && layer < 2) continue;
+        if (d >= 169 && d <= 180 && layer < 3) continue;
+        if (d >= 260 && d <= 288) continue;
+        if (!isVisibleDeg(d, 10)) continue;
+
+        const rx = bx(d);
+        const bw = degStep * pxPerDeg * 0.86;
+        const seed = Math.round(d * 7 + layer * 19);
+        const wallCol = pombalineWallCols[seed % pombalineWallCols.length];
+        const roofCol = isEvening ? '#6e2c1d' : seed % 3 === 0 ? '#b84a32' : '#c75939';
+
+        // Facade below roof eaves
+        ctx.fillStyle = shadeColor(wallCol, isEvening ? 0.5 : 0.94 - layer * 0.04);
+        ctx.fillRect(rx - bw * 0.5, yTop + roofH, bw, wallH);
+        ctx.strokeStyle = 'rgba(30, 41, 59, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(rx - bw * 0.5, yTop + roofH, bw, wallH);
+
+        // Pombaline shuttered windows (warm lit amber panes in Evening!)
+        const winCols = Math.max(2, Math.floor(bw / 22));
+        for (let wc = 0; wc < winCols; wc += 1) {
+          const wx = rx - bw * 0.42 + (wc + 0.5) * ((bw * 0.84) / winCols);
+          ctx.fillStyle = isEvening && (seed + wc) % 3 !== 0 ? '#fde68a' : '#2c3e55';
+          ctx.fillRect(wx - 4, yTop + roofH + 6, 8, Math.min(14, wallH - 10));
+        }
+
+        // Authentic pitched terracotta hipped Pombaline roof + attic dormers
+        ctx.fillStyle = roofCol;
+        ctx.beginPath();
+        ctx.moveTo(rx - bw * 0.53, yTop + roofH + 1);
+        ctx.lineTo(rx - bw * 0.34, yTop);
+        ctx.lineTo(rx + bw * 0.34, yTop);
+        ctx.lineTo(rx + bw * 0.53, yTop + roofH + 1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = isEvening ? '#451a03' : '#7c2d12';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Whitewashed roof dormer window characteristic of Baixa Pombalina
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(rx - 5, yTop + roofH * 0.42, 10, 7);
+        ctx.fillStyle = isEvening ? '#fde047' : '#334155';
+        ctx.fillRect(rx - 3, yTop + roofH * 0.48, 6, 5);
+      }
+    }
+
+    // [W 274 deg] DRAWN ABOVE ROOF LAYER: Passadico Iron Skybridge & Roofless Gothic Arches of Convento do Carmo (1389)!
+    if (isVisibleDeg(274, 34)) {
+      const carmX = bx(274);
+      const carmBaseY = hy + 68;
+      // Blooming violet Jacaranda canopy in Largo do Carmo (May/June) or lush Lisbon foliage
+      ctx.fillStyle = isJacaranda ? '#8b5cf6' : isEvening ? '#1e3a2f' : '#3f7d52';
+      for (const [jx, jy, jr] of [[-128, -4, 24], [-92, 6, 20], [96, 2, 24], [134, 10, 20]]) {
+        ctx.beginPath();
+        ctx.arc(carmX + jx, carmBaseY + jy, jr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Iconic 1389 Roofless Pointed Gothic Limestone Nave Arches of Convento do Carmo (open to the sky since 1755!)
+      const gothStone = isEvening ? '#9c9284' : '#e5ded0';
+      const gothDark = isEvening ? '#57534e' : '#9c907f';
+      // Back west gable wall & Gothic rose window frame
+      ctx.fillStyle = gothStone;
+      ctx.fillRect(carmX - 104, carmBaseY - 92, 26, 102);
+      ctx.fillRect(carmX + 78, carmBaseY - 92, 26, 102);
+      // 5 towering roofless pointed Gothic transverse stone rib arches open directly against the Lisbon sky!
+      ctx.strokeStyle = gothStone;
+      ctx.lineWidth = 7;
+      for (let ai = 0; ai < 5; ai += 1) {
+        const ax0 = carmX - 88 + ai * 36;
+        const ax1 = ax0 + 36;
+        const am = (ax0 + ax1) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(ax0, carmBaseY + 12);
+        ctx.lineTo(ax0, carmBaseY - 56);
+        ctx.quadraticCurveTo(ax0 + 4, carmBaseY - 96, am, carmBaseY - 108);
+        ctx.quadraticCurveTo(ax1 - 4, carmBaseY - 96, ax1, carmBaseY - 56);
+        ctx.lineTo(ax1, carmBaseY + 12);
+        ctx.stroke();
+        ctx.strokeStyle = gothDark;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.strokeStyle = gothStone;
+        ctx.lineWidth = 7;
+      }
+
+      // Raoul Mesnier 1902 Wrought-Iron Passadico Walkway Skybridge connecting Santa Justa directly to Carmo!
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.moveTo(carmX - 18, carmBaseY + 16);
+      ctx.lineTo(carmX + 18, carmBaseY + 16);
+      ctx.lineTo(carmX + 94, h - 54);
+      ctx.lineTo(carmX - 94, h - 54);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      // Iron truss side parapets on the Passadico skybridge
+      for (let t = 0.15; t <= 0.9; t += 0.18) {
+        const py = carmBaseY + 16 + t * (h - 70 - carmBaseY);
+        const hw = 18 + t * 76;
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(carmX - hw, py);
+        ctx.lineTo(carmX + hw, py);
+        ctx.stroke();
+      }
+    }
+
+    // 5. CLICKABLE FLOATING FACTUAL LANDMARK PINS AROUND THE 360-DEGREE SKYLINE!
+    for (const lm of SANTA_JUSTA_PANORAMA_LANDMARKS) {
+      if (!isVisibleDeg(lm.compassBearing, -3)) continue;
+      const lx = bx(lm.compassBearing);
+      const isFocused = sj.focusedLandmarkId === lm.id;
+      const ly =
+        lm.id === 'sj-convento-carmo'
+          ? hy - 78
+          : lm.id === 'sj-castelo'
+            ? hy - 148
+            : lm.id === 'sj-graca'
+              ? hy - 126
+              : lm.id === 'sj-rossio'
+                ? hy - 64
+                : lm.id === 'sj-estacao-rossio'
+                  ? hy - 74
+                  : lm.id === 'sj-ponte-cristo-rei'
+                    ? hy - 78
+                    : lm.id === 'sj-se-panteao'
+                      ? hy - 74
+                      : hy - 14;
+      const pinY = clamp(ly, 68, h - 186);
+
+      ctx.save();
+      ctx.font = isFocused ? '700 10.5px "Segoe UI", sans-serif' : '600 9.5px "Segoe UI", sans-serif';
+      const pinTxt = `${lm.shortName.toUpperCase()} [${lm.compassLabel}]`;
+      const pw = ctx.measureText(pinTxt).width + 16;
+      const ph = 20;
+      const px0 = clamp(lx - pw * 0.5, 10, w - pw - 10);
+
+      // Vertical brass leader pin down toward landmark
+      ctx.strokeStyle = isFocused ? '#facc15' : 'rgba(255, 255, 255, 0.65)';
+      ctx.lineWidth = isFocused ? 2 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(lx, pinY + ph);
+      ctx.lineTo(lx, pinY + ph + 16);
+      ctx.stroke();
+
+      drawRoundedRect(ctx, px0, pinY, pw, ph, 5);
+      ctx.fillStyle = isFocused ? 'rgba(15, 23, 42, 0.94)' : 'rgba(15, 23, 42, 0.78)';
+      ctx.fill();
+      ctx.strokeStyle = isFocused ? '#facc15' : lm.accentColor;
+      ctx.lineWidth = isFocused ? 2 : 1.3;
+      ctx.stroke();
+      ctx.fillStyle = isFocused ? '#fde047' : '#f8fafc';
+      ctx.textAlign = 'center';
+      ctx.fillText(pinTxt, px0 + pw * 0.5, pinY + 13.5);
+      ctx.restore();
+
+      this.lastHitTargets.push({
+        kind: 'santa-justa-landmark',
+        landmarkId: lm.id,
+        poly: [
+          { x: px0, y: pinY },
+          { x: px0 + pw, y: pinY },
+          { x: px0 + pw, y: pinY + ph },
+          { x: px0, y: pinY + ph }
+        ]
+      });
+    }
+
+    // 6. FOREGROUND 1902 NEO-GOTHIC CAST-IRON OBSERVATION DECK RAILING (45m Summit!)
+    const railTopY = h - 72;
+    // Wooden/iron deck floor edge at very bottom
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, h - 18, w, 18);
+    // Horizontal brass top handrail & iron bottom kick rail
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(0, railTopY, w, 7);
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(0, railTopY, w, 2.6);
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(0, h - 24, w, 6);
+
+    // Repeating Neo-Gothic pointed iron railing balusters scrolling naturally as you pan 360 degrees!
+    const railSpacing = 54;
+    const railShift = ((centerBearing * pxPerDeg) % railSpacing + railSpacing) % railSpacing;
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 3;
+    for (let rx = -railShift; rx < w + railSpacing; rx += railSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(rx, railTopY + 5);
+      ctx.lineTo(rx, h - 18);
+      ctx.stroke();
+      // Delicate pointed Gothic iron arch between balusters
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = '#334155';
+      ctx.beginPath();
+      ctx.moveTo(rx + 6, h - 22);
+      ctx.lineTo(rx + 6, railTopY + 26);
+      ctx.quadraticCurveTo(rx + railSpacing * 0.5, railTopY + 4, rx + railSpacing - 6, railTopY + 26);
+      ctx.lineTo(rx + railSpacing - 6, h - 22);
+      ctx.stroke();
+      // Decorative iron rosette ring
+      ctx.beginPath();
+      ctx.arc(rx + railSpacing * 0.5, railTopY + 28, 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#1e293b';
+    }
+
+    // 7. TOP SCROLLING 360-DEGREE COMPASS DEGREE RIBBON & ALTITUDE HUD
+    const compW = 460;
+    const compX = Math.round((w - compW) * 0.5);
+    drawRoundedRect(ctx, compX, 12, compW, 44, 8);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.fill();
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.save();
+    drawRoundedRect(ctx, compX + 8, 14, compW - 16, 40, 6);
+    ctx.clip();
+    const cardinals = [
+      [0, 'N'], [45, 'NE'], [90, 'E'], [135, 'SE'],
+      [180, 'S'], [225, 'SW'], [270, 'W'], [315, 'NW']
+    ];
+    for (let deg = 0; deg < 360; deg += 15) {
+      const diff = angleDiff(deg);
+      if (Math.abs(diff) > 48) continue;
+      const tx = w * 0.5 + diff * 4.6;
+      const card = cardinals.find(([d]) => d === deg);
+      ctx.strokeStyle = card ? '#facc15' : 'rgba(148, 163, 184, 0.55)';
+      ctx.lineWidth = card ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(tx, 46);
+      ctx.lineTo(tx, card ? 36 : 41);
+      ctx.stroke();
+      if (card) {
+        ctx.fillStyle = '#fde047';
+        ctx.font = '800 10.5px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(card[1], tx, 32);
+      }
+    }
+    ctx.restore();
+
+    // Center bearing pointer triangle & numeric readout
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(w * 0.5, 55);
+    ctx.lineTo(w * 0.5 - 5, 62);
+    ctx.lineTo(w * 0.5 + 5, 62);
+    ctx.closePath();
+    ctx.fill();
+
+    // Top-left 45m Miradouro altitude badge
+    drawRoundedRect(ctx, 14, 12, 206, 44, 8);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.fill();
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = '#fde047';
+    ctx.font = '700 10.5px Georgia, serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('SANTA JUSTA MIRADOURO', 24, 30, 186);
+    ctx.fillStyle = '#bae6fd';
+    ctx.font = '700 9.5px "Consolas", monospace';
+    ctx.fillText(`ELEV 45m  |  HDG ${String(Math.round(centerBearing)).padStart(3, '0')} DEG`, 24, 46, 186);
+
+    // Top-right Descend Lift button pill (clickable directly on canvas!)
+    const descX = w - 196;
+    drawRoundedRect(ctx, descX, 12, 182, 44, 8);
+    ctx.fillStyle = 'rgba(15, 92, 82, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 10.5px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('DESCEND LIFT [E / ESC]', descX + 91, 31);
+    ctx.fillStyle = '#fde68a';
+    ctx.font = '600 9px "Segoe UI", sans-serif';
+    ctx.fillText('Drag 360 deg | [P] Postcard', descX + 91, 46);
+    this.lastHitTargets.push({
+      kind: 'santa-justa-descend',
+      poly: [
+        { x: descX, y: 12 },
+        { x: descX + 182, y: 12 },
+        { x: descX + 182, y: 56 },
+        { x: descX, y: 56 }
+      ]
+    });
+
+    // 8. FOCUSED FACTUAL LANDMARK OBSERVATORY PLAQUE (cleanly positioned above bottom railing/banner!)
+    const focused =
+      SANTA_JUSTA_PANORAMA_LANDMARKS.find((l) => l.id === sj.focusedLandmarkId) ||
+      SANTA_JUSTA_PANORAMA_LANDMARKS[3];
+    if (focused) {
+      const cardW = 680;
+      const cardH = 54;
+      const cardX = Math.round((w - cardW) * 0.5);
+      const cardY = h - 134;
+      drawRoundedRect(ctx, cardX, cardY, cardW, cardH, 8);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = focused.accentColor || '#eab308';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 11px Georgia, serif';
+      ctx.fillText(
+        `${focused.compassLabel} (${focused.compassBearing} DEG, ${focused.distanceMeters}m)  -  ${focused.name} (${focused.year})`,
+        cardX + 14,
+        cardY + 20,
+        cardW - 28
+      );
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '500 10px "Segoe UI", sans-serif';
+      const clipped = focused.description.length > 116 ? `${focused.description.slice(0, 113)}...` : focused.description;
+      ctx.fillText(clipped, cardX + 14, cardY + 39, cardW - 28);
+    }
+    ctx.textAlign = 'left';
   }
 }

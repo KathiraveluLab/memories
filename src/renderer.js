@@ -10,6 +10,8 @@ import {
   DECORATIVE_STRUCTURES,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
+  SANTA_JUSTA_LIFT,
+  SANTA_JUSTA_PANORAMA_LANDMARKS,
   METRO_LINE,
   METRO_NETWORK_LINES,
   METRO_STATIONS,
@@ -179,6 +181,15 @@ export class LisboaCanvasRenderer {
       } else {
         this.renderFerry(ctx, state, nearbyInteraction);
         if (state.southBankFeedback) this.drawSouthBankFeedbackCard(ctx, state.southBankFeedback);
+      }
+    } else if (state.mode === 'santa-justa') {
+      if (state.viewMode === 'street3d') {
+        this.scenes3d.renderSantaJusta3D(ctx, state, nearbyInteraction, this.animTime);
+        if (nearbyInteraction && state.santaJusta?.phase !== 'miradouro') {
+          this.drawInteractionBanner(ctx, nearbyInteraction);
+        }
+      } else {
+        this.renderSantaJusta2D(ctx, state, nearbyInteraction);
       }
     } else if (state.mode === 'city-district') {
       if (state.viewMode === 'street3d') {
@@ -426,9 +437,10 @@ export class LisboaCanvasRenderer {
     this.drawStreetsAndPlazas(ctx);
     this.drawCrosswalks(ctx);
 
-    // 3. Tagus River Waterfront & Cais do Sodre Transtejo Ferry Terminal
+    // 3. Tagus River Waterfront, Cais do Sodre Transtejo Ferry Terminal & Elevador de Santa Justa (1902)
     this.drawTagusWaterfront(ctx, state, nearbyInteraction);
     this.drawFerryTerminal(ctx, nearbyInteraction?.type === 'ferry', isEvening);
+    this.drawSantaJustaOverworld(ctx, nearbyInteraction?.type === 'santa-justa', isEvening);
 
     // 4. Transit corridors (Bus road markings + Steel Tram 28E Rails + Hillside Funicular Tracks)
     this.drawTransitInfrastructure(ctx);
@@ -8073,6 +8085,225 @@ export class LisboaCanvasRenderer {
     }
 
     ctx.restore();
+
+    if (nearbyInteraction) {
+      this.drawInteractionBanner(ctx, nearbyInteraction);
+    }
+  }
+
+  drawSantaJustaOverworld(ctx, isHighlighted, isEvening) {
+    const sj = SANTA_JUSTA_LIFT;
+    ctx.save();
+    if (isHighlighted) {
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 4;
+      drawRoundedRect(ctx, sj.x - 5, sj.y - 5, sj.w + 10, sj.h + 10, 8);
+      ctx.stroke();
+    }
+    // Cast-iron Carmo walkway skybridge extending west from the tower
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(sj.x - 54, sj.y + 42, 56, 18);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(sj.x - 54, sj.y + 42, 56, 18);
+
+    // Tower shadow & dark wrought-iron Neo-Gothic lattice roof footprint
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.3)';
+    drawRoundedRect(ctx, sj.x + 5, sj.y + 6, sj.w, sj.h, 6);
+    ctx.fill();
+
+    ctx.fillStyle = isEvening ? '#1e293b' : '#2f3d4c';
+    drawRoundedRect(ctx, sj.x, sj.y, sj.w, sj.h, 6);
+    ctx.fill();
+    ctx.strokeStyle = isHighlighted ? '#facc15' : '#94a3b8';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Neo-Gothic diagonal filigree ribs & top miradouro skylight ring
+    ctx.strokeStyle = 'rgba(203, 213, 225, 0.42)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(sj.x + 6, sj.y + 6);
+    ctx.lineTo(sj.x + sj.w - 6, sj.y + sj.h - 6);
+    ctx.moveTo(sj.x + sj.w - 6, sj.y + 6);
+    ctx.lineTo(sj.x + 6, sj.y + sj.h - 6);
+    ctx.stroke();
+
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.arc(sj.x + sj.w * 0.5, sj.y + sj.h * 0.44, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    ctx.fillStyle = '#fde047';
+    ctx.font = '700 8px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('45m', sj.x + sj.w * 0.5, sj.y + sj.h * 0.44 + 3);
+
+    // Illuminated south entrance arch facing Rua Garrett / Rua do Carmo
+    ctx.fillStyle = '#fde047';
+    ctx.fillRect(sj.doorX - 13, sj.y + sj.h - 8, 26, 8);
+
+    // Crisp plaque tag
+    drawRoundedRect(ctx, sj.x - 16, sj.y + sj.h - 28, sj.w + 32, 16, 4);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+    ctx.fillStyle = '#fef08a';
+    ctx.font = '700 8px Georgia, serif';
+    ctx.fillText('SANTA JUSTA (1902)', sj.x + sj.w * 0.5, sj.y + sj.h - 17);
+    ctx.restore();
+  }
+
+  renderSantaJusta2D(ctx, state, nearbyInteraction) {
+    const sj = state.santaJusta || { phase: 'lobby', altitudeMeters: 0 };
+    if (sj.phase !== 'miradouro') {
+      // Reuse the rich 1902 mahogany lobby & 45m shaft elevation graphic cleanly in 2D too!
+      this.scenes3d.renderSantaJusta3D(ctx, state, nearbyInteraction, this.animTime);
+      if (nearbyInteraction) this.drawInteractionBanner(ctx, nearbyInteraction);
+      return;
+    }
+
+    // 2D Unfolded 360-Degree Factual Lisbon Skyline Panorama Observatory Chart (45m Elevation)
+    const w = this.viewWidth;
+    const h = this.viewHeight;
+    const yawDeg = (((state.cameraYaw || 0) * 180) / Math.PI + 360) % 360;
+    const centerBearing = (yawDeg + 90) % 360;
+
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, w, h);
+
+    // Header
+    drawRoundedRect(ctx, 24, 16, w - 48, 52, 8);
+    ctx.fillStyle = '#1e293b';
+    ctx.fill();
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    ctx.fillStyle = '#fde047';
+    ctx.font = '700 14px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ELEVADOR DE SANTA JUSTA (45m MIRADOURO)  -  360-DEGREE FACTUAL LISBOA PANORAMA', w * 0.5, 38);
+    ctx.fillStyle = '#bae6fd';
+    ctx.font = '600 10.5px "Segoe UI", sans-serif';
+    ctx.fillText(`Heading ${Math.round(centerBearing)} deg  |  Press [V] for Full 3D 360-Degree View  |  A/D or Right Panel to Turn`, w * 0.5, 57);
+
+    // Panoramic 360-degree skyline strip (0 deg N -> 90 E -> 180 S -> 270 W -> 360 N)
+    const stripX = 36;
+    const stripY = 92;
+    const stripW = w - 72;
+    const stripH = 266;
+    drawRoundedRect(ctx, stripX, stripY, stripW, stripH, 10);
+    const sGrad = ctx.createLinearGradient(0, stripY, 0, stripY + stripH);
+    sGrad.addColorStop(0, '#1d5eb8');
+    sGrad.addColorStop(0.54, '#7dd3fc');
+    sGrad.addColorStop(0.55, '#c9b79f');
+    sGrad.addColorStop(1, '#8c7258');
+    ctx.fillStyle = sGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Tagus River water band spanning ESE (118 deg) -> WSW (246 deg)
+    const xForDeg = (deg) => stripX + ((((deg % 360) + 360) % 360) / 360) * stripW;
+    const r0 = xForDeg(118);
+    const r1 = xForDeg(246);
+    ctx.fillStyle = '#1d75a8';
+    ctx.fillRect(r0, stripY + 144, r1 - r0, 56);
+
+    // Cardinal compass guide lines & labels
+    for (const [deg, lbl] of [[0, 'N (0)'], [90, 'E (90)'], [180, 'S (180)'], [270, 'W (270)']]) {
+      const cx = xForDeg(deg);
+      ctx.strokeStyle = 'rgba(254, 240, 138, 0.45)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(cx, stripY + 8);
+      ctx.lineTo(cx, stripY + stripH - 8);
+      ctx.stroke();
+      ctx.fillStyle = '#0f172a';
+      drawRoundedRect(ctx, cx - 24, stripY + 8, 48, 18, 4);
+      ctx.fill();
+      ctx.fillStyle = '#fde047';
+      ctx.font = '800 9.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl, cx, stripY + 20);
+    }
+
+    // Plot every factual Lisbon landmark at its exact bearing across 3 clean staggered rows (zero label overlap!)
+    const rowOffsets = [-54, -22, 34];
+    const sortedLandmarks = [...SANTA_JUSTA_PANORAMA_LANDMARKS].sort((a, b) => a.compassBearing - b.compassBearing);
+    sortedLandmarks.forEach((lm, idx) => {
+      const lx = xForDeg(lm.compassBearing);
+      const ly = stripY + 132 + rowOffsets[idx % rowOffsets.length];
+      const isFocused = sj.focusedLandmarkId === lm.id;
+      ctx.fillStyle = isFocused ? '#facc15' : lm.accentColor;
+      ctx.beginPath();
+      ctx.arc(lx, stripY + 146, isFocused ? 7.5 : 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+
+      ctx.strokeStyle = isFocused ? '#facc15' : 'rgba(15, 23, 42, 0.7)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(lx, stripY + 146);
+      ctx.lineTo(lx, ly + (ly < stripY + 146 ? 8 : -8));
+      ctx.stroke();
+
+      ctx.font = isFocused ? '700 9.5px "Segoe UI", sans-serif' : '600 8.5px "Segoe UI", sans-serif';
+      const label = lm.shortName;
+      const lw = ctx.measureText(label).width + 10;
+      const bx0 = clamp(lx - lw * 0.5, stripX + 4, stripX + stripW - lw - 4);
+      drawRoundedRect(ctx, bx0, ly - 8, lw, 17, 4);
+      ctx.fillStyle = isFocused ? '#0f172a' : 'rgba(15, 23, 42, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = isFocused ? '#facc15' : lm.accentColor;
+      ctx.lineWidth = isFocused ? 1.8 : 1;
+      ctx.stroke();
+      ctx.fillStyle = isFocused ? '#fde047' : '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, bx0 + lw * 0.5, ly + 3.5);
+    });
+
+    // Live Camera Heading Indicator bracket
+    const curX = xForDeg(centerBearing);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(clamp(curX - 46, stripX + 2, stripX + stripW - 94), stripY + 32, 92, stripH - 40);
+
+    // Bottom focused landmark description card
+    const focused =
+      SANTA_JUSTA_PANORAMA_LANDMARKS.find((l) => l.id === sj.focusedLandmarkId) ||
+      SANTA_JUSTA_PANORAMA_LANDMARKS[3];
+    if (focused) {
+      drawRoundedRect(ctx, 36, 376, w - 72, 102, 10);
+      ctx.fillStyle = '#1e293b';
+      ctx.fill();
+      ctx.strokeStyle = focused.accentColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#fde047';
+      ctx.font = '700 13px Georgia, serif';
+      ctx.fillText(
+        `${focused.compassLabel} (${focused.compassBearing} deg, ${focused.distanceMeters}m)  -  ${focused.name} (${focused.year})`,
+        54,
+        404,
+        w - 108
+      );
+      ctx.fillStyle = '#f1f5f9';
+      ctx.font = '500 11px "Segoe UI", sans-serif';
+      ctx.fillText(focused.description, 54, 432, w - 108);
+      ctx.fillStyle = '#93c5fd';
+      ctx.font = '700 10px "Segoe UI", sans-serif';
+      ctx.fillText('Switch to 3D Street View [V] for the full immersive 360-degree skyline from the 45m iron railing.', 54, 460, w - 108);
+    }
+    ctx.textAlign = 'left';
 
     if (nearbyInteraction) {
       this.drawInteractionBanner(ctx, nearbyInteraction);

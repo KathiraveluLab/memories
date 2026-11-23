@@ -165,6 +165,36 @@ export function computeSoundscapeProfile(state) {
     };
   }
 
+  if (state.mode === 'santa-justa') {
+    const sjPhase = state.santaJusta?.phase;
+    if (sjPhase === 'ascending' || sjPhase === 'descending') {
+      return {
+        ...EMPTY_PROFILE,
+        metroRumble: 0.48,
+        rainLevel: indoorRain,
+        badgeTone: 'metro',
+        activeLabel: 'Santa Justa 1902 Lift'
+      };
+    }
+    if (sjPhase === 'miradouro') {
+      return {
+        ...EMPTY_PROFILE,
+        folkGuitar: 0.52,
+        riverWater: 0.28,
+        rainLevel: outdoorRain,
+        badgeTone: 'warm',
+        activeLabel: 'Santa Justa 45m Miradouro'
+      };
+    }
+    return {
+      ...EMPTY_PROFILE,
+      folkGuitar: 0.26,
+      rainLevel: indoorRain,
+      badgeTone: 'warm',
+      activeLabel: 'Santa Justa Lobby'
+    };
+  }
+
   if (state.mode === 'city-district') {
     const district = LISBOA_CITY_DISTRICTS.find((d) => d.id === state.cityDistrictId);
     const isRiverfront =

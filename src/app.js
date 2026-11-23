@@ -2,6 +2,8 @@ import {
   NEIGHBORHOODS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
+  SANTA_JUSTA_LIFT,
+  SANTA_JUSTA_PANORAMA_LANDMARKS,
   METRO_LINE,
   METRO_NETWORK_LINES,
   METRO_STATIONS,
@@ -251,6 +253,7 @@ function isFirstPerson3DActive(state) {
   if (state.mode === 'overworld' || state.mode === 'interior' || state.mode === 'city-district') return true;
   if (state.mode === 'metro' && state.metro.phase === 'platform') return true;
   if (state.mode === 'ferry' && state.ferry.phase === 'terminal') return true;
+  if (state.mode === 'santa-justa' && (state.santaJusta?.phase === 'miradouro' || state.santaJusta?.phase === 'lobby')) return true;
   return false;
 }
 
@@ -264,6 +267,13 @@ function getKeyboardVector(dt = 0.016) {
     const turnInput = (pressedKeys.has('ArrowRight') || pressedKeys.has('KeyD') ? 1 : 0) -
       (pressedKeys.has('ArrowLeft') || pressedKeys.has('KeyA') ? 1 : 0);
     const strafeMode = pressedKeys.has('ShiftLeft') || pressedKeys.has('ShiftRight');
+
+    if (state.mode === 'santa-justa' && state.santaJusta?.phase === 'miradouro') {
+      if (turnInput !== 0 || forward !== 0) {
+        engine.rotateCamera(turnInput * 1.55 * dt, forward * 0.65 * dt);
+      }
+      return { x: 0, y: 0 };
+    }
 
     if (turnInput !== 0 && !strafeMode) {
       engine.rotateCamera(turnInput * 1.95 * dt, 0);
@@ -359,6 +369,36 @@ function handleCanvasClick(event) {
       }
       if (hit3d.kind === 'city-district-metro') {
         engine.setWalkTarget(380, 256, { type: 'enterCityDistrictMetro' });
+        return;
+      }
+      if (hit3d.kind === 'santa-justa-ascend') {
+        const res = engine.ascendSantaJusta();
+        if (res.ok) soundEngine.playEffect('metro-chime');
+        else if (res.error) setStatusBanner(res.error, true);
+        refreshUi(true);
+        return;
+      }
+      if (hit3d.kind === 'santa-justa-descend') {
+        const res = engine.descendSantaJusta();
+        if (!res.ok && res.error) setStatusBanner(res.error, true);
+        refreshUi(true);
+        return;
+      }
+      if (hit3d.kind === 'santa-justa-landmark' && hit3d.landmarkId) {
+        engine.lookAtSantaJustaLandmark(hit3d.landmarkId);
+        refreshUi(true);
+        return;
+      }
+      if (hit3d.kind === 'santa-justa') {
+        const path = buildOverworldPath(
+          state.player.x,
+          state.player.y,
+          SANTA_JUSTA_LIFT.spawnOutside.x,
+          SANTA_JUSTA_LIFT.spawnOutside.y,
+          { type: 'openSantaJusta' }
+        );
+        engine.setWalkPath(path);
+        setStatusBanner(`Walking along Rua do Carmo to ${SANTA_JUSTA_LIFT.name}...`);
         return;
       }
       if (hit3d.kind === 'ferry') {
@@ -533,6 +573,16 @@ function handleCanvasClick(event) {
     return;
   }
 
+  if (state.mode === 'santa-justa') {
+    if (state.santaJusta?.phase === 'lobby') {
+      const res = engine.ascendSantaJusta();
+      if (res.ok) soundEngine.playEffect('metro-chime');
+      else if (res.error) setStatusBanner(res.error, true);
+      refreshUi(true);
+    }
+    return;
+  }
+
   if (state.mode === 'city-district') {
     const dist = LISBOA_CITY_DISTRICTS.find((d) => d.id === state.cityDistrictId);
     for (const spot of dist?.townSpots || []) {
@@ -585,6 +635,25 @@ function handleCanvasClick(event) {
     );
     engine.setWalkPath(path);
     setStatusBanner(`Walking along the Tagus waterfront toward ${FERRY_TERMINAL.name}...`);
+    return;
+  }
+
+  // Overworld clicks: check Elevador de Santa Justa (1902) on Rua do Carmo
+  const hitSantaJusta =
+    worldPt.x >= SANTA_JUSTA_LIFT.x - 14 &&
+    worldPt.x <= SANTA_JUSTA_LIFT.x + SANTA_JUSTA_LIFT.w + 14 &&
+    worldPt.y >= SANTA_JUSTA_LIFT.y - 14 &&
+    worldPt.y <= SANTA_JUSTA_LIFT.y + SANTA_JUSTA_LIFT.h + 18;
+  if (hitSantaJusta) {
+    const path = buildOverworldPath(
+      state.player.x,
+      state.player.y,
+      SANTA_JUSTA_LIFT.spawnOutside.x,
+      SANTA_JUSTA_LIFT.spawnOutside.y,
+      { type: 'openSantaJusta' }
+    );
+    engine.setWalkPath(path);
+    setStatusBanner(`Walking along Rua do Carmo toward ${SANTA_JUSTA_LIFT.name}...`);
     return;
   }
 
@@ -750,6 +819,9 @@ function renderActiveContextPanel(state) {
     ferryPort: state.ferry?.portId || null,
     ferryPhase: state.ferry?.phase || null,
     ferryTo: state.ferry?.toPortId || null,
+    santaJustaPhase: state.santaJusta?.phase || null,
+    santaJustaAlt: Math.round(state.santaJusta?.altitudeMeters || 0),
+    santaJustaLandmark: state.santaJusta?.focusedLandmarkId || null,
     activeSouthBankSpotId: state.activeSouthBankSpotId || null,
     cityDistrictId: state.cityDistrictId || null,
     activeCityDistrictSpotId: state.activeCityDistrictSpotId || null,
@@ -1050,6 +1122,84 @@ function renderActiveContextPanel(state) {
       <div class="action-strip">
         <button type="button" class="btn btn-sm" data-metro-chime="true">Door-Closing Chime [E]</button>
       </div>
+    `;
+    return;
+  }
+
+  if (state.mode === 'santa-justa') {
+    const sj = state.santaJusta || { phase: 'lobby', altitudeMeters: 0 };
+    const isMoving = sj.phase === 'ascending' || sj.phase === 'descending';
+    const isTop = sj.phase === 'miradouro';
+    const affordable = sj.ticketPaid || state.euros >= SANTA_JUSTA_LIFT.fareEur;
+    dom.activeContextPanel.classList.remove('hidden');
+
+    if (!isTop) {
+      dom.activeContextPanel.innerHTML = `
+        <div class="context-header">
+          <div>
+            <h3>${escapeHtml(SANTA_JUSTA_LIFT.name)}</h3>
+            <div class="item-meta">${escapeHtml(SANTA_JUSTA_LIFT.architect)} | Altitude ${Math.round(sj.altitudeMeters || 0)}m / 45m</div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" data-sj-exit="true" ${isMoving ? 'disabled' : ''}>Exit to Street</button>
+        </div>
+        <p class="helper-text">${
+          sj.phase === 'ascending'
+            ? 'Riding the 1902 mahogany-and-brass cabin vertically through the Neo-Gothic iron shaft toward the 45-meter open-air miradouro...'
+            : sj.phase === 'descending'
+              ? 'Descending smoothly back down to street level inside Elevador de Santa Justa...'
+              : escapeHtml(SANTA_JUSTA_LIFT.note)
+        }</p>
+        <div class="phrase-callout">
+          <span class="pt">${escapeHtml(SANTA_JUSTA_LIFT.phrase.pt)}</span>
+          <span class="pron">${escapeHtml(SANTA_JUSTA_LIFT.phrase.pronunciation)}</span>
+          <span>${escapeHtml(SANTA_JUSTA_LIFT.phrase.en)}</span>
+        </div>
+        <div class="item-card">
+          <div>
+            <h4>Ascend 45m to Open-Air Lisbon Miradouro</h4>
+            <div class="item-meta"><strong>${sj.ticketPaid ? '0.00 EUR (Ticket Paid)' : `${SANTA_JUSTA_LIFT.fareEur.toFixed(2)} EUR`}</strong> | Free return descent | +25 Energy & 360-degree Lisbon view</div>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" data-sj-ascend="true" ${!isMoving && affordable ? '' : 'disabled'}>
+            ${isMoving ? 'Riding...' : 'Go Up [E]'}
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    const landmarkCards = SANTA_JUSTA_PANORAMA_LANDMARKS.map((lm) => {
+      const active = sj.focusedLandmarkId === lm.id;
+      const hiStyle = active ? ` style="border-color:${lm.accentColor};background:#fffbeb;"` : '';
+      return `
+        <div class="item-card"${hiStyle}>
+          <div>
+            <h4>${escapeHtml(lm.name)} <span class="badge-muted">${escapeHtml(lm.compassLabel)} - ${lm.distanceMeters}m</span></h4>
+            <div class="item-meta"><strong>${escapeHtml(lm.year)}</strong> | ${escapeHtml(lm.description)}</div>
+          </div>
+          <button type="button" class="btn ${active ? 'btn-primary' : 'btn-secondary'} btn-sm" data-sj-landmark="${escapeHtml(lm.id)}">
+            Look ${escapeHtml(lm.compassLabel)}
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    dom.activeContextPanel.innerHTML = `
+      <div class="context-header">
+        <div>
+          <h3>Elevador de Santa Justa - 45m Miradouro</h3>
+          <div class="item-meta">360-Degree Factual View of Lisboa | Drag View or Click Any Landmark</div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" data-sj-descend="true">Descend Lift (Esc)</button>
+      </div>
+      <div class="action-strip" style="margin-bottom:8px;">
+        <button type="button" class="btn btn-sm" data-sj-landmark="sj-rossio">N: Rossio</button>
+        <button type="button" class="btn btn-sm" data-sj-landmark="sj-castelo">E: Castelo</button>
+        <button type="button" class="btn btn-sm" data-sj-landmark="sj-rua-augusta-tejo">S: Tagus</button>
+        <button type="button" class="btn btn-sm" data-sj-landmark="sj-convento-carmo">W: Carmo</button>
+        <button type="button" class="btn btn-primary btn-sm" data-venue-action="postcard">Postcard [P]</button>
+      </div>
+      <div class="hood-group-title">Factual Lisbon Landmarks Visible From 45m Summit</div>
+      ${landmarkCards}
     `;
     return;
   }
@@ -1480,9 +1630,18 @@ function renderLists(state) {
     }
   }
 
-  guideParts.push('<div class="hood-group-title">Tagus River Ferries (Cais do Sodre Port)</div>');
+  guideParts.push('<div class="hood-group-title">Tagus River Ferries &amp; Elevador de Santa Justa (1902)</div>');
   const visitedPorts = state.visitedFerryPorts || [];
   guideParts.push(`
+    <div class="guide-card ${state.visitedSantaJustaMiradouro ? 'visited' : ''}">
+      <div>
+        <div class="guide-card-title">${escapeHtml(SANTA_JUSTA_LIFT.name)} <span class="badge-muted">${escapeHtml(SANTA_JUSTA_LIFT.badge)}</span></div>
+        <div class="guide-card-sub">45m Neo-Gothic vertical lift on Rua do Carmo with a factual 360-degree view of Lisboa (${SANTA_JUSTA_LIFT.fareEur.toFixed(2)} EUR)</div>
+      </div>
+      <button type="button" class="btn btn-sm" data-walk-santa-justa="true" ${state.ridingVehicleId ? 'disabled' : ''}>
+        Walk Here
+      </button>
+    </div>
     <div class="guide-card ${visitedPorts.length === FERRY_DESTINATIONS.length ? 'visited' : ''}">
       <div>
         <div class="guide-card-title">${escapeHtml(FERRY_TERMINAL.name)} <span class="badge-muted">${escapeHtml(FERRY_TERMINAL.badge)}</span></div>
@@ -1840,6 +1999,18 @@ function refreshUi(force = false) {
       dom.sceneTitle.textContent = `${portInfo ? portInfo.name : 'South Bank'} Ferry Pier`;
       dom.sceneSubtitle.textContent = 'Enjoy the Tagus south-bank view, then board the return Transtejo ferry to Cais do Sodre.';
     }
+  } else if (state.mode === 'santa-justa') {
+    const sj = state.santaJusta || { phase: 'lobby', altitudeMeters: 0 };
+    if (sj.phase === 'miradouro') {
+      dom.sceneTitle.textContent = 'Elevador de Santa Justa - 45m Panoramic Miradouro';
+      dom.sceneSubtitle.textContent = 'Drag 360 deg (or A/D) to inspect Rossio (N), Castelo de Sao Jorge (E), Rua Augusta & Tagus (S), and Convento do Carmo (W). Press Esc to descend.';
+    } else if (sj.phase === 'ascending' || sj.phase === 'descending') {
+      dom.sceneTitle.textContent = `Elevador de Santa Justa (1902) - ${sj.phase === 'ascending' ? 'Ascending' : 'Descending'} ${Math.round(sj.altitudeMeters || 0)}m / 45m`;
+      dom.sceneSubtitle.textContent = 'Riding inside Raoul Mesnier du Ponsard 1902 brass-and-mahogany vertical cabin.';
+    } else {
+      dom.sceneTitle.textContent = 'Elevador de Santa Justa (1902) - Ground Lobby';
+      dom.sceneSubtitle.textContent = 'Press [E] or click the mahogany cabin to ascend 45 meters for a factual 360-degree view of Lisboa (1.80 EUR).';
+    }
   } else if (state.mode === 'city-district') {
     const dist = LISBOA_CITY_DISTRICTS.find((d) => d.id === state.cityDistrictId);
     dom.sceneTitle.textContent = dist ? `${dist.name} (${state.viewMode === 'street3d' ? '3D' : '2.5D'})` : 'Lisboa City District';
@@ -1941,6 +2112,11 @@ function refreshUi(force = false) {
     dom.btnSecondaryAction.classList.remove('hidden');
     dom.btnSecondaryAction.textContent = metroStation?.districtId ? 'Ascend to District Plaza (Esc)' : 'Take Escalator to Street (Esc)';
     dom.btnSecondaryAction.dataset.action = 'exit-metro';
+  } else if (state.mode === 'santa-justa' && (state.santaJusta?.phase === 'lobby' || state.santaJusta?.phase === 'miradouro')) {
+    dom.btnSecondaryAction.classList.remove('hidden');
+    dom.btnSecondaryAction.textContent =
+      state.santaJusta.phase === 'miradouro' ? 'Descend Lift (Esc)' : 'Exit Lift Lobby (Esc)';
+    dom.btnSecondaryAction.dataset.action = 'descend-santa-justa';
   } else if (state.mode === 'city-district') {
     dom.btnSecondaryAction.classList.remove('hidden');
     dom.btnSecondaryAction.textContent = 'Descend into Metro (Esc)';
@@ -2021,6 +2197,9 @@ function describeTravelerLocation(traveler) {
   if (traveler.mode === 'interior' && traveler.currentVenueId) {
     const venue = VENUES.find((v) => v.id === traveler.currentVenueId);
     return venue ? `Inside ${venue.name}` : 'Inside a venue';
+  }
+  if (traveler.mode === 'santa-justa') {
+    return 'Elevador de Santa Justa (45m)';
   }
   if (traveler.mode === 'city-district' && traveler.cityDistrictId) {
     const dist = LISBOA_CITY_DISTRICTS.find((d) => d.id === traveler.cityDistrictId);
@@ -2311,6 +2490,9 @@ window.addEventListener('keydown', (event) => {
     } else if (engine.getState().mode === 'metro' && engine.getState().metro.phase === 'platform') {
       engine.exitMetroStation();
       refreshUi(true);
+    } else if (engine.getState().mode === 'santa-justa') {
+      engine.descendSantaJusta();
+      refreshUi(true);
     } else if (engine.getState().mode === 'city-district') {
       engine.enterMetroFromCityDistrict();
       refreshUi(true);
@@ -2409,6 +2591,8 @@ dom.btnSecondaryAction.addEventListener('click', () => {
     engine.exitVenue();
   } else if (action === 'exit-metro') {
     engine.exitMetroStation();
+  } else if (action === 'descend-santa-justa') {
+    engine.descendSantaJusta();
   } else if (action === 'enter-district-metro') {
     engine.enterMetroFromCityDistrict();
   } else if (action === 'exit-ferry') {
@@ -2562,6 +2746,30 @@ dom.activeContextPanel.addEventListener('click', (event) => {
     const res = engine.purchaseSouthBankItem(spotId, itemId);
     if (res.ok) soundEngine.playEffect('register');
     if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
+  if (event.target.closest('[data-sj-ascend]')) {
+    const res = engine.ascendSantaJusta();
+    if (res.ok) soundEngine.playEffect('metro-chime');
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
+  if (event.target.closest('[data-sj-descend]')) {
+    const res = engine.descendSantaJusta();
+    if (!res.ok && res.error) setStatusBanner(res.error, true);
+    refreshUi(true);
+    return;
+  }
+  if (event.target.closest('[data-sj-exit]')) {
+    engine.descendSantaJusta({ immediate: true });
+    refreshUi(true);
+    return;
+  }
+  const sjLandmarkBtn = event.target.closest('[data-sj-landmark]');
+  if (sjLandmarkBtn) {
+    engine.lookAtSantaJustaLandmark(sjLandmarkBtn.dataset.sjLandmark);
     refreshUi(true);
     return;
   }
@@ -2745,11 +2953,25 @@ dom.guideList.addEventListener('click', (event) => {
   } else if (state.mode === 'metro') {
     if (state.metro.phase === 'riding' || state.metro.phase === 'transferring') return;
     engine.exitMetroStation({ immediate: true, forceOverworld: true });
+  } else if (state.mode === 'santa-justa') {
+    engine.descendSantaJusta({ immediate: true, forceOverworld: true });
   } else if (state.mode === 'city-district') {
     engine.completeMetroExitToStreet(null, { forceOverworld: true });
   } else if (state.mode === 'ferry') {
     if (state.ferry.phase === 'sailing') return;
     engine.exitFerryTerminal({ immediate: true });
+  }
+  if (event.target.closest('[data-walk-santa-justa]')) {
+    const path = buildOverworldPath(
+      engine.getState().player.x,
+      engine.getState().player.y,
+      SANTA_JUSTA_LIFT.spawnOutside.x,
+      SANTA_JUSTA_LIFT.spawnOutside.y,
+      { type: 'openSantaJusta' }
+    );
+    engine.setWalkPath(path);
+    setStatusBanner(`Walking along Rua do Carmo toward ${SANTA_JUSTA_LIFT.name}...`);
+    return;
   }
   if (event.target.closest('[data-walk-ferry]')) {
     const path = buildOverworldPath(

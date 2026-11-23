@@ -6,6 +6,7 @@ import {
   CROSSWALKS,
   DECORATIVE_STRUCTURES,
   FERRY_TERMINAL,
+  SANTA_JUSTA_LIFT,
   METRO_STATIONS,
   VENUES,
   REST_SPOTS,
@@ -804,6 +805,8 @@ export class LisboaStreetView3DRenderer {
         this.drawMetro3D(ctx, cam, item.station, item.highlighted, isEvening);
       } else if (item.kind === 'ferry') {
         this.drawFerryTerminal3D(ctx, cam, item.highlighted, isEvening);
+      } else if (item.kind === 'santa-justa') {
+        this.drawSantaJustaTower3D(ctx, cam, item.highlighted, isEvening, animTime);
       } else if (item.kind === 'monument') {
         this.drawCamoesMonument3D(ctx, cam, item.struct, isEvening, animTime, item.highlighted);
       } else if (item.kind === 'vehicle') {
@@ -1807,6 +1810,17 @@ export class LisboaStreetView3DRenderer {
         x1: FERRY_TERMINAL.x + FERRY_TERMINAL.w,
         y1: FERRY_TERMINAL.y + FERRY_TERMINAL.h,
         highlighted: nearbyInteraction?.type === 'ferry'
+      });
+    }
+
+    if (inRange(SANTA_JUSTA_LIFT.x, SANTA_JUSTA_LIFT.y, SANTA_JUSTA_LIFT.x + SANTA_JUSTA_LIFT.w, SANTA_JUSTA_LIFT.y + SANTA_JUSTA_LIFT.h)) {
+      list.push({
+        kind: 'santa-justa',
+        x0: SANTA_JUSTA_LIFT.x,
+        y0: SANTA_JUSTA_LIFT.y,
+        x1: SANTA_JUSTA_LIFT.x + SANTA_JUSTA_LIFT.w,
+        y1: SANTA_JUSTA_LIFT.y + SANTA_JUSTA_LIFT.h,
+        highlighted: nearbyInteraction?.type === 'santa-justa'
       });
     }
 
@@ -3418,6 +3432,166 @@ export class LisboaStreetView3DRenderer {
       ctx.lineWidth = 1.4;
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(txt, signPt.x, signPt.y + fontSize * 0.34);
+      ctx.restore();
+    }
+  }
+
+  drawSantaJustaTower3D(ctx, cam, highlighted, isEvening, animTime = 0) {
+    // Authentic 45m Neo-Gothic Cast-Iron Elevador de Santa Justa (Raoul Mesnier du Ponsard, 1902) on Rua do Carmo!
+    const x0 = SANTA_JUSTA_LIFT.x;
+    const y0 = SANTA_JUSTA_LIFT.y;
+    const x1 = x0 + SANTA_JUSTA_LIFT.w;
+    const y1 = y0 + SANTA_JUSTA_LIFT.h;
+    const cx = (x0 + x1) * 0.5;
+    const cy = (y0 + y1) * 0.5;
+    const baseZ = Math.min(
+      getTerrainElevation(x0, y1),
+      getTerrainElevation(x1, y1),
+      getTerrainElevation(x0, y0),
+      getTerrainElevation(x1, y0)
+    );
+    const towerH = 186;
+    const topZ = baseZ + towerH;
+    const ironMain = isEvening ? '#1e2733' : '#2f3d4c';
+    const ironDark = isEvening ? '#131a24' : '#1f2937';
+    const ironTrim = highlighted ? '#facc15' : isEvening ? '#94a3b8' : '#cbd5e1';
+    const skyGlass = isEvening ? 'rgba(30, 58, 108, 0.52)' : 'rgba(147, 197, 253, 0.42)';
+
+    const drawIronFace = (pts, shade) => {
+      const p = this.drawPoly3D(
+        ctx,
+        cam,
+        pts,
+        shadeColor(ironMain, shade, isEvening),
+        highlighted ? '#facc15' : '#111827',
+        highlighted ? 2.4 : 1.4
+      );
+      if (p) this.lastHitTargets.push({ kind: 'santa-justa', id: SANTA_JUSTA_LIFT.id, poly: p });
+    };
+
+    // Stone masonry base plinth anchored cleanly to Rua do Carmo slope
+    const plinthH = 16;
+    const drawPlinthFace = (pts, shade) => {
+      const p = this.drawPoly3D(ctx, cam, pts, shadeColor('#d6cec0', shade, isEvening), '#57534e', 1.2);
+      if (p) this.lastHitTargets.push({ kind: 'santa-justa', id: SANTA_JUSTA_LIFT.id, poly: p });
+    };
+
+    // Draw visible vertical tower sides with 5 tiers of Neo-Gothic pointed filigree arches
+    const drawGothicFacade = (ax, ay, bx, by, shade, hasDoor = false) => {
+      drawPlinthFace([[ax, ay, baseZ - 4], [bx, by, baseZ - 4], [bx, by, baseZ + plinthH], [ax, ay, baseZ + plinthH]], shade);
+      drawIronFace([[ax, ay, baseZ + plinthH], [bx, by, baseZ + plinthH], [bx, by, topZ], [ax, ay, topZ]], shade);
+
+      const lerpPt = (u, z) => [ax + (bx - ax) * u, ay + (by - ay) * u, z];
+      // 5 vertical Neo-Gothic tiers with twin pointed lancet filigree arches
+      for (let tier = 0; tier < 5; tier += 1) {
+        const z0 = baseZ + plinthH + 4 + tier * 33;
+        const z1 = z0 + 28;
+        this.drawLine3D(ctx, cam, lerpPt(0, z0), lerpPt(1, z0), ironTrim, 1.5);
+        for (const [u0, u1] of [[0.1, 0.46], [0.54, 0.9]]) {
+          const um = (u0 + u1) * 0.5;
+          const archPoly = [
+            lerpPt(u0, z0 + 2),
+            lerpPt(u1, z0 + 2),
+            lerpPt(u1, z1 - 7),
+            lerpPt(um, z1),
+            lerpPt(u0, z1 - 7)
+          ];
+          this.drawPoly3D(ctx, cam, archPoly, skyGlass, ironTrim, 1.15);
+          // Delicate iron Neo-Gothic diamond cross-bracing inside each lancet bay
+          this.drawLine3D(ctx, cam, lerpPt(u0, z0 + 2), lerpPt(u1, z1 - 7), 'rgba(203, 213, 225, 0.45)', 0.9);
+          this.drawLine3D(ctx, cam, lerpPt(u1, z0 + 2), lerpPt(u0, z1 - 7), 'rgba(203, 213, 225, 0.45)', 0.9);
+        }
+      }
+
+      if (hasDoor) {
+        // Warm illuminated Neo-Gothic entrance portal & animated wooden lift cabin riding inside the shaft!
+        const doorPoly = this.drawPoly3D(
+          ctx,
+          cam,
+          [lerpPt(0.24, baseZ), lerpPt(0.76, baseZ), lerpPt(0.76, baseZ + 38), lerpPt(0.5, baseZ + 46), lerpPt(0.24, baseZ + 38)],
+          '#3b2314',
+          '#fde047',
+          2.0
+        );
+        if (doorPoly) this.lastHitTargets.push({ kind: 'santa-justa', id: SANTA_JUSTA_LIFT.id, poly: doorPoly });
+        // Warm lantern glow inside entrance lobby
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [lerpPt(0.32, baseZ + 4), lerpPt(0.68, baseZ + 4), lerpPt(0.68, baseZ + 32), lerpPt(0.32, baseZ + 32)],
+          '#fef08a',
+          '#92400e',
+          1.2
+        );
+        // Animated mahogany-and-brass elevator cab gliding vertically through the tower shaft!
+        const cabZ = baseZ + 44 + ((Math.sin(animTime * 1.1) + 1) * 0.5) * 106;
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [lerpPt(0.22, cabZ), lerpPt(0.78, cabZ), lerpPt(0.78, cabZ + 22), lerpPt(0.22, cabZ + 22)],
+          '#9a3412',
+          '#fde047',
+          1.6
+        );
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [lerpPt(0.3, cabZ + 5), lerpPt(0.7, cabZ + 5), lerpPt(0.7, cabZ + 17), lerpPt(0.3, cabZ + 17)],
+          '#fef9c3'
+        );
+      }
+    };
+
+    if (cam.camY > y1) drawGothicFacade(x0, y1, x1, y1, 0.98, true);
+    if (cam.camY < y0) drawGothicFacade(x1, y0, x0, y0, 0.88, false);
+    if (cam.camX < x0) drawGothicFacade(x0, y0, x0, y1, 0.84, false);
+    if (cam.camX > x1) drawGothicFacade(x1, y1, x1, y0, 0.82, false);
+
+    // Overhanging 45m Upper Miradouro Observation Gallery Deck & Neo-Gothic Railing
+    const deckPad = 10;
+    const deckZ0 = topZ;
+    const deckZ1 = topZ + 12;
+    const dx0 = x0 - deckPad;
+    const dx1 = x1 + deckPad;
+    const dy0 = y0 - deckPad;
+    const dy1 = y1 + deckPad;
+    if (cam.camY > dy1) {
+      this.drawPoly3D(ctx, cam, [[dx0, dy1, deckZ0], [dx1, dy1, deckZ0], [dx1, dy1, deckZ1], [dx0, dy1, deckZ1]], ironDark, '#fde047', 1.5);
+    }
+    if (cam.camX < dx0) {
+      this.drawPoly3D(ctx, cam, [[dx0, dy0, deckZ0], [dx0, dy1, deckZ0], [dx0, dy1, deckZ1], [dx0, dy0, deckZ1]], ironDark, '#cbd5e1', 1.3);
+    }
+    if (cam.camX > dx1) {
+      this.drawPoly3D(ctx, cam, [[dx1, dy1, deckZ0], [dx1, dy0, deckZ0], [dx1, dy0, deckZ1], [dx1, dy1, deckZ1]], ironDark, '#cbd5e1', 1.3);
+    }
+
+    // Elevated Iron Passadico do Carmo Walkway Skybridge extending West from top gallery
+    const brZ0 = topZ - 18;
+    const brZ1 = topZ - 6;
+    const brX0 = x0 - 66;
+    this.drawPoly3D(ctx, cam, [[brX0, cy + 10, brZ0], [x0, cy + 10, brZ0], [x0, cy + 10, brZ1], [brX0, cy + 10, brZ1]], ironDark, '#94a3b8', 1.3);
+    this.drawLine3D(ctx, cam, [brX0, cy + 10, brZ1], [x0, cy + 10, brZ0], '#cbd5e1', 1.0);
+    this.drawLine3D(ctx, cam, [brX0, cy + 10, brZ0], [x0, cy + 10, brZ1], '#cbd5e1', 1.0);
+
+    // Classic wrought-iron signboard over entrance portal
+    const signPt = this.projectWorldPt(cam, cx, y1 + 2, baseZ + 56);
+    if (signPt && signPt.cz < 720) {
+      const scale = clamp(this.focal / signPt.cz, 0.5, 1.35);
+      const fontSize = Math.max(8, Math.round(10 * scale));
+      ctx.save();
+      ctx.font = `700 ${fontSize}px Georgia, serif`;
+      const txt = 'ELEVADOR DE SANTA JUSTA (1902)';
+      const tw = ctx.measureText(txt).width + 14 * scale;
+      const th = 16 * scale;
+      drawRoundedRect(ctx, signPt.x - tw * 0.5, signPt.y - th * 0.5, tw, th, 4);
+      ctx.fillStyle = '#1e293b';
+      ctx.fill();
+      ctx.strokeStyle = highlighted ? '#facc15' : '#eab308';
+      ctx.lineWidth = highlighted ? 2 : 1.4;
+      ctx.stroke();
+      ctx.fillStyle = '#fef08a';
       ctx.textAlign = 'center';
       ctx.fillText(txt, signPt.x, signPt.y + fontSize * 0.34);
       ctx.restore();

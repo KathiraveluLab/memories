@@ -8,6 +8,8 @@ import {
   DECORATIVE_STRUCTURES,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
+  SANTA_JUSTA_LIFT,
+  SANTA_JUSTA_PANORAMA_LANDMARKS,
   METRO_LINE,
   METRO_NETWORK_LINES,
   METRO_STATIONS,
@@ -96,7 +98,8 @@ const SOLID_OVERWORLD_RECTS = [
   ...VENUES.map((v) => ({ x: v.x, y: v.y, w: v.w, h: v.h, id: v.id })),
   ...DECORATIVE_STRUCTURES.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, id: d.id })),
   ...METRO_STATIONS.map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h, id: m.id })),
-  { x: FERRY_TERMINAL.x, y: FERRY_TERMINAL.y, w: FERRY_TERMINAL.w, h: FERRY_TERMINAL.h, id: FERRY_TERMINAL.id }
+  { x: FERRY_TERMINAL.x, y: FERRY_TERMINAL.y, w: FERRY_TERMINAL.w, h: FERRY_TERMINAL.h, id: FERRY_TERMINAL.id },
+  { x: SANTA_JUSTA_LIFT.x, y: SANTA_JUSTA_LIFT.y, w: SANTA_JUSTA_LIFT.w, h: SANTA_JUSTA_LIFT.h, id: SANTA_JUSTA_LIFT.id }
 ];
 
 export const FERRY_PIER_ZONES = {
@@ -128,6 +131,7 @@ export const METRO_ESCALATOR_DURATION = 1.0;
 export const METRO_TRANSFER_DURATION = 1.1;
 export const METRO_RIDE_BASE_DURATION = 3.0;
 export const METRO_RIDE_EXTRA_HOP_DURATION = 1.2;
+export const SANTA_JUSTA_RIDE_DURATION = 3.2;
 
 const SOLID_INTERIOR_RECTS = [
   { x: 62, y: 204, w: 72, h: 118 },
@@ -518,6 +522,16 @@ export function createInitialState() {
       sailDuration: 4.5,
       waveOffset: 0
     },
+    santaJusta: {
+      phase: null, // 'lobby' | 'ascending' | 'miradouro' | 'descending'
+      phaseProgress: 0,
+      altitudeMeters: 0,
+      ticketPaid: false,
+      returnMode: 'overworld',
+      returnDistrictId: null,
+      focusedLandmarkId: 'sj-castelo'
+    },
+    visitedSantaJustaMiradouro: false,
     visitedFerryPorts: [],
     activeSouthBankSpotId: null,
     southBankFeedback: null,
@@ -654,6 +668,16 @@ export class MemoriesGameEngine {
       return {
         locationKey: `district:${s.cityDistrictId}`,
         locationName: dist ? dist.name : 'Lisboa City District'
+      };
+    }
+    if (s.mode === 'santa-justa') {
+      const alt = Math.round(s.santaJusta?.altitudeMeters || 0);
+      return {
+        locationKey: 'santa-justa:miradouro',
+        locationName:
+          s.santaJusta?.phase === 'miradouro'
+            ? 'Elevador de Santa Justa Miradouro (45m)'
+            : `Elevador de Santa Justa (${alt}m)`
       };
     }
     if (s.mode === 'ferry' && s.ferry?.portId) {
@@ -1847,6 +1871,10 @@ export class MemoriesGameEngine {
         rp.metroPhase !== 'riding'
       );
     }
+    if (this.state.mode === 'santa-justa') {
+      return false;
+    }
+
     if (this.state.mode === 'ferry') {
       return (
         rp.mode === 'ferry' &&
@@ -1924,6 +1952,10 @@ export class MemoriesGameEngine {
       if (blockingPeer) return { ok: false, blocker: blockingPeer };
       return { ok: true, blocker: null };
     }
+    if (this.state.mode === 'santa-justa') {
+      return { ok: false, blocker: null };
+    }
+
     if (this.state.mode === 'ferry') {
       if (!isFerryPierPositionValid(x, y)) return { ok: false, blocker: null };
       const blockingPeer = this.isBlockedByPerson(x, y, { ignorePlayer: true, fromX: px, fromY: py });
@@ -2605,6 +2637,10 @@ export class MemoriesGameEngine {
           this.openFerryTerminal();
           return;
         }
+        if (doorMatch.type === 'santa-justa') {
+          this.openSantaJusta();
+          return;
+        }
       }
     }
 
@@ -2782,6 +2818,16 @@ export class MemoriesGameEngine {
       return { type: 'ferry', id: FERRY_TERMINAL.id };
     }
 
+    // Elevador de Santa Justa (1902) on Rua do Carmo (walk UP into south cast-iron archway)
+    if (
+      vy < -0.25 &&
+      Math.abs(px - SANTA_JUSTA_LIFT.doorX) <= doorwayHalfW + 8 &&
+      py >= SANTA_JUSTA_LIFT.doorY - 2 &&
+      py <= SANTA_JUSTA_LIFT.doorY + approachReach
+    ) {
+      return { type: 'santa-justa', id: SANTA_JUSTA_LIFT.id };
+    }
+
     return null;
   }
 
@@ -2832,6 +2878,8 @@ export class MemoriesGameEngine {
       this.interactWithCityDistrictSpot(action.spotId);
     } else if (action.type === 'enterCityDistrictMetro') {
       this.enterMetroFromCityDistrict();
+    } else if (action.type === 'openSantaJusta') {
+      this.openSantaJusta();
     }
   }
 
@@ -2864,6 +2912,226 @@ export class MemoriesGameEngine {
             : 'Arrived at the Tagus south-bank ferry pier.';
         }
       }
+    }
+  }
+
+  openSantaJusta({ fromDistrictId = null } = {}) {
+    if (this.state.ridingVehicleId || this.state.ridingFunicularId) {
+      return { ok: false, error: 'Step off transit before entering Elevador de Santa Justa.' };
+    }
+    const returnMode =
+      fromDistrictId || this.state.mode === 'city-district' ? 'city-district' : 'overworld';
+    const returnDistrictId =
+      fromDistrictId || (this.state.mode === 'city-district' ? this.state.cityDistrictId : null);
+
+    this.state.mode = 'santa-justa';
+    this.state.activeMetroStationId = null;
+    this.state.cityDistrictFeedback = null;
+    this.state.seatedDining = null;
+    this.state.seatedBenchId = null;
+    this.state.seatedBench = null;
+    this.state.player.walkTarget = null;
+    this.state.player.walkQueue = [];
+    this.state.player.isMoving = false;
+    this.state.cameraYaw = -Math.PI * 0.5;
+    this.state.cameraPitch = 0.03;
+    this.state.santaJusta = {
+      phase: 'lobby',
+      phaseProgress: 0,
+      altitudeMeters: 0,
+      ticketPaid: false,
+      returnMode,
+      returnDistrictId,
+      focusedLandmarkId: 'sj-castelo'
+    };
+
+    recordPhrase(this.state, SANTA_JUSTA_LIFT.phrase, SANTA_JUSTA_LIFT.name);
+    this.state.statusMessage =
+      `Stepped inside ${SANTA_JUSTA_LIFT.name} (Raoul Mesnier du Ponsard, 1902). Board the mahogany cabin to ascend 45m to the panoramic Lisboa miradouro (${SANTA_JUSTA_LIFT.fareEur.toFixed(2)} EUR).`;
+    recordLog(this.state, 'venue', 'Entered Elevador de Santa Justa (1902) ground-floor cast-iron lobby.');
+    return { ok: true, lift: SANTA_JUSTA_LIFT, state: this.state };
+  }
+
+  ascendSantaJusta() {
+    if (this.state.mode !== 'santa-justa') {
+      return { ok: false, error: 'Enter Elevador de Santa Justa first.' };
+    }
+    const sj = this.state.santaJusta;
+    if (sj.phase !== 'lobby') {
+      return { ok: false, error: 'The Santa Justa lift cabin is already moving or at the top miradouro.' };
+    }
+
+    const fareToCharge = sj.ticketPaid ? 0 : SANTA_JUSTA_LIFT.fareEur;
+    if (fareToCharge > 0 && this.state.euros < fareToCharge) {
+      this.state.statusMessage = `Need ${fareToCharge.toFixed(2)} EUR for Elevador de Santa Justa (you have ${this.state.euros.toFixed(2)} EUR).`;
+      return { ok: false, error: this.state.statusMessage, state: this.state };
+    }
+
+    if (fareToCharge > 0) {
+      this.state.euros = roundMoney(this.state.euros - fareToCharge);
+      this.state.stats.eurosSpent = roundMoney(this.state.stats.eurosSpent + fareToCharge);
+    }
+    this.state.stats.santaJustaRides = (this.state.stats.santaJustaRides || 0) + 1;
+    this.state.energy = clamp(this.state.energy + 15, 0, 100);
+    this.advanceMinutes(SANTA_JUSTA_LIFT.travelMinutes);
+
+    sj.ticketPaid = true;
+    sj.phase = 'ascending';
+    sj.phaseProgress = 0;
+    sj.altitudeMeters = 0;
+    this.state.cameraYaw = 0.08;
+    this.state.cameraPitch = 0.02;
+    this.state.statusMessage =
+      `Ascending 45 meters inside the 1902 brass-and-mahogany cabin of Elevador de Santa Justa (-${fareToCharge.toFixed(2)} EUR)...`;
+    recordLog(
+      this.state,
+      'transit',
+      `Rode Elevador de Santa Justa up 45m to the panoramic Lisboa miradouro (-${fareToCharge.toFixed(2)} EUR).`
+    );
+    this.computeWalkSpeedMultiplier();
+    this.checkWalletGameOver();
+
+    return { ok: true, fareEur: fareToCharge, state: this.state };
+  }
+
+  completeSantaJustaExit({ forceOverworld = false } = {}) {
+    const sj = this.state.santaJusta;
+    const returnMode = forceOverworld ? 'overworld' : (sj.returnMode || 'overworld');
+    const returnDistrictId = forceOverworld ? null : sj.returnDistrictId;
+
+    this.doorEntryCooldown = 0.55;
+    this.state.santaJusta = {
+      phase: null,
+      phaseProgress: 0,
+      altitudeMeters: 0,
+      ticketPaid: false,
+      returnMode: 'overworld',
+      returnDistrictId: null,
+      focusedLandmarkId: 'sj-castelo'
+    };
+
+    if (returnMode === 'city-district' && returnDistrictId) {
+      const dist = getCityDistrictById(returnDistrictId);
+      this.state.mode = 'city-district';
+      this.state.cityDistrictId = returnDistrictId;
+      this.state.player.x = 380;
+      this.state.player.y = 216;
+      this.state.player.facing = 'down';
+      this.state.cameraYaw = -Math.PI * 0.5;
+      this.state.cameraPitch = 0.03;
+      this.state.statusMessage = `Stepped out of Elevador de Santa Justa back onto ${dist ? dist.name : 'Rossio & Baixa'}.`;
+      return { ok: true, mode: 'city-district', state: this.state };
+    }
+
+    this.state.mode = 'overworld';
+    this.state.cityDistrictId = null;
+    this.state.player.x = SANTA_JUSTA_LIFT.spawnOutside.x;
+    this.state.player.y = SANTA_JUSTA_LIFT.spawnOutside.y;
+    this.state.player.overworldX = SANTA_JUSTA_LIFT.spawnOutside.x;
+    this.state.player.overworldY = SANTA_JUSTA_LIFT.spawnOutside.y;
+    this.state.player.facing = 'down';
+    this.state.cameraYaw = Math.PI * 0.5;
+    this.state.cameraPitch = 0.02;
+    this.updateNeighborhoodTracking();
+    this.state.statusMessage = 'Stepped out of Elevador de Santa Justa onto Rua do Carmo in Chiado / Baixa.';
+    return { ok: true, mode: 'overworld', state: this.state };
+  }
+
+  descendSantaJusta({ immediate = false, forceOverworld = false } = {}) {
+    if (this.state.mode !== 'santa-justa') {
+      return { ok: false, error: 'You are not currently inside Elevador de Santa Justa.' };
+    }
+    const sj = this.state.santaJusta;
+    if (immediate || sj.phase === 'lobby' || !sj.phase) {
+      return this.completeSantaJustaExit({ forceOverworld });
+    }
+    if (sj.phase === 'ascending' || sj.phase === 'descending') {
+      return { ok: false, error: 'Wait until the Santa Justa lift finishes moving.' };
+    }
+    sj.phase = 'descending';
+    sj.phaseProgress = 0;
+    this.state.statusMessage = 'Descending 45m inside the mahogany cabin of Elevador de Santa Justa back to street level (Free return)...';
+    return { ok: true, state: this.state };
+  }
+
+  lookAtSantaJustaLandmark(landmarkId) {
+    if (this.state.mode !== 'santa-justa') {
+      return { ok: false, error: 'Ascend Elevador de Santa Justa to inspect landmarks from the 45m miradouro.' };
+    }
+    const lm = SANTA_JUSTA_PANORAMA_LANDMARKS.find((l) => l.id === landmarkId);
+    if (!lm) {
+      return { ok: false, error: 'Unknown Lisbon skyline landmark.' };
+    }
+    const rawRad = ((lm.compassBearing - 90) * Math.PI) / 180;
+    this.state.cameraYaw = Math.atan2(Math.sin(rawRad), Math.cos(rawRad));
+    this.state.cameraPitch = -0.02;
+    this.state.santaJusta.focusedLandmarkId = lm.id;
+    this.state.statusMessage = `Santa Justa 45m View (${lm.compassLabel} - ${lm.distanceMeters}m): ${lm.name} (${lm.year}) - ${lm.description}`;
+    return { ok: true, landmark: lm, state: this.state };
+  }
+
+  updateSantaJustaSimulation(dt, input = { x: 0, y: 0 }) {
+    if (this.state.mode !== 'santa-justa') return;
+    const sj = this.state.santaJusta;
+
+    if (sj.phase === 'ascending') {
+      sj.phaseProgress = Math.min(1, sj.phaseProgress + dt / SANTA_JUSTA_RIDE_DURATION);
+      const t = sj.phaseProgress;
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      sj.altitudeMeters = Math.round(SANTA_JUSTA_LIFT.heightMeters * ease * 10) / 10;
+      this.state.elevationMeters = Math.round(14 + sj.altitudeMeters);
+
+      if (sj.phaseProgress >= 1) {
+        sj.phase = 'miradouro';
+        sj.phaseProgress = 0;
+        sj.altitudeMeters = SANTA_JUSTA_LIFT.heightMeters;
+        this.state.elevationMeters = 14 + SANTA_JUSTA_LIFT.heightMeters;
+        this.state.visitedSantaJustaMiradouro = true;
+        this.state.energy = clamp(this.state.energy + 10, 0, 100);
+        this.state.cameraYaw = 0.08;
+        this.state.cameraPitch = -0.02;
+        sj.focusedLandmarkId = 'sj-castelo';
+        this.state.statusMessage =
+          'Arrived on the 45m Miradouro of Elevador de Santa Justa! Drag 360 deg (or use A/D & compass buttons) to view Castelo de Sao Jorge (E), Rossio (N), Rua Augusta & Tagus River (S), and Convento do Carmo (W).';
+        recordLog(this.state, 'rest', 'Reached the 45m Miradouro of Elevador de Santa Justa overlooking historic Lisboa.');
+      }
+      return;
+    }
+
+    if (sj.phase === 'descending') {
+      sj.phaseProgress = Math.min(1, sj.phaseProgress + dt / (SANTA_JUSTA_RIDE_DURATION * 0.85));
+      const t = sj.phaseProgress;
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      sj.altitudeMeters = Math.round(SANTA_JUSTA_LIFT.heightMeters * (1 - ease) * 10) / 10;
+      this.state.elevationMeters = Math.round(14 + sj.altitudeMeters);
+
+      if (sj.phaseProgress >= 1) {
+        this.completeSantaJustaExit({ forceOverworld: false });
+      }
+      return;
+    }
+
+    if (sj.phase === 'miradouro') {
+      // Allow smooth 360-degree panorama turning via A/D or Left/Right keys and gentle pitch via W/S!
+      if (Math.abs(input?.x || 0) > 0.01 || Math.abs(input?.y || 0) > 0.01) {
+        this.rotateCamera((input.x || 0) * dt * 1.35, -(input.y || 0) * dt * 0.55);
+      }
+      this.state.energy = clamp(this.state.energy + dt * 1.5, 0, 100);
+      this.state.elevationMeters = 14 + SANTA_JUSTA_LIFT.heightMeters;
+
+      // Determine exact Lisbon landmark centered in the player's current compass bearing!
+      const yawDeg = (((this.state.cameraYaw || 0) * 180) / Math.PI + 360) % 360;
+      const bearing = (yawDeg + 90) % 360;
+      let closest = SANTA_JUSTA_PANORAMA_LANDMARKS[0];
+      let bestDelta = 999;
+      for (const lm of SANTA_JUSTA_PANORAMA_LANDMARKS) {
+        const diff = Math.abs((((lm.compassBearing - bearing + 540) % 360) - 180));
+        if (diff < bestDelta) {
+          bestDelta = diff;
+          closest = lm;
+        }
+      }
+      sj.focusedLandmarkId = closest.id;
     }
   }
 
@@ -3114,6 +3382,11 @@ export class MemoriesGameEngine {
       return this.state;
     }
 
+    if (this.state.mode === 'santa-justa') {
+      this.updateSantaJustaSimulation(dt, input);
+      return this.state;
+    }
+
     if (this.state.mode === 'ferry') {
       if (this.state.southBankFeedback && this.state.southBankFeedback.timer > 0) {
         this.state.southBankFeedback.timer = Math.max(0, this.state.southBankFeedback.timer - dt);
@@ -3338,6 +3611,32 @@ export class MemoriesGameEngine {
       return null;
     }
 
+    if (state.mode === 'santa-justa') {
+      const sj = state.santaJusta;
+      if (sj.phase === 'lobby') {
+        return {
+          type: 'santa-justa-ascend',
+          label: `Ride Elevador de Santa Justa Up to 45m Miradouro (${SANTA_JUSTA_LIFT.fareEur.toFixed(2)} EUR)`,
+          sublabel: 'Step inside the 1902 mahogany-and-brass vertical lift cabin for the 360-degree Lisbon skyline [E]'
+        };
+      }
+      if (sj.phase === 'ascending' || sj.phase === 'descending') {
+        return {
+          type: 'santa-justa-transition',
+          label: `Elevador de Santa Justa - ${sj.phase === 'ascending' ? 'Ascending' : 'Descending'} (${Math.round(sj.altitudeMeters)}m / 45m)`,
+          sublabel: 'Raoul Mesnier du Ponsard 1902 Neo-Gothic cast-iron lift shaft'
+        };
+      }
+      const focused =
+        SANTA_JUSTA_PANORAMA_LANDMARKS.find((l) => l.id === sj.focusedLandmarkId) ||
+        SANTA_JUSTA_PANORAMA_LANDMARKS[3];
+      return {
+        type: 'santa-justa-descend',
+        label: 'Descend Elevador de Santa Justa to Street (Free Return)',
+        sublabel: `Viewing ${focused.shortName} (${focused.compassLabel}) from 45m - Drag 360 deg or press [E] / [Esc] to go down`
+      };
+    }
+
     if (state.mode === 'ferry') {
       const f = state.ferry;
       const curDest = getFerryDestinationById(f.portId);
@@ -3487,6 +3786,18 @@ export class MemoriesGameEngine {
         id: FERRY_TERMINAL.id,
         label: `Enter ${FERRY_TERMINAL.name} ${FERRY_TERMINAL.badge}`,
         sublabel: 'Transtejo ferries to Cacilhas, Seixal & Montijo - Walk DOWN or press [E]'
+      };
+    }
+
+    // Elevador de Santa Justa (1902) Cast-Iron Vertical Lift Tower on Rua do Carmo
+    const sjDist = distance(px, py, SANTA_JUSTA_LIFT.doorX, SANTA_JUSTA_LIFT.doorY);
+    if (sjDist <= INTERACT_DISTANCE + 10 && sjDist < bestDist) {
+      bestDist = sjDist;
+      best = {
+        type: 'santa-justa',
+        id: SANTA_JUSTA_LIFT.id,
+        label: `Enter ${SANTA_JUSTA_LIFT.name} (${SANTA_JUSTA_LIFT.fareEur.toFixed(2)} EUR)`,
+        sublabel: 'Ride up 45m inside the 1902 mahogany cabin for a factual 360-degree view of Lisboa - Walk UP or press [E]'
       };
     }
 
@@ -3676,6 +3987,18 @@ export class MemoriesGameEngine {
       if (this.state.mode === 'ferry' && this.state.ferry.phase === 'sailing') {
         return this.soundFerryHorn();
       }
+      return { ok: true, state: this.state };
+    }
+    if (nearby.type === 'santa-justa') {
+      return this.openSantaJusta();
+    }
+    if (nearby.type === 'santa-justa-ascend') {
+      return this.ascendSantaJusta();
+    }
+    if (nearby.type === 'santa-justa-descend') {
+      return this.descendSantaJusta();
+    }
+    if (nearby.type === 'santa-justa-transition') {
       return { ok: true, state: this.state };
     }
     if (nearby.type === 'ferry') {
@@ -3955,6 +4278,10 @@ export class MemoriesGameEngine {
     }
     this.state.activeSouthBankSpotId = spot.id;
     this.announcementSeq += 1;
+
+    if (spot.id === 'rossio-santa-justa-lift') {
+      return this.openSantaJusta({ fromDistrictId: district.id });
+    }
 
     if (spot.kind === 'landmark') {
       const before = this.state.energy;
@@ -4253,6 +4580,10 @@ export class MemoriesGameEngine {
     }
     this.state.activeCityDistrictSpotId = spot.id;
     this.announcementSeq += 1;
+
+    if (spot.id === 'rossio-santa-justa-lift') {
+      return this.openSantaJusta({ fromDistrictId: district.id });
+    }
 
     if (spot.kind === 'landmark') {
       const before = this.state.energy;
@@ -5645,6 +5976,10 @@ export class MemoriesGameEngine {
     if (this.state.mode === 'city-district') {
       this.completeMetroExitToStreet(null, { forceOverworld: true });
     }
+    if (this.state.mode === 'santa-justa') {
+      this.descendSantaJusta({ immediate: true, forceOverworld: true });
+    }
+
     if (this.state.mode === 'ferry') {
       this.state.ferry.phase = 'terminal';
       this.exitFerryTerminal({ immediate: true });

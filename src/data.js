@@ -519,6 +519,158 @@ export const FERRY_DESTINATIONS = [
   }
 ];
 
+export const SANTA_JUSTA_LIFT = {
+  id: 'elevador-santa-justa',
+  name: 'Elevador de Santa Justa (1902)',
+  shortName: 'Elevador de Santa Justa',
+  badge: '[1902 LIFT]',
+  neighborhood: 'chiado',
+  architect: 'Raoul Mesnier du Ponsard',
+  yearBuilt: 1902,
+  heightMeters: 45,
+  fareEur: 1.8,
+  travelMinutes: 8,
+  x: 1344,
+  y: 78,
+  w: 78,
+  h: 112,
+  doorX: 1383,
+  doorY: 190,
+  doorSide: 'south',
+  spawnOutside: { x: 1383, y: 214 },
+  note: '45-meter Neo-Gothic cast-iron vertical street lift designed by Raoul Mesnier du Ponsard (1902). Step into the mahogany-and-brass cabin to ascend above Baixa and walk out onto the open-air 360-degree Lisbon panoramic miradouro.',
+  phrase: {
+    pt: 'Do topo do Elevador de Santa Justa ve-se toda a Baixa, o Castelo e o Tejo!',
+    pronunciation: 'Doo toh-poo doo Eh-leh-vah-dohr deh Sahn-tah Zhoosh-tah veh-seh toh-dah ah Bye-shah, oo Kahsh-teh-loo ee oo Teh-zhoo!',
+    en: 'From the top of the Santa Justa Lift you see all of Baixa, the Castle, and the Tagus!'
+  }
+};
+
+// Exact factual 360-degree panoramic Lisbon landmarks visible from the 45m observation deck
+// of Elevador de Santa Justa (38.7121 N, 9.1394 W). Compass bearing 0 deg = North, 90 = East, 180 = South, 270 = West.
+export const SANTA_JUSTA_PANORAMA_LANDMARKS = [
+  {
+    id: 'sj-rossio',
+    name: 'Praca Dom Pedro IV (Rossio) & Teatro Nacional D. Maria II',
+    shortName: 'Rossio & Teatro Nacional',
+    compassBearing: 4,
+    compassLabel: 'N',
+    distanceMeters: 210,
+    year: '1846 / 1870',
+    category: 'plaza',
+    accentColor: '#15803d',
+    description: 'Directly north down Rua Aurea lies Rossio Square with its rolling Mar Largo wave calcada, the 27-meter Dom Pedro IV bronze column, twin French fountains, and the neoclassical pediment of Teatro Nacional D. Maria II.'
+  },
+  {
+    id: 'sj-estacao-rossio',
+    name: 'Estacao do Rossio & Avenida da Liberdade',
+    shortName: 'Estacao do Rossio',
+    compassBearing: 332,
+    compassLabel: 'NNW',
+    distanceMeters: 290,
+    year: '1890',
+    category: 'transit',
+    accentColor: '#b45309',
+    description: 'Jose Luis Monteiro Neo-Manueline twin horseshoe-arch railway station gateway beneath the green tree-lined rise of Avenida da Liberdade toward Marques de Pombal.'
+  },
+  {
+    id: 'sj-graca',
+    name: 'Igreja de Sao Domingos, Martim Moniz & Miradouro da Graca',
+    shortName: 'Graca & Senhora do Monte',
+    compassBearing: 42,
+    compassLabel: 'NE',
+    distanceMeters: 780,
+    year: '1241 / 1556',
+    category: 'hill',
+    accentColor: '#d97706',
+    description: 'Terracotta roofs climb northeast past Martim Moniz toward the pine-shaded hill of Graca and Senhora do Monte, the highest central ridge of historic Lisbon.'
+  },
+  {
+    id: 'sj-castelo',
+    name: 'Castelo de Sao Jorge (St. George Castle)',
+    shortName: 'Castelo de Sao Jorge',
+    compassBearing: 84,
+    compassLabel: 'E',
+    distanceMeters: 520,
+    year: '11th c.',
+    category: 'fortress',
+    accentColor: '#b91c1c',
+    description: 'Directly east across the Baixa valley rises Lisbon iconic hilltop citadel with eleven limestone watchtowers, crenellated medieval walls, umbrella pines, and the Portuguese flag overlooking the city.'
+  },
+  {
+    id: 'sj-baixa-grid',
+    name: 'Baixa Pombalina Grid (Rua do Ouro, Rua Augusta & Rua da Prata)',
+    shortName: 'Baixa Pombalina Grid',
+    compassBearing: 112,
+    compassLabel: 'ESE',
+    distanceMeters: 160,
+    year: '1755-1775',
+    category: 'urban',
+    accentColor: '#c2410c',
+    description: 'Directly beneath the 45-meter iron tower spreads Marques de Pombal earthquake-resistant geometric grid of uniform terracotta mansard roofs, dormer windows, and sunlit downtown avenues.'
+  },
+  {
+    id: 'sj-se-panteao',
+    name: 'Se de Lisboa (1147) & Panteao Nacional Dome',
+    shortName: 'Se Cathedral & Panteao',
+    compassBearing: 136,
+    compassLabel: 'SE',
+    distanceMeters: 690,
+    year: '1147 / 1682',
+    category: 'cathedral',
+    accentColor: '#1d4ed8',
+    description: 'Southeast along the Alfama slope stand the twin crenellated Romanesque bell towers of Lisbon Cathedral (1147), backed in the distance by the gleaming white cupola of the National Pantheon.'
+  },
+  {
+    id: 'sj-rua-augusta-tejo',
+    name: 'Arco da Rua Augusta, Praca do Comercio & Rio Tejo',
+    shortName: 'Rua Augusta & Tagus River',
+    compassBearing: 174,
+    compassLabel: 'S',
+    distanceMeters: 580,
+    year: '1755 / 1873',
+    category: 'waterfront',
+    accentColor: '#0284c7',
+    description: 'Looking straight south down Rua Augusta reveals Verissimo Jose da Costa triumphal arch, the yellow Pombaline arcades of Terreiro do Paco, and the sunlit Tagus River estuary.'
+  },
+  {
+    id: 'sj-ponte-cristo-rei',
+    name: 'Ponte 25 de Abril & Santuario de Cristo Rei (Almada)',
+    shortName: 'Ponte 25 de Abril & Cristo Rei',
+    compassBearing: 214,
+    compassLabel: 'SSW',
+    distanceMeters: 3600,
+    year: '1959 / 1966',
+    category: 'bridge',
+    accentColor: '#dc2626',
+    description: 'Across the shimmering Tagus water to the southwest rise the twin red suspension towers of Ponte 25 de Abril and the outstretched-arms statue of Cristo Rei crowning the Almada cliffs.'
+  },
+  {
+    id: 'sj-chiado',
+    name: 'Chiado Hill & Rua Garrett Rooftops',
+    shortName: 'Chiado & Rua Garrett',
+    compassBearing: 244,
+    compassLabel: 'SW',
+    distanceMeters: 240,
+    year: '18th c.',
+    category: 'urban',
+    accentColor: '#7c3aed',
+    description: 'Pastel ochre and cream Pombaline facades climb westward up Chiado toward Rua Garrett, Cafe A Brasileira, and Largo do Chiado.'
+  },
+  {
+    id: 'sj-convento-carmo',
+    name: 'Ruinas do Convento do Carmo (1389) & Passadico Iron Skybridge',
+    shortName: 'Convento do Carmo Ruins',
+    compassBearing: 274,
+    compassLabel: 'W',
+    distanceMeters: 65,
+    year: '1389 / 1755',
+    category: 'ruins',
+    accentColor: '#475569',
+    description: 'Right beside the western railing, Raoul Mesnier Neo-Gothic wrought-iron walkway bridge leads straight into Largo do Carmo beneath the open-air pointed Gothic stone nave arches of Convento do Carmo.'
+  }
+];
+
 export const METRO_LINE = {
   id: 'metro-linha-azul',
   name: 'Metropolitano de Lisboa (4-Line Network)',
