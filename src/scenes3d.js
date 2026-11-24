@@ -3270,11 +3270,11 @@ export class LisboaScenes3DRenderer {
         pois: isLisbon
           ? [{ x: 380, y: 162, color: '#34d399' }, { x: 380, y: 274, color: '#38bdf8' }]
           : [
-              { x: 155, y: 186, color: '#f59e0b' },
-              { x: 380, y: 186, color: '#facc15' },
-              { x: 605, y: 186, color: '#a78bfa' },
-              { x: 380, y: 274, color: '#38bdf8' }
-            ]
+            { x: 155, y: 186, color: '#f59e0b' },
+            { x: 380, y: 186, color: '#facc15' },
+            { x: 605, y: 186, color: '#a78bfa' },
+            { x: 380, y: 274, color: '#38bdf8' }
+          ]
       }
     );
   }
