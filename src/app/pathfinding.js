@@ -93,28 +93,3 @@ export function buildOverworldPath(sx, sy, tx, ty, finalAction = null) {
   waypoints.push({ x: tx, y: ty, onArriveAction: finalAction });
   return waypoints;
 }
-
-const engine = new MemoriesGameEngine();
-const canvas = document.getElementById('lisboa-canvas');
-const renderer = new LisboaCanvasRenderer(canvas);
-const soundEngine = new LisboaSoundEngine();
-let prevAudioMode = 'overworld';
-let prevAudioVenueId = null;
-let prevAudioRidingId = null;
-let lastAnnouncementId = 0;
-let lastFerryHornId = 0;
-let lastMetroDoorChimeId = 0;
-let lastMiradouroEncoreId = 0;
-let lastSharedToastId = 0;
-let lastCathedralChimeId = 0;
-let lastSharedPostcardId = 0;
-let lastTransitIntentId = 0;
-
-const pressedKeys = new Set();
-let activeTab = 'guide';
-let lastUiSignature = '';
-let lastContextSignature = '';
-let lastLanSignature = '';
-let lastStatusText = '';
-let lastGameOverSignature = '';
-let mpStatusInfo = { status: 'connecting', lanUrls: [], playerCount: 1 };
