@@ -2223,20 +2223,23 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {
+  const walkJsFiles = (dir, relBase) => {
+    const out = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const rel = path.join(relBase, entry.name);
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...walkJsFiles(abs, rel));
+      else if (entry.name.endsWith('.js')) out.push(rel);
+    }
+    return out;
+  };
   const filesToCheck = [
     'package.json',
     'README.md',
     'server.js',
     'index.html',
     'styles.css',
-    path.join('src', 'data.js'),
-    path.join('src', 'engine.js'),
-    path.join('src', 'multiplayer.js'),
-    path.join('src', 'audio.js'),
-    path.join('src', 'streetview3d.js'),
-    path.join('src', 'scenes3d.js'),
-    path.join('src', 'renderer.js'),
-    path.join('src', 'app.js'),
+    ...walkJsFiles(path.join(ROOT_DIR, 'src'), 'src'),
     path.join('tests', 'engine.test.js'),
     path.join('tests', 'multiplayer.test.js')
   ];
