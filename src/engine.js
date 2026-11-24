@@ -21,6 +21,10 @@ import {
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
   CITY_DISTRICT_SPOTS,
+  LISBOA_CORRIDOR_LANDMARKS,
+  ENTERABLE_LANDMARK_VENUES,
+  ALL_ENTERABLE_VENUES,
+  findEnterableVenueById,
   CITY_DISTRICT_PORTALS,
   OVERWORLD_CITY_GATEWAYS,
   getWalkingAvenuesFrom,
@@ -72,7 +76,7 @@ export const INTERACT_DISTANCE = 76;
 export const CRITICAL_LOW_ENERGY_THRESHOLD = 20;
 export const PROPORTIONAL_SLOWDOWN_THRESHOLD = 70;
 
-const VENUE_MAP = new Map(VENUES.map((v) => [v.id, v]));
+const VENUE_MAP = new Map(ALL_ENTERABLE_VENUES.map((v) => [v.id, v]));
 const METRO_MAP = new Map(ALL_METRO_STATIONS.map((m) => [m.id, m]));
 const CITY_DISTRICT_MAP = new Map(LISBOA_CITY_DISTRICTS.map((d) => [d.id, d]));
 const FERRY_DEST_MAP = new Map(FERRY_DESTINATIONS.map((d) => [d.id, d]));
@@ -110,6 +114,7 @@ const SOLID_OVERWORLD_RECTS = [
   ...DECORATIVE_STRUCTURES.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, id: d.id })),
   ...ALL_METRO_STATIONS.filter((m) => Number.isFinite(m.x)).map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h, id: m.id })),
   ...CITY_DISTRICT_SPOTS.map((s) => ({ x: s.worldX, y: s.worldY, w: s.w, h: s.h, id: s.id })),
+  ...LISBOA_CORRIDOR_LANDMARKS.map((s) => ({ x: s.worldX, y: s.worldY, w: s.w, h: s.h, id: s.id })),
   { x: FERRY_TERMINAL.x, y: FERRY_TERMINAL.y, w: FERRY_TERMINAL.w, h: FERRY_TERMINAL.h, id: FERRY_TERMINAL.id },
   { x: SANTA_JUSTA_LIFT.x, y: SANTA_JUSTA_LIFT.y, w: SANTA_JUSTA_LIFT.w, h: SANTA_JUSTA_LIFT.h, id: SANTA_JUSTA_LIFT.id }
 ];
@@ -2762,10 +2767,10 @@ export class MemoriesGameEngine {
         this.state.stats.distanceWalkedPx += movedDist;
         const nextElev = getTerrainElevation(player.x, player.y);
         const climbSlope = Math.max(0, (nextElev - prevElev) / Math.max(1, movedDist));
-        const slopeEffort = 1 + climbSlope * 1.15;
+        const slopeEffort = 1 + climbSlope * 0.45;
         const wasCritLow = this.state.needsMealToRecoverSpeed;
-        this.state.energy = clamp(this.state.energy - (movedDist / 100) * 1.15 * slopeEffort, 0, 100);
-        this.state.fullness = clamp(this.state.fullness - (movedDist / 100) * 0.85, 0, 100);
+        this.state.energy = clamp(this.state.energy - (movedDist / 100) * 0.22 * slopeEffort, 0, 100);
+        this.state.fullness = clamp(this.state.fullness - (movedDist / 100) * 0.15, 0, 100);
         this.computeWalkSpeedMultiplier();
         if (this.checkGameOver()) {
           return;
@@ -2836,7 +2841,7 @@ export class MemoriesGameEngine {
     const doorwayHalfW = 24;
     const approachReach = 28;
 
-    for (const venue of VENUES) {
+    for (const venue of ALL_ENTERABLE_VENUES) {
       if (
         venue.doorSide === 'south' &&
         vy < -0.25 &&
@@ -4072,7 +4077,7 @@ export class MemoriesGameEngine {
       };
     }
 
-    for (const venue of VENUES) {
+    for (const venue of ALL_ENTERABLE_VENUES) {
       const d = distance(px, py, venue.doorX, venue.doorY);
       if (d <= INTERACT_DISTANCE && d < bestDist) {
         bestDist = d;
@@ -4212,27 +4217,24 @@ export class MemoriesGameEngine {
       }
     }
 
-    // Greater Lisboa open-world eateries, iconic monuments, and cultural shops along continuous streets
-    for (const spot of CITY_DISTRICT_SPOTS) {
-      const d = distance(px, py, spot.doorX, spot.doorY);
-      if (d <= INTERACT_DISTANCE + 10 && d < bestDist) {
+    // Greater Lisboa open-world landmarks, Aeroporto Terminal 1, stadiums, eateries & cultural shops (all enterable, excluding private residences!)
+    for (const spot of [...CITY_DISTRICT_SPOTS, ...LISBOA_CORRIDOR_LANDMARKS]) {
+      const doorX = Number.isFinite(spot.doorX) ? spot.doorX : spot.worldX + (spot.w || 180) * 0.5;
+      const doorY = Number.isFinite(spot.doorY) ? spot.doorY : spot.worldY + (spot.h || 140);
+      const d = distance(px, py, doorX, doorY);
+      if (d <= INTERACT_DISTANCE + 14 && d < bestDist) {
         bestDist = d;
-        const actionVerb =
-          spot.id === 'rossio-santa-justa-lift'
-            ? 'Enter'
-            : spot.kind === 'landmark'
-              ? 'Visit & Rest (+25)'
-              : spot.kind === 'eatery'
-                ? 'Order Plate or Glass at'
-                : 'Browse';
+        const isSantaJusta = spot.id === 'rossio-santa-justa-lift';
         best = {
-          type: 'city-district-spot',
+          type: isSantaJusta ? 'city-district-spot' : 'venue',
           id: spot.id,
           spotId: spot.id,
           spot,
-          districtId: spot.districtId,
-          label: `${actionVerb} ${spot.name} ${spot.badge}`,
-          sublabel: `${spot.districtName} | Host: ${spot.host} - Press [E] to interact`
+          districtId: spot.districtId || null,
+          label: `Enter ${spot.name} ${spot.badge || ''}`.trim(),
+          sublabel: isSantaJusta
+            ? `${spot.districtName || 'Lisboa'} - Press [E] to enter Elevador de Santa Justa`
+            : `${spot.districtName || 'Lisboa'} - Press [E] or walk inside`
         };
       }
     }
@@ -4788,9 +4790,19 @@ export class MemoriesGameEngine {
       player.y = station.spawnOutside.y;
       player.overworldX = station.spawnOutside.x;
       player.overworldY = station.spawnOutside.y;
-      player.facing = 'down';
-      this.state.cameraYaw = Math.PI * 0.5;
-      this.state.cameraPitch = 0.02;
+      if (station.id === 'metro-aeroporto') {
+        player.facing = 'up';
+        this.state.cameraYaw = -Math.PI * 0.36;
+        this.state.cameraPitch = 0.08;
+      } else if (station.id === 'metro-oriente') {
+        player.facing = 'down';
+        this.state.cameraYaw = Math.PI * 0.28;
+        this.state.cameraPitch = 0.03;
+      } else {
+        player.facing = 'down';
+        this.state.cameraYaw = Math.PI * 0.5;
+        this.state.cameraPitch = 0.02;
+      }
       if (station.districtId && !this.state.visitedCityDistricts.includes(station.districtId)) {
         this.state.visitedCityDistricts.push(station.districtId);
       }
@@ -5330,7 +5342,10 @@ export class MemoriesGameEngine {
     }
 
     const newPhrase = recordPhrase(this.state, venue.phrase, venue.name);
-    const newMemory = unlockMemory(this.state, venue.memory);
+    const newMemory = venue.isLandmarkInterior ? false : unlockMemory(this.state, venue.memory);
+    if (venue.isLandmarkInterior && venue.category === 'landmark') {
+      this.state.energy = clamp(this.state.energy + 12, 0, 100);
+    }
 
     this.advanceMinutes(5);
 
@@ -5383,7 +5398,10 @@ export class MemoriesGameEngine {
       return { ok: false, error: 'Enter a shop or restaurant first to talk with the proprietor.' };
     }
     const newPhrase = recordPhrase(this.state, venue.phrase, venue.name);
-    const newMemory = unlockMemory(this.state, venue.memory);
+    const newMemory = venue.isLandmarkInterior ? false : unlockMemory(this.state, venue.memory);
+    if (venue.isLandmarkInterior && venue.category === 'landmark') {
+      this.state.energy = clamp(this.state.energy + 12, 0, 100);
+    }
     this.state.player.facing = 'up';
     this.state.cameraYaw = -Math.PI * 0.5;
     this.state.cameraPitch = 0.02;

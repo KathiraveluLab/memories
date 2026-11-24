@@ -15,6 +15,7 @@ import {
   METRO_STATIONS,
   ALL_METRO_STATIONS,
   CITY_DISTRICT_SPOTS,
+  LISBOA_CORRIDOR_LANDMARKS,
   TRANSIT_LINES,
   VENUES,
   REST_SPOTS,
@@ -1030,10 +1031,13 @@ export class LisboaStreetView3DRenderer {
       ctx.fillRect(sx - 1, hy - bh - 2.5, bw + 2, 2.8);
     }
 
-    // 3) Realistic Iconic Ponte 25 de Abril Suspension Bridge & Santuario de Cristo Rei across the Tagus (South-Southwest)
+    // 3) Factual Tagus Bridge Panorama:
+    //    - Western & Central Lisboa (Belem, Cais do Sodre, Chiado, Alfama): Red suspension Ponte 25 de Abril (1966) + Almada + Cristo Rei
+    //    - Eastern Lisboa (Parque das Nacoes / Oriente / Moscavide): White 12.3 km cable-stayed Ponte Vasco da Gama (1998) across Mar da Palha!
+    const isEasternLisboa = cam.camX >= 2550;
     const bridgeYaw = Math.PI * 0.62;
     const relBridge = Math.atan2(Math.sin(bridgeYaw - cam.yaw), Math.cos(bridgeYaw - cam.yaw));
-    if (Math.abs(relBridge) < 0.96) {
+    if (!isEasternLisboa && Math.abs(relBridge) < 0.96) {
       const bx = w * 0.5 + relBridge * this.focal;
       const bridgeCol = isEvening ? '#991b1b' : isGolden ? '#dc2626' : '#c81e32';
       const bridgeDark = isEvening ? '#5c1010' : '#881320';
@@ -1359,6 +1363,199 @@ export class LisboaStreetView3DRenderer {
       ctx.restore();
     }
 
+    // 3A-East) Iconic White 12.3 km Cable-Stayed Ponte Vasco da Gama (1998) across the Eastern Tagus Estuary (Parque das Nacoes / Oriente)
+    if (isEasternLisboa) {
+      const vascoYaw = Math.PI * 0.24;
+      const relVasco = Math.atan2(Math.sin(vascoYaw - cam.yaw), Math.cos(vascoYaw - cam.yaw));
+      if (Math.abs(relVasco) < 1.05) {
+        const vx = w * 0.5 + relVasco * this.focal;
+        const deckY = hy - 14;
+        const p1 = vx - 64;
+        const p2 = vx + 64;
+        const pylonTopY = hy - 94;
+        const leftEnd = vx - 250;
+        const rightEnd = vx + 290;
+        const whiteMain = isEvening ? '#cbd5e1' : isGolden ? '#fff7ed' : '#f8fafc';
+        const whiteShade = isEvening ? '#64748b' : '#cbd5e1';
+        const cableCol = isEvening ? 'rgba(226, 232, 240, 0.72)' : 'rgba(248, 250, 252, 0.88)';
+
+        ctx.save();
+        // Low distant Montijo / Alcochete south-bank salt-flat horizon across wide Mar da Palha estuary
+        ctx.fillStyle = isEvening ? '#1e293b' : isGolden ? '#7c6a5c' : '#6c8577';
+        ctx.beginPath();
+        ctx.moveTo(vx + 70, hy + 1);
+        ctx.quadraticCurveTo(vx + 185, hy - 12, vx + 310, hy - 6);
+        ctx.lineTo(vx + 350, hy + 1);
+        ctx.closePath();
+        ctx.fill();
+
+        // Shimmering white pylon reflections on the eastern Tagus Estuary
+        ctx.fillStyle = isEvening ? 'rgba(226, 232, 240, 0.22)' : 'rgba(255, 255, 255, 0.32)';
+        for (const px of [p1, p2]) {
+          for (let ry = 2; ry < 28; ry += 4) {
+            const rw = 7 + ry * 0.3;
+            ctx.fillRect(px - rw * 0.5 + Math.sin(animTime * 2.6 + ry) * 2, hy + ry, rw, 2);
+          }
+        }
+
+        // Long sweeping 12.3 km white prestressed concrete viaduct piers stretching across the estuary
+        ctx.fillStyle = whiteShade;
+        for (let pierX = leftEnd + 16; pierX <= rightEnd - 12; pierX += 22) {
+          if (Math.abs(pierX - p1) < 12 || Math.abs(pierX - p2) < 12) continue;
+          ctx.fillRect(pierX - 1.5, deckY + 2, 3, hy + 2 - (deckY + 2));
+        }
+
+        // Fan-shaped white harp stay cables radiating from both 150m H-shaped concrete pylons
+        ctx.strokeStyle = cableCol;
+        ctx.lineWidth = 1.15;
+        ctx.beginPath();
+        for (const px of [p1, p2]) {
+          for (let k = 1; k <= 8; k += 1) {
+            const anchorY = pylonTopY + 8 + k * 4.4;
+            const spread = k * 10.5;
+            ctx.moveTo(px - 2.5, anchorY);
+            ctx.lineTo(px - spread, deckY);
+            ctx.moveTo(px + 2.5, anchorY);
+            ctx.lineTo(px + spread, deckY);
+          }
+        }
+        ctx.stroke();
+
+        // Sleek white curved highway deck spanning the entire eastern Tagus horizon
+        ctx.strokeStyle = whiteMain;
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.moveTo(leftEnd, deckY + 4);
+        ctx.quadraticCurveTo(vx, deckY - 4, rightEnd, deckY + 5);
+        ctx.stroke();
+        ctx.strokeStyle = whiteShade;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(leftEnd, deckY + 6.5);
+        ctx.quadraticCurveTo(vx, deckY - 1.5, rightEnd, deckY + 7.5);
+        ctx.stroke();
+
+        // Twin 150-meter white concrete H-pylons (signature Ponte Vasco da Gama twin legs + upper portal crossbars)
+        for (const px of [p1, p2]) {
+          ctx.fillStyle = whiteMain;
+          ctx.fillRect(px - 5.2, pylonTopY, 3.0, hy + 2 - pylonTopY);
+          ctx.fillRect(px + 2.2, pylonTopY, 3.0, hy + 2 - pylonTopY);
+          ctx.fillStyle = whiteShade;
+          ctx.fillRect(px - 5.2, pylonTopY + 12, 10.4, 2.8);
+          ctx.fillRect(px - 5.2, deckY + 2, 10.4, 3.2);
+          // Red aviation beacons atop the 150m pylons
+          ctx.fillStyle = isEvening || isGolden ? '#fef08a' : '#ef4444';
+          ctx.beginPath();
+          ctx.arc(px - 3.7, pylonTopY - 2.2, 1.8, 0, Math.PI * 2);
+          ctx.arc(px + 3.7, pylonTopY - 2.2, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Distinctive 145m Torre Vasco da Gama curved steel sail silhouette on the northern Parque das Nacoes shoreline
+        const sailX = vx - 178;
+        ctx.strokeStyle = isEvening ? '#94a3b8' : '#e2e8f0';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.moveTo(sailX, hy);
+        ctx.lineTo(sailX, hy - 86);
+        ctx.stroke();
+        ctx.fillStyle = isEvening ? 'rgba(56, 189, 248, 0.35)' : 'rgba(224, 242, 254, 0.72)';
+        ctx.beginPath();
+        ctx.moveTo(sailX, hy - 82);
+        ctx.quadraticCurveTo(sailX + 26, hy - 48, sailX, hy - 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = whiteMain;
+        ctx.fillRect(sailX - 10, hy - 74, 22, 5);
+        ctx.restore();
+      }
+    }
+
+    // 3A-Air) Live Commercial Flights taking off & landing over Aeroporto Humberto Delgado (LIS Runway 03/21)!
+    if (cam.camX >= 2300 && cam.camY <= -950) {
+      const flights = [
+        { baseYaw: -Math.PI * 0.42, speed: 0.055, altBase: 74, climb: 38, dir: 1, tailCol: '#dc2626', accentCol: '#16a34a', phase: 0.0 },
+        { baseYaw: -Math.PI * 0.22, speed: 0.042, altBase: 118, climb: -32, dir: -1, tailCol: '#1d4ed8', accentCol: '#facc15', phase: 0.42 },
+        { baseYaw: -Math.PI * 0.62, speed: 0.048, altBase: 92, climb: 26, dir: 1, tailCol: '#dc2626', accentCol: '#15803d', phase: 0.75 }
+      ];
+      ctx.save();
+      for (let fi = 0; fi < flights.length; fi += 1) {
+        const fl = flights[fi];
+        const cycle = (animTime * fl.speed + fl.phase) % 1;
+        const fYaw = fl.baseYaw + (cycle - 0.5) * 0.85 * fl.dir;
+        const relF = Math.atan2(Math.sin(fYaw - cam.yaw), Math.cos(fYaw - cam.yaw));
+        if (Math.abs(relF) > 0.98) continue;
+        const fx = w * 0.5 + relF * this.focal;
+        const fy = hy - (fl.altBase + cycle * fl.climb);
+        const sc = 0.85 + (1 - Math.abs(cycle - 0.5) * 1.1) * 0.55;
+        const pitchRad = (fl.climb > 0 ? -0.14 : 0.1) * fl.dir;
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(pitchRad);
+        // Subtle twin jet contrail fading behind aircraft
+        const trailGrad = ctx.createLinearGradient(-72 * fl.dir * sc, 0, 0, 0);
+        trailGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        trailGrad.addColorStop(1, isEvening ? 'rgba(226, 232, 240, 0.35)' : 'rgba(255, 255, 255, 0.55)');
+        ctx.strokeStyle = trailGrad;
+        ctx.lineWidth = 2.2 * sc;
+        ctx.beginPath();
+        ctx.moveTo(-72 * fl.dir * sc, 1.5 * sc);
+        ctx.lineTo(-10 * fl.dir * sc, 1.5 * sc);
+        ctx.stroke();
+        // Swept main wings
+        ctx.fillStyle = isEvening ? '#94a3b8' : '#cbd5e1';
+        ctx.beginPath();
+        ctx.moveTo(4 * fl.dir * sc, 0);
+        ctx.lineTo(-10 * fl.dir * sc, -13 * sc);
+        ctx.lineTo(-15 * fl.dir * sc, -13 * sc);
+        ctx.lineTo(-5 * fl.dir * sc, 0);
+        ctx.lineTo(-15 * fl.dir * sc, 11 * sc);
+        ctx.lineTo(-10 * fl.dir * sc, 11 * sc);
+        ctx.closePath();
+        ctx.fill();
+        // Sleek white airliner fuselage
+        ctx.fillStyle = isEvening ? '#e2e8f0' : '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 19 * sc, 3.6 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Cockpit windscreen
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect((fl.dir > 0 ? 11 : -15) * sc, -2 * sc, 4 * sc, 2 * sc);
+        // Portuguese crimson & emerald tail fin
+        ctx.fillStyle = fl.tailCol;
+        ctx.beginPath();
+        ctx.moveTo(-12 * fl.dir * sc, -1 * sc);
+        ctx.lineTo(-19 * fl.dir * sc, -10.5 * sc);
+        ctx.lineTo(-13 * fl.dir * sc, -10.5 * sc);
+        ctx.lineTo(-7 * fl.dir * sc, -1 * sc);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = fl.accentCol;
+        ctx.fillRect(-17 * fl.dir * sc, -6.5 * sc, 4.5 * sc, 2.2 * sc);
+        // Blinking navigation strobe & bright nose landing light
+        const strobeOn = Math.floor(animTime * 4 + fi) % 2 === 0;
+        if (strobeOn) {
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.arc(-12 * fl.dir * sc, -12.5 * sc, 2.1 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#22c55e';
+          ctx.beginPath();
+          ctx.arc(-12 * fl.dir * sc, 10.5 * sc, 2.1 * sc, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(17 * fl.dir * sc, 0.5 * sc, 2.4 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
     // 3b) Animated Gliding Tagus Seagulls (Gaivotas do Tejo) soaring over the river estuary!
     if (!isEvening) {
       ctx.save();
@@ -1452,41 +1649,148 @@ export class LisboaStreetView3DRenderer {
     ctx.fillStyle = groundGrad;
     ctx.fillRect(0, hy, w, h - hy);
 
-    // Tagus River Estuary water plane south of WATERFRONT_Y (extends all the way to the distant horizon with layered depth bands!)
+    // Tagus River Estuary water plane south of WATERFRONT_Y AND along the Eastern Parque das Nacoes riverfront (Mar da Palha)!
     const isGolden = getDayPhase(state.minutesOfDay).id === 'golden';
+    const waterDeep = isEvening ? '#0d233a' : isGolden ? '#1b4f72' : '#14527b';
+    const waterMid = isEvening ? '#102b47' : isGolden ? '#226188' : '#1a6494';
+    const waterNear = isEvening ? '#133354' : isGolden ? '#29729c' : '#1f73a6';
     this.drawPoly3D(
       ctx,
       cam,
       [
-        [-3500, WATERFRONT_Y, 0],
-        [WORLD_WIDTH + 3500, WATERFRONT_Y, 0],
-        [WORLD_WIDTH + 3500, WATERFRONT_Y + 18000, 0],
-        [-3500, WATERFRONT_Y + 18000, 0]
+        [WORLD_MIN_X - 3500, WATERFRONT_Y, 0],
+        [WORLD_MAX_X + 6000, WATERFRONT_Y, 0],
+        [WORLD_MAX_X + 6000, WATERFRONT_Y + 18000, 0],
+        [WORLD_MIN_X - 3500, WATERFRONT_Y + 18000, 0]
       ],
-      isEvening ? '#0d233a' : isGolden ? '#1b4f72' : '#14527b'
+      waterDeep
     );
     this.drawPoly3D(
       ctx,
       cam,
       [
-        [-2500, WATERFRONT_Y, 0.02],
-        [WORLD_WIDTH + 2500, WATERFRONT_Y, 0.02],
-        [WORLD_WIDTH + 2500, WATERFRONT_Y + 1800, 0.02],
-        [-2500, WATERFRONT_Y + 1800, 0.02]
+        [WORLD_MIN_X - 2500, WATERFRONT_Y, 0.02],
+        [WORLD_MAX_X + 4500, WATERFRONT_Y, 0.02],
+        [WORLD_MAX_X + 4500, WATERFRONT_Y + 1800, 0.02],
+        [WORLD_MIN_X - 2500, WATERFRONT_Y + 1800, 0.02]
       ],
-      isEvening ? '#102b47' : isGolden ? '#226188' : '#1a6494'
+      waterMid
     );
     this.drawPoly3D(
       ctx,
       cam,
       [
-        [-1200, WATERFRONT_Y, 0.04],
-        [WORLD_WIDTH + 1200, WATERFRONT_Y, 0.04],
-        [WORLD_WIDTH + 1200, WATERFRONT_Y + 420, 0.04],
-        [-1200, WATERFRONT_Y + 420, 0.04]
+        [WORLD_MIN_X - 1200, WATERFRONT_Y, 0.04],
+        [WORLD_MAX_X + 2500, WATERFRONT_Y, 0.04],
+        [WORLD_MAX_X + 2500, WATERFRONT_Y + 420, 0.04],
+        [WORLD_MIN_X - 1200, WATERFRONT_Y + 420, 0.04]
       ],
-      isEvening ? '#133354' : isGolden ? '#29729c' : '#1f73a6'
+      waterNear
     );
+    // Eastern Parque das Nacoes Tagus Estuary shoreline (east of x = 4220) so Oriente looks directly out over the Tagus River!
+    if (cam.camX >= 2500) {
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [
+          [4220, -1800, 0.02],
+          [WORLD_MAX_X + 14000, -1800, 0.02],
+          [WORLD_MAX_X + 14000, WATERFRONT_Y + 600, 0.02],
+          [4220, WATERFRONT_Y + 600, 0.02]
+        ],
+        waterMid
+      );
+    }
+
+    // Aeroporto Humberto Delgado (LIS) Runway 03/21 Tarmac Apron, Markings & Parked/Departing Jetliners (North of Terminal 1)
+    if (cam.camX >= 2300 && cam.camY <= -1100) {
+      const rwZ = getTerrainElevation(3550, -2160) + 0.35;
+      // Wide tarmac apron & Runway 03/21 strip
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [
+          [2880, -2340, rwZ],
+          [4260, -2340, rwZ],
+          [4260, -2005, rwZ],
+          [2880, -2005, rwZ]
+        ],
+        isEvening ? '#1e293b' : '#334155',
+        '#94a3b8',
+        1.5
+      );
+      // Runway 03/21 white dashed centerline & threshold piano-key stripes
+      for (let rx = 2940; rx <= 4180; rx += 90) {
+        this.drawLine3D(ctx, cam, [rx, -2175, rwZ + 0.25], [rx + 52, -2175, rwZ + 0.25], '#f8fafc', 3.0);
+      }
+      for (const ty of [-2255, -2225, -2195, -2155, -2125, -2095]) {
+        this.drawLine3D(ctx, cam, [2910, ty, rwZ + 0.25], [2965, ty, rwZ + 0.25], '#f8fafc', 2.4);
+        this.drawLine3D(ctx, cam, [4175, ty, rwZ + 0.25], [4230, ty, rwZ + 0.25], '#f8fafc', 2.4);
+      }
+      // Illuminated blue taxiway edge lights along the apron
+      for (let lx = 2960; lx <= 4160; lx += 150) {
+        const lp = this.projectWorldPt(ctx, lx, -2020, rwZ + 2);
+        if (lp && lp.cz < 1100) {
+          ctx.fillStyle = '#38bdf8';
+          ctx.beginPath();
+          ctx.arc(lp.x, lp.y, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // 2 Parked Airliners at Terminal 1 gates + 1 Rolling/Climbing Takeoff Flight on Runway 03/21!
+      const takeoffProgress = (animTime * 0.14) % 1;
+      const rollingX = 2980 + takeoffProgress * 1240;
+      const rollingZ = rwZ + 12 + (takeoffProgress > 0.55 ? Math.pow((takeoffProgress - 0.55) / 0.45, 1.8) * 140 : 0);
+      const apronJets = [
+        { x: 3260, y: -2055, z: rwZ + 12, tailCol: '#dc2626', accentCol: '#16a34a' },
+        { x: 3780, y: -2055, z: rwZ + 12, tailCol: '#1d4ed8', accentCol: '#facc15' },
+        { x: rollingX, y: -2175, z: rollingZ, tailCol: '#dc2626', accentCol: '#16a34a' }
+      ];
+      for (const jet of apronJets) {
+        // White airliner fuselage
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [
+            [jet.x - 46, jet.y, jet.z],
+            [jet.x + 54, jet.y, jet.z],
+            [jet.x + 48, jet.y, jet.z + 15],
+            [jet.x - 44, jet.y, jet.z + 15]
+          ],
+          isEvening ? '#cbd5e1' : '#f8fafc',
+          '#475569',
+          1.2
+        );
+        // Swept wings
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [
+            [jet.x - 6, jet.y - 38, jet.z + 6],
+            [jet.x + 14, jet.y, jet.z + 6],
+            [jet.x - 6, jet.y + 38, jet.z + 6],
+            [jet.x - 18, jet.y, jet.z + 6]
+          ],
+          isEvening ? '#94a3b8' : '#e2e8f0',
+          '#475569',
+          1
+        );
+        // Tall colored tail fin
+        this.drawPoly3D(
+          ctx,
+          cam,
+          [
+            [jet.x - 44, jet.y, jet.z + 14],
+            [jet.x - 24, jet.y, jet.z + 14],
+            [jet.x - 38, jet.y, jet.z + 36],
+            [jet.x - 48, jet.y, jet.z + 36]
+          ],
+          jet.tailCol,
+          jet.accentCol,
+          1.3
+        );
+      }
+    }
 
     // Animated Tagus River wave crests, foam glints & golden sunlight reflection path
     const waveShift = (animTime * 24) % 110;
@@ -1853,8 +2157,8 @@ export class LisboaStreetView3DRenderer {
       });
     }
 
-    // All 27 Greater Lisboa Open-World Landmarks, Eateries & Cultural Shops directly on the continuous street grid!
-    for (const spot of CITY_DISTRICT_SPOTS) {
+    // All Greater Lisboa Open-World Landmarks, Eateries, Cultural Shops & Metro Corridor Iconic Sites!
+    for (const spot of [...CITY_DISTRICT_SPOTS, ...LISBOA_CORRIDOR_LANDMARKS]) {
       if (!inRange(spot.worldX, spot.worldY, spot.worldX + spot.w, spot.worldY + spot.h)) continue;
       list.push({
         kind: 'city-district-spot',
@@ -3788,9 +4092,53 @@ export class LisboaStreetView3DRenderer {
             this.drawPoly3D(ctx, cam, [[cx + ox - 18, y1 + 0.5, gz + 8], [cx + ox + 18, y1 + 0.5, gz + 8], [cx + ox + 18, y1 + 0.5, gz + 64], [cx + ox - 18, y1 + 0.5, gz + 64]], isEvening ? '#fde68a' : '#0ea5e9', '#1e293b', 1.3);
           }
         }
+      } else if (style === 'estadio-luz' || style === 'estadio-alvalade') {
+        // Iconic Lisbon Football Stadiums: Red-Arched Estadio da Luz (SL Benfica) & Emerald-Gold Estadio Jose Alvalade (Sporting CP)
+        const mainCol = style === 'estadio-luz' ? '#dc2626' : '#15803d';
+        const darkCol = style === 'estadio-luz' ? '#991b1b' : '#14532d';
+        const trimCol = style === 'estadio-luz' ? '#f8fafc' : '#facc15';
+        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz, gz + 74, '#f1f5f9', '#cbd5e1', mainCol, highlighted ? '#facc15' : darkCol);
+        drawRectBox(x0 + 10, y0 + 14, x1 - 10, y1 - 6, gz + 74, gz + 94, mainCol, darkCol, trimCol, '#1e293b');
+        // Signature soaring stadium roof arches
+        for (const ox of [-70, 0, 70]) {
+          this.drawLine3D(ctx, cam, [cx + ox - 34, y1 - 8, gz + 92], [cx + ox, y1 - 8, gz + 138], mainCol, 4.2);
+          this.drawLine3D(ctx, cam, [cx + ox, y1 - 8, gz + 138], [cx + ox + 34, y1 - 8, gz + 92], mainCol, 4.2);
+        }
+      } else if (style === 'torre-vasco-da-gama') {
+        // 145-meter Torre Vasco da Gama curved steel lattice caravel sail skyscraper at Parque das Nacoes
+        drawRectBox(x0 + 14, y0 + 24, x1 - 14, y1, gz, gz + 48, '#e2e8f0', '#cbd5e1', '#0284c7', highlighted ? '#facc15' : '#334155');
+        drawRectBox(cx - 18, y0 + 18, cx + 18, y0 + 62, gz + 48, gz + 186, '#f8fafc', '#cbd5e1', '#e0f2fe', '#0284c7');
+        // Observation deck & soaring sail fin
+        drawRectBox(cx - 34, y0 + 12, cx + 34, y0 + 68, gz + 144, gz + 162, '#0ea5e9', '#0369a1', '#f8fafc', '#0f172a');
+        this.drawLine3D(ctx, cam, [cx + 18, y0 + 40, gz + 48], [cx + 58, y0 + 40, gz + 115], '#f8fafc', 3.4);
+        this.drawLine3D(ctx, cam, [cx + 58, y0 + 40, gz + 115], [cx + 18, y0 + 40, gz + 186], '#f8fafc', 3.4);
+      } else if (style === 'viuva-lamego') {
+        // 1849 Fabrica Viuva Lamego & Pavilhao Carlos Lopes cobalt-and-gold azulejo tiled facade
+        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz, gz + 112, '#dbeafe', '#bfdbfe', '#b84a32', highlighted ? '#facc15' : '#1e3a8a');
+        if (cam.camY > y1) {
+          this.drawPoly3D(ctx, cam, [[x0 + 8, y1 + 0.5, gz + 14], [x1 - 8, y1 + 0.5, gz + 14], [x1 - 8, y1 + 0.5, gz + 104], [x0 + 8, y1 + 0.5, gz + 104]], '#1d4ed8', '#facc15', 1.6);
+          for (const ox of [-42, 0, 42]) {
+            this.drawPoly3D(ctx, cam, [[cx + ox - 12, y1 + 0.9, gz + 24], [cx + ox + 12, y1 + 0.9, gz + 24], [cx + ox + 12, y1 + 0.9, gz + 62], [cx + ox - 12, y1 + 0.9, gz + 62]], isEvening ? '#fde68a' : '#fef3c7', '#1e3a8a', 1.2);
+          }
+        }
+      } else if (style === 'obelisco-restauradores') {
+        // Rose-limestone Palacio Foz & 30m Independence Obelisk at Praca dos Restauradores
+        drawRectBox(x0 + 6, y0 + 14, x1 - 6, y1 - 24, gz, gz + 88, '#f5d0c5', '#e2b4a6', '#b84a32', highlighted ? '#facc15' : '#7c2d12');
+        drawRectBox(cx - 10, y1 - 28, cx + 10, y1 - 8, gz, gz + 146, '#f8fafc', '#e2e8f0', '#cbd5e1', '#475569');
+      } else if (style === 'teatro-tivoli' || style === 'guimard-pavilion') {
+        // Neoclassical Avenida Theatre / Art Nouveau Pavilion
+        const wall = style === 'teatro-tivoli' ? '#f5efe2' : '#ecfdf5';
+        const trim = style === 'teatro-tivoli' ? '#9a3412' : '#15803d';
+        drawRectBox(x0 + 6, y0 + 12, x1 - 6, y1, gz, gz + 106, wall, '#d8d0c2', trim, highlighted ? '#facc15' : '#334155');
+        drawRectBox(x0 + 22, y1 - 6, x1 - 22, y1 + 6, gz + 34, gz + 48, trim, '#1e293b', '#facc15', '#facc15');
+      } else if (style === 'park-pavilion') {
+        // Shaded Lisbon woodland garden pavilion & cypress canopy
+        drawRectBox(x0 + 14, y0 + 22, x1 - 14, y1 - 8, gz, gz + 58, '#f5efe2', '#ded6c6', '#15803d', highlighted ? '#facc15' : '#14532d');
+        drawRectBox(x0 + 4, y0 + 12, x1 - 4, y1, gz + 58, gz + 76, '#15803d', '#166534', '#22c55e', '#14532d');
       } else {
-        // Classical Lisbon limestone landmark (Rossio, Mae d'Agua Aqueduct, Gulbenkian, Reitoria Universidade)
-        drawRectBox(x0 + 6, y0 + 10, x1 - 6, y1, gz, gz + 98, '#efe8da', '#d8cfc0', accent, highlighted ? '#facc15' : '#475569');
+        // Classical Lisbon limestone landmark (Rossio, Mae d'Agua Aqueduct, Gulbenkian, Reitoria, Monasteries & Historic Manors)
+        const wallC = style === 'historic-manor' ? '#f5e4c8' : style === 'monastery-gothic' ? '#e7dfd0' : '#efe8da';
+        drawRectBox(x0 + 6, y0 + 10, x1 - 6, y1, gz, gz + 98, wallC, '#d8cfc0', accent, highlighted ? '#facc15' : '#475569');
         if (cam.camY > y1) {
           for (const ox of [-48, 0, 48]) {
             this.drawPoly3D(ctx, cam, [[cx + ox - 14, y1 + 0.5, gz + 6], [cx + ox + 14, y1 + 0.5, gz + 6], [cx + ox + 14, y1 + 0.5, gz + 66], [cx + ox - 14, y1 + 0.5, gz + 66]], isEvening ? '#fde68a' : '#2c4159', '#64748b', 1.2);

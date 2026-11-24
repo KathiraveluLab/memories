@@ -21,6 +21,9 @@ import {
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
   CITY_DISTRICT_SPOTS,
+  LISBOA_CORRIDOR_LANDMARKS,
+  ENTERABLE_LANDMARK_VENUES,
+  ALL_ENTERABLE_VENUES,
   CITY_DISTRICT_PORTALS,
   OVERWORLD_CITY_GATEWAYS,
   LISBOA_WALKING_NETWORK,
@@ -1751,17 +1754,20 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   const totalLineStops = METRO_NETWORK_LINES.reduce((sum, l) => sum + l.stations.length, 0);
   assert.equal(totalLineStops, 56, 'All 4 Metropolitano de Lisboa lines sum to 56 factual station stops');
 
-  // Verify every single one of the 56 official station stops is covered by ALL_METRO_STATIONS corridorStops
-  const coveredStops = new Set(ALL_METRO_STATIONS.flatMap((s) => s.corridorStops || [s.canonicalStopName]));
-  for (const line of METRO_NETWORK_LINES) {
-    for (const stopName of line.stations) {
-      assert.ok(coveredStops.has(stopName), `Expected official Metro stop "${stopName}" (${line.name}) to be covered`);
-    }
+  // Verify EVERY SINGLE ONE of the 50 unique official Metropolitano de Lisboa stations is individually modeled (zero merged stations!)
+  const officialUniqueStops = new Set(METRO_NETWORK_LINES.flatMap((l) => l.stations));
+  assert.equal(officialUniqueStops.size, 50, 'Metropolitano de Lisboa has 50 unique physical stations across 4 lines');
+  const modeledCanonicalStops = new Set(ALL_METRO_STATIONS.map((s) => s.canonicalStopName));
+  for (const stopName of officialUniqueStops) {
+    assert.ok(modeledCanonicalStops.has(stopName), `Expected individual official Metro station "${stopName}" to be modeled`);
   }
 
-  assert.equal(CITY_METRO_STATIONS.length, 9);
-  assert.equal(ALL_METRO_STATIONS.length, 12);
-  assert.equal(LISBOA_CITY_DISTRICTS.length, 9);
+  assert.equal(CITY_METRO_STATIONS.length, 47);
+  assert.equal(ALL_METRO_STATIONS.length, 50);
+  assert.equal(LISBOA_CITY_DISTRICTS.length, 10);
+  assert.ok(ALL_METRO_STATIONS.some((s) => s.id === 'metro-oriente' && s.canonicalStopName === 'Oriente'));
+  assert.ok(ALL_METRO_STATIONS.some((s) => s.id === 'metro-aeroporto' && s.canonicalStopName === 'Aeroporto'));
+  assert.equal(ALL_METRO_STATIONS.some((s) => s.id === 'metro-oriente-aeroporto'), false, 'Oriente and Aeroporto must be separate stations');
 
   // Every city district must include both a plate food item and a glass drink item in its eatery
   for (const dist of LISBOA_CITY_DISTRICTS) {
@@ -1778,11 +1784,15 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   assert.equal(directVerde.linesUsed[0].id, 'linha-verde');
   assert.deepEqual(directVerde.stationPath, ['Baixa-Chiado', 'Cais do Sodre']);
 
-  const toOriente = computeMetroNetworkRoute('metro-baixa-chiado', 'metro-oriente-aeroporto');
+  const toOriente = computeMetroNetworkRoute('metro-baixa-chiado', 'metro-oriente');
   assert.equal(toOriente.transferStation, 'Alameda', 'Baixa-Chiado to Oriente transfers at Alameda (Linha Verde -> Linha Vermelha)');
   assert.deepEqual(toOriente.linesUsed.map((l) => l.id), ['linha-verde', 'linha-vermelha']);
   assert.ok(toOriente.stationPath.includes('Olaias'));
   assert.equal(toOriente.stationPath[toOriente.stationPath.length - 1], 'Oriente');
+
+  const orienteToAeroporto = computeMetroNetworkRoute('metro-oriente', 'metro-aeroporto');
+  assert.equal(orienteToAeroporto.transferStation, null, 'Oriente to Aeroporto is direct on Linha Vermelha');
+  assert.deepEqual(orienteToAeroporto.stationPath, ['Oriente', 'Moscavide', 'Encarnacao', 'Aeroporto']);
 
   const toRato = computeMetroNetworkRoute('metro-baixa-chiado', 'metro-rato');
   assert.equal(toRato.transferStation, 'Marques de Pombal', 'Baixa-Chiado to Rato transfers at Marques de Pombal (Linha Azul -> Linha Amarela)');
@@ -1794,7 +1804,8 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   assert.ok(tpDirectBlueIds.includes('metro-marques-pombal'));
   assert.ok(tpDirectBlueIds.includes('metro-baixa-chiado'));
   assert.equal(tpDirectBlueIds.includes('metro-rato'), false, 'Rato (Linha Amarela) is NOT directly reachable from Terreiro do Paco (Linha Azul)');
-  assert.equal(tpDirectBlueIds.includes('metro-oriente-aeroporto'), false, 'Oriente (Linha Vermelha) is NOT directly reachable from Terreiro do Paco');
+  assert.equal(tpDirectBlueIds.includes('metro-oriente'), false, 'Oriente (Linha Vermelha) is NOT directly reachable from Terreiro do Paco');
+  assert.equal(tpDirectBlueIds.includes('metro-aeroporto'), false, 'Aeroporto (Linha Vermelha) is NOT directly reachable from Terreiro do Paco');
   assert.deepEqual(getStationLineIds('metro-terreiro-paco'), ['linha-azul']);
   assert.deepEqual(getStationLineIds('metro-marques-pombal'), ['linha-azul', 'linha-amarela']);
 
@@ -1873,7 +1884,7 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   assert.equal(state.metro.activeLineId, 'linha-azul');
 
   // Direct ride Baixa-Chiado -> Oriente MUST be rejected (Red Line is not served at Baixa-Chiado!)
-  const blockedOriente = engine.rideMetro('metro-baixa-chiado', 'metro-oriente-aeroporto');
+  const blockedOriente = engine.rideMetro('metro-baixa-chiado', 'metro-oriente');
   assert.equal(blockedOriente.ok, false);
   assert.equal(blockedOriente.transferRequired, true);
   assert.equal(blockedOriente.transferStationId, 'metro-alameda');
@@ -1895,13 +1906,13 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   assert.equal(state.metro.activeLineId, 'linha-vermelha');
 
-  const rideRes = engine.rideMetro('metro-alameda', 'metro-oriente-aeroporto');
+  const rideRes = engine.rideMetro('metro-alameda', 'metro-oriente');
   assert.equal(rideRes.ok, true);
   assert.equal(rideRes.fareEur, 0);
   assert.equal(state.metro.phase, 'riding');
   for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   assert.equal(state.metro.phase, 'platform');
-  assert.equal(state.metro.stationId, 'metro-oriente-aeroporto');
+  assert.equal(state.metro.stationId, 'metro-oriente');
   assert.equal(state.metro.activeLineId, 'linha-vermelha');
 
   // Ascend escalator straight into unified open-world Parque das Nacoes / Gare do Oriente sidewalk!
@@ -1941,15 +1952,28 @@ test('Full 4-Line Metropolitano de Lisboa network (56 stops), multi-line transfe
   assert.equal(shopRes.ok, true);
   assert.ok(state.satchel.some((s) => s.id === 'item-oceanario-lontra-keepsake'));
 
-  // Walk right back into Metro Oriente entrance on the street -> ride to Alameda -> transfer Linha Verde -> ride to Baixa-Chiado
-  const backMetro = engine.openMetroStation('metro-oriente-aeroporto');
+  // Walk right back into Metro Oriente entrance -> ride 3 stops north on Linha Vermelha to true terminus Metro Aeroporto -> ascend to Airport Terminal 1 -> return via Alameda to Baixa-Chiado!
+  const backMetro = engine.openMetroStation('metro-oriente');
   assert.equal(backMetro.ok, true);
   assert.equal(state.mode, 'metro');
-  assert.equal(state.metro.stationId, 'metro-oriente-aeroporto');
+  assert.equal(state.metro.stationId, 'metro-oriente');
   for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   assert.equal(state.metro.phase, 'platform');
 
-  assert.equal(engine.rideMetro('metro-oriente-aeroporto', 'metro-alameda').ok, true);
+  const toAeroporto = engine.rideMetro('metro-oriente', 'metro-aeroporto');
+  assert.equal(toAeroporto.ok, true);
+  for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.metro.stationId, 'metro-aeroporto');
+  assert.equal(state.metro.activeLineId, 'linha-vermelha');
+  engine.exitMetroStation();
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(state.mode, 'overworld');
+  assert.equal(state.currentNeighborhoodId, 'aeroporto-lisboa');
+  assert.ok(state.cameraYaw < 0, 'Exiting Metro Aeroporto should orient camera toward Terminal 1 and live flights');
+
+  assert.equal(engine.openMetroStation('metro-aeroporto').ok, true);
+  for (let i = 0; i < 20; i += 1) engine.tick(0.1, { x: 0, y: 0 });
+  assert.equal(engine.rideMetro('metro-aeroporto', 'metro-alameda').ok, true);
   for (let i = 0; i < 80; i += 1) engine.tick(0.1, { x: 0, y: 0 });
   assert.equal(state.metro.stationId, 'metro-alameda');
   assert.equal(engine.transferMetroLine('linha-verde').ok, true);
@@ -2050,11 +2074,11 @@ test('Elevador de Santa Justa (1902): enterable lift on Rua do Carmo & Rossio, 4
 });
 
 test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking, and 9 factual Carris bus & tram routes', () => {
-  // 1. All 12 Metro stations and all 27 Greater Lisboa landmarks/eateries/shops sit on valid non-lane sidewalks on ONE unified map
-  assert.equal(ALL_LISBOA_NEIGHBORHOODS.length, 12);
-  assert.equal(ALL_METRO_STATIONS.length, 12);
-  assert.equal(CITY_DISTRICT_SPOTS.length, 27);
-  assert.equal(LISBOA_CITY_MAP_NODES.length, 10);
+  // 1. All 50 Metro stations and all 30 Greater Lisboa district landmarks/eateries/shops sit on valid non-lane sidewalks on ONE unified map
+  assert.equal(ALL_LISBOA_NEIGHBORHOODS.length, 13);
+  assert.equal(ALL_METRO_STATIONS.length, 50);
+  assert.equal(CITY_DISTRICT_SPOTS.length, 30);
+  assert.equal(LISBOA_CITY_MAP_NODES.length, 11);
 
   for (const station of ALL_METRO_STATIONS) {
     assert.ok(station.spawnOutside, `Missing spawnOutside on ${station.id}`);
@@ -2067,11 +2091,11 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
     assert.equal(isPointInVehicleLane(spot.spawnOutside.x, spot.spawnOutside.y), false, `${spot.id} spawnOutside must stay off vehicle lanes`);
   }
 
-  // 2. All 9 real Carris surface routes (28E, 15E, 24E trams & 737, 736, 728, 746, 706, 744 buses) and all 41 stops sit off vehicle lanes on walkable sidewalks
+  // 2. All 9 real Carris surface routes (28E, 15E, 24E trams & 737, 736, 728, 746, 706, 744 buses) and all 42 stops sit off vehicle lanes on walkable sidewalks
   const expectedRoutes = ['28E', '737', '15E', '24E', '736', '728', '746', '706', '744'];
   assert.deepEqual(TRANSIT_LINES.map((l) => l.routeNumber), expectedRoutes);
   const allStops = getAllTransitStops();
-  assert.equal(allStops.length, 41);
+  assert.equal(allStops.length, 42);
   for (const stop of allStops) {
     assert.equal(isOverworldPositionValid(stop.platformX, stop.platformY), true, `Stop ${stop.stopId} sidewalk platform must be walkable`);
     assert.equal(isPointInVehicleLane(stop.platformX, stop.platformY), false, `Stop ${stop.stopId} sidewalk platform must stay off vehicle lanes`);
@@ -2149,7 +2173,8 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
     { stopId: 'stop-tram24-rato', expectedNum: '24E', expectedMode: 'tram' },
     { stopId: 'stop-bus746-saoseb', expectedNum: '746', expectedMode: 'bus' },
     { stopId: 'stop-bus706-alameda', expectedNum: '706', expectedMode: 'bus' },
-    { stopId: 'stop-bus744-oriente', expectedNum: '744', expectedMode: 'bus' }
+    { stopId: 'stop-bus744-oriente', expectedNum: '744', expectedMode: 'bus' },
+    { stopId: 'stop-bus744-aeroporto', expectedNum: '744', expectedMode: 'bus' }
   ];
   for (const sample of sampleStops) {
     const stObj = allStops.find((s) => s.stopId === sample.stopId);
@@ -2169,6 +2194,32 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
   assert.equal(getNeighborhoodAt(1094, -1814).id, 'campo-grande-alvalade');
   assert.equal(getNeighborhoodAt(3094, -454).id, 'oriente-parque-nacoes');
   assert.equal(getNeighborhoodAt(1151, 546).id, 'chiado');
+
+  // 8. All non-residential landmarks (including Aeroporto Terminal 1, Estadio da Luz, Torre Vasco da Gama) are enterable; private residences are excluded; energy & fullness drain gently!
+  assert.equal(LISBOA_CORRIDOR_LANDMARKS.length, 23);
+  assert.equal(ENTERABLE_LANDMARK_VENUES.length, 52);
+  assert.equal(ALL_ENTERABLE_VENUES.length, VENUES.length + ENTERABLE_LANDMARK_VENUES.length);
+  assert.ok(ALL_ENTERABLE_VENUES.every((v) => !v.isPrivateResidence), 'Private residential buildings must not be enterable');
+
+  for (const landmarkId of ['aeroporto-terminal1-landmark', 'site-estadio-da-luz', 'site-torre-vasco-da-gama', 'belem-torre-15e', 'site-mosteiro-odivelas']) {
+    const enterRes = engine.enterVenue(landmarkId);
+    assert.equal(enterRes.ok, true, `Should be able to enter landmark ${landmarkId}`);
+    assert.equal(state.mode, 'interior');
+    assert.equal(state.currentVenueId, landmarkId);
+    const exitRes = engine.exitVenue();
+    assert.equal(exitRes.ok, true);
+    assert.equal(state.mode, 'overworld');
+  }
+
+  // Gentle energy & fullness drain: walking 10 seconds across Lisbon does not deplete energy or fullness too soon!
+  const freshEngine = new MemoriesGameEngine();
+  const fsState = freshEngine.getState();
+  freshEngine.setPlayerPosition(892, 220);
+  for (let i = 0; i < 100; i += 1) {
+    freshEngine.tick(0.1, { x: 0, y: -1 });
+  }
+  assert.ok(fsState.energy >= 92, `Energy drained too fast: ${fsState.energy}`);
+  assert.ok(fsState.fullness >= 80, `Fullness drained too fast: ${fsState.fullness}`);
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {

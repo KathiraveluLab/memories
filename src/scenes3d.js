@@ -11,6 +11,7 @@ import {
   getWalkingAvenuesFrom,
   getLisboaZoneShortName,
   VENUES,
+  findEnterableVenueById,
   getMetroLineById,
   getStationLineIds,
   getOutfitById,
@@ -459,7 +460,7 @@ export class LisboaScenes3DRenderer {
   // =========================================================================
   renderInterior3D(ctx, state, nearbyInteraction, animTime = 0) {
     this.lastHitTargets = [];
-    const venue = VENUES.find((v) => v.id === state.currentVenueId);
+    const venue = findEnterableVenueById(state.currentVenueId);
     if (!venue) return;
 
     const theme = venue.interiorTheme || {
@@ -614,6 +615,62 @@ export class LisboaScenes3DRenderer {
               // Cream vintage label on bottle belly
               this.drawPoly3D(ctx, cam, [lerpW(bu + 0.003, sz + 5.5), lerpW(bu + 0.016, sz + 5.5), lerpW(bu + 0.016, sz + 9.5), lerpW(bu + 0.003, sz + 9.5)], '#fef3c7');
             }
+          }
+        } else if (layout === 'airport') {
+          // Aeroporto Humberto Delgado (LIS) Terminal 1: Panoramic Glass Runway Window + Live Takeoff Jet + LED Flight Departures Board!
+          // 1) Wide panoramic airport terminal glass wall overlooking sky & Runway 03/21
+          this.drawPoly3D(ctx, cam, [lerpW(0.06, 40), lerpW(0.56, 40), lerpW(0.56, 118), lerpW(0.06, 118)], '#38bdf8', '#1e293b', 2);
+          this.drawPoly3D(ctx, cam, [lerpW(0.06, 40), lerpW(0.56, 40), lerpW(0.56, 62), lerpW(0.06, 62)], '#475569');
+          // Runway dashes & animated climbing jetliner visible through Terminal 1 glass!
+          const jetU = 0.14 + ((animTime * 0.09) % 0.36);
+          const jetZ = 72 + ((animTime * 0.09) % 0.36) * 58;
+          this.drawPoly3D(ctx, cam, [lerpW(jetU, jetZ), lerpW(jetU + 0.08, jetZ), lerpW(jetU + 0.07, jetZ + 7), lerpW(jetU, jetZ + 7)], '#ffffff', '#334155', 1);
+          this.drawPoly3D(ctx, cam, [lerpW(jetU, jetZ + 6), lerpW(jetU + 0.025, jetZ + 6), lerpW(jetU + 0.01, jetZ + 16), lerpW(jetU - 0.005, jetZ + 16)], '#dc2626');
+          // Glass window steel mullions
+          for (const mu of [0.18, 0.31, 0.44]) {
+            this.drawLine3D(ctx, cam, lerpW(mu, 40), lerpW(mu, 118), '#1e293b', 2.4);
+          }
+          // 2) Illuminated LED PARTIDAS / DEPARTURES Flight Information Board on right wall!
+          this.drawPoly3D(ctx, cam, [lerpW(0.6, 42), lerpW(0.95, 42), lerpW(0.95, 116), lerpW(0.6, 116)], '#0f172a', '#dc2626', 2.2);
+          const boardPt = this.projectWorldPt(cam, a[0] + (b[0] - a[0]) * 0.775, a[1] + 2, 102);
+          if (boardPt && boardPt.cz < 480) {
+            const sc = clamp(this.focal / boardPt.cz, 0.55, 1.3);
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#facc15';
+            ctx.font = `800 ${Math.max(8, Math.round(9 * sc))}px "Segoe UI", sans-serif`;
+            ctx.fillText('PARTIDAS / DEPARTURES (LIS)', boardPt.x, boardPt.y);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = `700 ${Math.max(7, Math.round(7.5 * sc))}px monospace`;
+            const rows = [
+              'TP 1042  MADRID    GATE A12  BOARDING',
+              'TP  432  PARIS     GATE A14  ON TIME ',
+              'TP 1354  LONDON    GATE A16  ON TIME ',
+              'TP  209  NEW YORK  GATE B04  16:40   ',
+              'TP  089  SAO PAULO GATE B08  17:15   '
+            ];
+            rows.forEach((r, idx) => {
+              ctx.fillStyle = idx === 0 ? '#4ade80' : '#f8fafc';
+              ctx.fillText(r, boardPt.x, boardPt.y + (12 + idx * 11) * sc);
+            });
+            ctx.restore();
+          }
+        } else if (layout === 'stadium') {
+          // Estadio da Luz / Estadio Jose Alvalade: Panoramic Glass Concourse overlooking the Football Pitch & Tiered Stands!
+          const clubCol = theme.clubColor || '#dc2626';
+          this.drawPoly3D(ctx, cam, [lerpW(0.08, 38), lerpW(0.92, 38), lerpW(0.92, 118), lerpW(0.08, 118)], '#38bdf8', '#1e293b', 2);
+          // Tiered stadium seating bowl
+          this.drawPoly3D(ctx, cam, [lerpW(0.08, 66), lerpW(0.92, 66), lerpW(0.92, 92), lerpW(0.08, 92)], clubCol, '#ffffff', 1.2);
+          // Lush green football pitch with white touchline & center circle
+          this.drawPoly3D(ctx, cam, [lerpW(0.08, 38), lerpW(0.92, 38), lerpW(0.92, 66), lerpW(0.08, 66)], '#16a34a', '#ffffff', 1.4);
+          this.drawLine3D(ctx, cam, lerpW(0.5, 38), lerpW(0.5, 66), '#ffffff', 2.2);
+          this.drawLine3D(ctx, cam, lerpW(0.12, 52), lerpW(0.88, 52), 'rgba(255,255,255,0.6)', 1.5);
+        } else if (layout === 'tower') {
+          // Torre Vasco da Gama / Torre de Belem / Obelisco Panoramic Observation Gallery overlooking Tagus & Sky
+          this.drawPoly3D(ctx, cam, [lerpW(0.08, 42), lerpW(0.92, 42), lerpW(0.92, 116), lerpW(0.08, 116)], '#38bdf8', '#334155', 2);
+          this.drawPoly3D(ctx, cam, [lerpW(0.08, 42), lerpW(0.92, 42), lerpW(0.92, 74), lerpW(0.08, 74)], '#1a6494');
+          for (const mu of [0.28, 0.5, 0.72]) {
+            this.drawLine3D(ctx, cam, lerpW(mu, 42), lerpW(mu, 116), '#475569', 2.2);
           }
         } else {
           // Framed Lisbon azulejo panels, mirrors, or boutique shelves on back wall

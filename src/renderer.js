@@ -22,9 +22,11 @@ import {
   ALL_METRO_STATIONS,
   LISBOA_CITY_DISTRICTS,
   CITY_DISTRICT_SPOTS,
+  LISBOA_CORRIDOR_LANDMARKS,
   OVERWORLD_CITY_GATEWAYS,
   getWalkingAvenuesFrom,
   VENUES,
+  findEnterableVenueById,
   REST_SPOTS,
   RIVERSIDE_BENCHES,
   CASTANHA_VENDORS,
@@ -441,7 +443,10 @@ export class LisboaCanvasRenderer {
     ctx.fillRect(-1080, -1440, 1400, 680); // Gulbenkian & Sete Rios Zoo
     ctx.fillRect(320, -2000, 2100, 560); // Campo Grande & Cidade Universitaria
     ctx.fillStyle = '#e3eaf0';
-    ctx.fillRect(2820, -1440, 1180, WATERFRONT_Y + 1440); // Modern Parque das Nacoes & Oriente
+    ctx.fillRect(2820, -1440, 1400, WATERFRONT_Y + 1440); // Modern Parque das Nacoes & Oriente
+    // Eastern Tagus Estuary shoreline east of Parque das Nacoes (Mar da Palha)
+    ctx.fillStyle = '#1e5b82';
+    ctx.fillRect(4220, -1520, WORLD_MAX_X - 4220 + 600, WATERFRONT_Y + 1520);
     for (const hood of NEIGHBORHOODS) {
       ctx.fillStyle = hood.groundTint;
       ctx.fillRect(hood.minX, 0, hood.maxX - hood.minX, WATERFRONT_Y);
@@ -468,6 +473,51 @@ export class LisboaCanvasRenderer {
     // 2. Streets, plazas, Alfama escadinhas, crosswalks, and calcada Mar Largo waves
     this.drawStreetsAndPlazas(ctx);
     this.drawCrosswalks(ctx);
+
+    // 2B. Aeroporto Humberto Delgado (LIS) Runway 03/21 & Apron North of Terminal 1 (rendered cleanly above calcada layer!)
+    ctx.save();
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(2880, -2340, 1380, 335);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(2880, -2340, 1380, 335);
+    ctx.fillStyle = '#f8fafc';
+    for (let rx = 2950; rx <= 4160; rx += 84) {
+      ctx.fillRect(rx, -2179, 48, 8);
+    }
+    for (const ty of [-2255, -2225, -2195, -2155, -2125, -2095]) {
+      ctx.fillRect(2904, ty, 38, 10);
+      ctx.fillRect(4198, ty, 38, 10);
+    }
+    ctx.font = '800 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.9)';
+    ctx.textAlign = 'center';
+    ctx.fillText('03', 2980, -2168);
+    ctx.fillText('21', 4156, -2168);
+    ctx.font = '700 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText('AEROPORTO HUMBERTO DELGADO (LIS) - RUNWAY 03 / 21', 3570, -2295);
+    const depX = 2980 + ((this.animTime * 170) % 1180);
+    for (const [ax, ay, tailCol] of [[3260, -2055, '#dc2626'], [3780, -2055, '#1d4ed8'], [depX, -2175, '#dc2626']]) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.ellipse(ax, ay, 34, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.moveTo(ax + 6, ay);
+      ctx.lineTo(ax - 12, ay - 26);
+      ctx.lineTo(ax - 18, ay - 26);
+      ctx.lineTo(ax - 6, ay);
+      ctx.lineTo(ax - 18, ay + 26);
+      ctx.lineTo(ax - 12, ay + 26);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = tailCol;
+      ctx.fillRect(ax - 34, ay - 9, 10, 18);
+    }
+    ctx.textAlign = 'left';
+    ctx.restore();
 
     // 3. Tagus River Waterfront, Cais do Sodre Transtejo Ferry Terminal & Elevador de Santa Justa (1902)
     this.drawTagusWaterfront(ctx, state, nearbyInteraction);
@@ -498,8 +548,8 @@ export class LisboaCanvasRenderer {
       this.drawMetroStation(ctx, station, isHighlighted, isEvening);
     }
 
-    // 8B. Greater Lisboa Open-World Landmarks, Eateries & Cultural Shops (27 locations across 9 districts!)
-    for (const spot of CITY_DISTRICT_SPOTS) {
+    // 8B. Greater Lisboa Open-World Landmarks, Eateries, Cultural Shops & Metro Corridor Iconic Sites!
+    for (const spot of [...CITY_DISTRICT_SPOTS, ...LISBOA_CORRIDOR_LANDMARKS]) {
       const isHi =
         (nearbyInteraction?.type === 'city-district-spot' && nearbyInteraction.spotId === spot.id) ||
         state.activeCityDistrictSpotId === spot.id;
@@ -808,7 +858,7 @@ export class LisboaCanvasRenderer {
     ctx.fillStyle = shelfGrad;
     ctx.fillRect(WORLD_MIN_X, WATERFRONT_Y, fullW, 26);
 
-    // Shimmering Ponte 25 de Abril red suspension tower reflection on the western Tagus waters
+    // Shimmering Ponte 25 de Abril (1966) red suspension tower reflection on the western/central Tagus waters
     ctx.save();
     ctx.strokeStyle = 'rgba(210, 45, 58, 0.18)';
     ctx.lineWidth = 2;
@@ -821,6 +871,34 @@ export class LisboaCanvasRenderer {
         ctx.stroke();
       }
     }
+    // Iconic White 12.3 km Cable-Stayed Ponte Vasco da Gama (1998) extending across the Eastern Tagus Estuary from Parque das Nacoes!
+    ctx.strokeStyle = 'rgba(248, 250, 252, 0.92)';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(3320, WATERFRONT_Y + 18);
+    ctx.quadraticCurveTo(3780, WATERFRONT_Y + 72, WORLD_MAX_X + 200, WATERFRONT_Y + 135);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(203, 213, 225, 0.72)';
+    ctx.lineWidth = 1.6;
+    for (const [px, py] of [[3640, WATERFRONT_Y + 56], [3920, WATERFRONT_Y + 86]]) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(px - 6, py - 24, 4, 34);
+      ctx.fillRect(px + 2, py - 24, 4, 34);
+      ctx.fillRect(px - 6, py - 18, 12, 3);
+      for (let k = 1; k <= 4; k += 1) {
+        ctx.beginPath();
+        ctx.moveTo(px, py - 20 + k * 2.5);
+        ctx.lineTo(px - k * 14, py + 4);
+        ctx.moveTo(px, py - 20 + k * 2.5);
+        ctx.lineTo(px + k * 14, py + 8);
+        ctx.stroke();
+      }
+    }
+    ctx.font = '700 10px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(240, 249, 255, 0.9)';
+    ctx.textAlign = 'center';
+    ctx.fillText('PONTE VASCO DA GAMA (1998) - MAR DA PALHA', 3780, WATERFRONT_Y + 114);
+    ctx.textAlign = 'left';
     ctx.restore();
 
     ctx.strokeStyle = 'rgba(218, 240, 255, 0.32)';
@@ -3935,7 +4013,7 @@ export class LisboaCanvasRenderer {
         let rx = rp.x;
         let ry = rp.y;
         if (rp.mode === 'interior' && rp.currentVenueId) {
-          const v = VENUES.find((item) => item.id === rp.currentVenueId);
+          const v = findEnterableVenueById(rp.currentVenueId);
           if (v) {
             rx = v.doorX;
             ry = v.doorY;
@@ -4005,7 +4083,7 @@ export class LisboaCanvasRenderer {
   }
 
   renderInterior(ctx, state, nearbyInteraction) {
-    const venue = VENUES.find((v) => v.id === state.currentVenueId);
+    const venue = findEnterableVenueById(state.currentVenueId);
     if (!venue) return;
 
     const theme = venue.interiorTheme;
@@ -4089,6 +4167,56 @@ export class LisboaCanvasRenderer {
         ctx.fillStyle = fx % 2 === 0 ? '#1b4d89' : '#b84a32';
         ctx.fillRect(fx + 6, 40, 38, 46);
       }
+    } else if (theme.layout === 'airport') {
+      // Aeroporto Humberto Delgado Terminal 1 panoramic runway glass + illuminated PARTIDAS / DEPARTURES board
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(24, 16, 360, 114);
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(24, 92, 360, 38);
+      ctx.fillStyle = '#f8fafc';
+      for (let rx = 44; rx < 360; rx += 46) ctx.fillRect(rx, 108, 24, 4);
+      // Departing jetliner visible through terminal glass
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(210, 62, 24, 5, -0.18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(184, 53, 8, 12);
+      // LED Flight Departures Board
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(408, 16, 326, 114);
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(408, 16, 326, 114);
+      ctx.fillStyle = '#facc15';
+      ctx.font = '800 11px "Segoe UI", sans-serif';
+      ctx.fillText('PARTIDAS / DEPARTURES (LIS)', 424, 36);
+      ctx.font = '700 9.5px monospace';
+      const rows = [
+        'TP 1042  MADRID    GATE A12  BOARDING',
+        'TP  432  PARIS     GATE A14  ON TIME',
+        'TP 1354  LONDON    GATE A16  ON TIME',
+        'TP  209  NEW YORK  GATE B04  16:40'
+      ];
+      rows.forEach((r, idx) => {
+        ctx.fillStyle = idx === 0 ? '#4ade80' : '#f8fafc';
+        ctx.fillText(r, 424, 56 + idx * 17);
+      });
+    } else if (theme.layout === 'stadium') {
+      // Panoramic Stadium Concourse overlooking the Football Pitch & Tiered Stands
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(24, 16, INTERIOR_WIDTH - 48, 114);
+      ctx.fillStyle = theme.clubColor || '#dc2626';
+      ctx.fillRect(24, 48, INTERIOR_WIDTH - 48, 36);
+      ctx.fillStyle = '#16a34a';
+      ctx.fillRect(24, 84, INTERIOR_WIDTH - 48, 46);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(36, 90, INTERIOR_WIDTH - 72, 34);
+      ctx.beginPath();
+      ctx.moveTo(INTERIOR_WIDTH * 0.5, 90);
+      ctx.lineTo(INTERIOR_WIDTH * 0.5, 124);
+      ctx.stroke();
     } else if (theme.layout === 'pensao') {
       // Warm residential parlor wallpaper + wooden hotel room-key pigeonhole board
       this.drawAzulejoWall(ctx, 8, 86, INTERIOR_WIDTH - 16, 48, 'cobalt-azulejo');

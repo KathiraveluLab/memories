@@ -25,6 +25,7 @@ import {
   getStationLineIds,
   getDirectStationsOnLine,
   VENUES,
+  findEnterableVenueById,
   REST_SPOTS,
   RIVERSIDE_BENCHES,
   CASTANHA_VENDORS,
@@ -2484,7 +2485,7 @@ function ensureAudioUnlocked() {
 
 function describeTravelerLocation(traveler) {
   if (traveler.mode === 'interior' && traveler.currentVenueId) {
-    const venue = VENUES.find((v) => v.id === traveler.currentVenueId);
+    const venue = findEnterableVenueById(traveler.currentVenueId);
     return venue ? `Inside ${venue.name}` : 'Inside a venue';
   }
   if (traveler.mode === 'santa-justa') {
@@ -3496,7 +3497,7 @@ if (dom.lanPlayersList) {
         engine.setWalkTarget(peer.x, peer.y, null);
         return;
       }
-      const venue = VENUES.find((v) => v.id === peer.currentVenueId);
+      const venue = findEnterableVenueById(peer.currentVenueId);
       if (venue) {
         const path = buildOverworldPath(
           engine.getState().player.x,

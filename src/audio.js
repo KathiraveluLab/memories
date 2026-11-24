@@ -1,4 +1,4 @@
-import { VENUES, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, LISBOA_CITY_DISTRICTS, REST_SPOTS, TRANSIT_LINES, getMonthInfo, isBairroAltoPartyTime } from './data.js';
+import { VENUES, findEnterableVenueById, WATERFRONT_Y, FADO_TRACKS, FERRY_TERMINAL, FERRY_DESTINATIONS, LISBOA_CITY_DISTRICTS, REST_SPOTS, TRANSIT_LINES, getMonthInfo, isBairroAltoPartyTime } from './data.js';
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -36,7 +36,7 @@ export function computeSoundscapeProfile(state) {
   const indoorRain = Math.round(outdoorRain * 0.22 * 100) / 100;
 
   if (state.mode === 'interior' && state.currentVenueId) {
-    const venue = VENUES.find((v) => v.id === state.currentVenueId);
+    const venue = findEnterableVenueById(state.currentVenueId);
     if (!venue) return { ...EMPTY_PROFILE, rainLevel: indoorRain, activeLabel: 'Indoors' };
 
     if (venue.id === 'tasca-do-fado') {
