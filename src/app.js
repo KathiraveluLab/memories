@@ -64,12 +64,60 @@ import {
   escapeHtml,
   buildOverworldPath
 } from './app/pathfinding.js';
+import { LisboaOsmMapWidget } from './app/osmMap.js';
 export { buildOverworldPath };
 
 const engine = new MemoriesGameEngine();
 const canvas = document.getElementById('lisboa-canvas');
 const renderer = new LisboaCanvasRenderer(canvas);
 const soundEngine = new LisboaSoundEngine();
+const osmMapWidget = new LisboaOsmMapWidget({
+  onSelectPlace: (pin) => {
+    const st = engine.getState();
+    if (st.ridingVehicleId || st.ridingFunicularId) {
+      setStatusBanner('Step off transit before navigating via the Lisboa map.', true);
+      return;
+    }
+    if (st.mode === 'interior') engine.exitVenue();
+    else if (st.mode === 'santa-justa') engine.descendSantaJusta({ immediate: true });
+    else if (st.mode === 'metro' && st.metro.phase !== 'riding' && st.metro.phase !== 'transferring') {
+      engine.exitMetroStation({ immediate: true });
+    }
+    const cur = engine.getState();
+    if (pin.type === 'metro' && pin.station && pin.station.spawnOutside) {
+      const path = buildOverworldPath(
+        cur.player.x,
+        cur.player.y,
+        pin.station.spawnOutside.x,
+        pin.station.spawnOutside.y,
+        { type: 'openMetro', id: pin.station.id }
+      );
+      engine.setWalkPath(path);
+      setStatusBanner(`Routing via Lisboa streets to ${pin.station.name}...`);
+    } else if (pin.type === 'santa-justa') {
+      const path = buildOverworldPath(
+        cur.player.x,
+        cur.player.y,
+        SANTA_JUSTA_LIFT.spawnOutside.x,
+        SANTA_JUSTA_LIFT.spawnOutside.y,
+        { type: 'openSantaJusta' }
+      );
+      engine.setWalkPath(path);
+      setStatusBanner('Routing via Lisboa streets to Elevador de Santa Justa (1902)...');
+    } else if (pin.venue && pin.venue.spawnOutside) {
+      const path = buildOverworldPath(
+        cur.player.x,
+        cur.player.y,
+        pin.venue.spawnOutside.x,
+        pin.venue.spawnOutside.y,
+        { type: 'enterVenue', id: pin.venue.id }
+      );
+      engine.setWalkPath(path);
+      setStatusBanner(`Routing via Lisboa streets to ${pin.venue.name}...`);
+    }
+    refreshUi(true);
+  }
+});
 let prevAudioMode = 'overworld';
 let prevAudioVenueId = null;
 let prevAudioRidingId = null;
@@ -1737,20 +1785,13 @@ function renderLists(state) {
   guideParts.push(`
     <div class="city-map-card">
       <div class="city-map-header">
-        <span class="city-map-title">Cidade de Lisboa - Unified Open-World Map</span>
+        <span class="city-map-title">Cidade de Lisboa - Live OpenStreetMap</span>
         <span class="badge-muted">${visitedDistrictSet.size} / ${LISBOA_CITY_MAP_NODES.length} Zones</span>
       </div>
-      <svg class="city-map-svg" viewBox="0 0 320 186" aria-label="Interactive Full-City Lisboa Walking Map">
-        <rect x="0" y="156" width="320" height="30" fill="#bae6fd" opacity="0.62" />
-        <text x="312" y="176" text-anchor="end" font-size="7" font-weight="700" fill="#0369a1" letter-spacing="0.06em">RIO TEJO (TAGUS ESTUARY)</text>
-        ${mapEdgeLines.join('')}
-        ${mapNodesSvg}
-      </svg>
+      <div id="lisboa-osm-map-mount" aria-label="Interactive OpenStreetMap of Lisboa"></div>
       <div class="city-map-legend">
         <span><strong>Here:</strong> ${escapeHtml(getLisboaZoneShortName(curZone))}</span>
-        ${curZone !== 'overworld'
-      ? `<button type="button" class="btn btn-sm" data-walk-city-district="overworld" ${state.ridingVehicleId ? 'disabled' : ''}>Walk to Historic Core</button>`
-      : '<span>Click any district to walk continuously along Lisboa streets</span>'}
+        <span>Zoom (+/- or scroll), drag to pan, click any station or landmark pin</span>
       </div>
     </div>
   `);
@@ -1906,6 +1947,7 @@ function renderLists(state) {
     }
   }
   dom.guideList.innerHTML = guideParts.join('');
+  osmMapWidget.mount(document.getElementById('lisboa-osm-map-mount'), state);
 
   const capturedMap = new Map(state.memories.map((m) => [m.id, m]));
   dom.memoriesList.innerHTML = ALL_MEMORIES.map((mem) => {
