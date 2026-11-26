@@ -1,10 +1,21 @@
-# memories: Ground-Level Lisboa Exploration
+# memories: Cidade de Lisboa (Full-City Walking & Public Transit RPG)
 
-**memories** is a ground-level 2D RPG canvas exploration game set across three historic neighborhoods of Lisboa: **Bairro Alto**, **Chiado**, and **Alfama**. Walk the cobblestone sidewalks on foot, board live-moving **Carris Eletrico 28E** streetcars, **Carris Bus 737 / 758** coaches, and real **Metropolitano de Lisboa** underground stations, step inside every building across the map (all 15 local shops, cafes, bakeries, galleries, restaurants, and **Se de Lisboa**), taste regional food, collect keepsakes, learn European Portuguese phrases, and fill your 23-entry **Lisboa Memory Album**.
+**memories: Cidade de Lisboa** is a zero-dependency HTML5 Canvas 3D and 2.5D RPG spanning the entire city of Lisbon, Portugal on one continuous walkable street grid (zero teleportation portals). Explore all **50 official Metropolitano de Lisboa stations** across four lines with factual single-line boarding and underground transfers, **9 Carris bus and tram routes** (42 stops), **3 historic funiculars**, **Elevador de Santa Justa (1902)**, **Transtejo Tagus ferries**, **116 enterable non-residential buildings and landmarks**, factual Seven-Hills elevation with walkable stone staircases and miradouro compass signposts, and a **live interactive OpenStreetMap** navigator with obstacle-aware Dijkstra sidewalk routing.
 
-## Screenshot
+## Screenshots
 
-![memories Lisboa Application Screenshot](./assets/screenshot.png)
+### Live 3D Street View & Interactive OpenStreetMap Navigator
+![Live 3D Street View in Chiado and Interactive OpenStreetMap of Lisboa](./docs/screenshots/lisboa_live_osm_ui.png)
+
+### Distinct Tagus Estuary Horizons: Ponte Vasco da Gama (Oriente) vs. Ponte 25 de Abril (Western Lisbon)
+| Parque das Nacoes / Oriente (Ponte Vasco da Gama) | Western & Central Waterfront (Ponte 25 de Abril & Cristo Rei) |
+| :---: | :---: |
+| ![Oriente Ponte Vasco da Gama 3D](./docs/screenshots/oriente_vasco_da_gama_3d.png) | ![Belem Ponte 25 de Abril 3D](./docs/screenshots/belem_25_de_abril_3d.png) |
+
+### Enterable Landmarks, Suburban Metro Corridors & Expo 98 Waterfront
+| Aeroporto Humberto Delgado Terminal 1 Interior | Avenida de Roma to Areeiro Boulevard | Parque das Nacoes (Pavilhao de Portugal & Oceanario) |
+| :---: | :---: | :---: |
+| ![Aeroporto Terminal 1 Interior 3D](./docs/screenshots/aeroporto_terminal1_interior_3d.png) | ![Avenida de Roma to Areeiro 3D](./docs/screenshots/roma_areeiro_boulevard_3d.png) | ![Parque das Nacoes Expo 98 3D](./docs/screenshots/parque_nacoes_expo98_3d.png) |
 
 ## Features
 
