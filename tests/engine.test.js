@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildOverworldPath } from '../src/app/pathfinding.js';
 
 import {
   NEIGHBORHOODS,
@@ -2239,6 +2240,25 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
   assert.ok(vpRes.signposts.length >= 4 && vpRes.signposts.some((s) => s.label.includes('Fonte Luminosa')));
   for (const vp of MIRADOURO_VIEWPOINTS) {
     assert.ok(Array.isArray(vp.compassSignposts) && vp.compassSignposts.length >= 4, `${vp.id} must define directional compass signposts`);
+  }
+
+  // Obstacle-aware Dijkstra auto-navigation: walking from Chiado (950, 544) to EVERY ONE of the 50 Metro stations (including Telheiras!) has ZERO blocked segments!
+  for (const st of ALL_METRO_STATIONS) {
+    const wps = buildOverworldPath(950, 544, st.spawnOutside.x, st.spawnOutside.y);
+    assert.ok(wps.length >= 1, `Expected valid route to ${st.canonicalStopName}`);
+    let px = 950;
+    let py = 544;
+    for (const wp of wps) {
+      const segDist = Math.hypot(wp.x - px, wp.y - py);
+      const steps = Math.max(2, Math.ceil(segDist / 14));
+      for (let i = 1; i <= steps; i += 1) {
+        const sx = px + (wp.x - px) * (i / steps);
+        const sy = py + (wp.y - py) * (i / steps);
+        assert.equal(isOverworldPositionValid(sx, sy, 13), true, `Blocked auto-navigation segment on route to ${st.canonicalStopName} at (${Math.round(sx)}, ${Math.round(sy)})`);
+      }
+      px = wp.x;
+      py = wp.y;
+    }
   }
 
   // 5X longer energy & fullness duration: walking 10 seconds across Lisbon barely nudges stamina!
