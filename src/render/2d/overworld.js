@@ -112,13 +112,20 @@ class _Mixin {
     this.drawStreetsAndPlazas(ctx);
     this.drawCrosswalks(ctx);
 
-    // 2B. Aeroporto Humberto Delgado (LIS) Runway 03/21 & Apron North of Terminal 1 (rendered cleanly above calcada layer!)
+    // 2B. Aeroporto Humberto Delgado (LIS) Runway 03/21 & Security Perimeter Fence (rendered cleanly above calcada layer!)
     ctx.save();
     ctx.fillStyle = '#334155';
     ctx.fillRect(2880, -2340, 1380, 335);
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([12, 6]);
     ctx.strokeRect(2880, -2340, 1380, 335);
+    ctx.setLineDash([]);
+    // Security fence posts along southern perimeter preventing pedestrians from entering active runway
+    ctx.fillStyle = '#e2e8f0';
+    for (let fx = 2880; fx <= 4260; fx += 45) {
+      ctx.fillRect(fx - 2, -2007, 4, 7);
+    }
     ctx.fillStyle = '#f8fafc';
     for (let rx = 2950; rx <= 4160; rx += 84) {
       ctx.fillRect(rx, -2179, 48, 8);

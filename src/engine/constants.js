@@ -116,7 +116,9 @@ export const SOLID_OVERWORLD_RECTS = [
   ...CITY_DISTRICT_SPOTS.map((s) => ({ x: s.worldX, y: s.worldY, w: s.w, h: s.h, id: s.id })),
   ...LISBOA_CORRIDOR_LANDMARKS.map((s) => ({ x: s.worldX, y: s.worldY, w: s.w, h: s.h, id: s.id })),
   { x: FERRY_TERMINAL.x, y: FERRY_TERMINAL.y, w: FERRY_TERMINAL.w, h: FERRY_TERMINAL.h, id: FERRY_TERMINAL.id },
-  { x: SANTA_JUSTA_LIFT.x, y: SANTA_JUSTA_LIFT.y, w: SANTA_JUSTA_LIFT.w, h: SANTA_JUSTA_LIFT.h, id: SANTA_JUSTA_LIFT.id }
+  { x: SANTA_JUSTA_LIFT.x, y: SANTA_JUSTA_LIFT.y, w: SANTA_JUSTA_LIFT.w, h: SANTA_JUSTA_LIFT.h, id: SANTA_JUSTA_LIFT.id },
+  // Aeroporto Humberto Delgado (LIS) Fenced Airside Runway 03/21 Perimeter (prevents walking onto active runway!)
+  { x: 2880, y: -2345, w: 1380, h: 345, id: 'aeroporto-runway-fence' }
 ];
 
 export const FERRY_PIER_ZONES = {

@@ -822,7 +822,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   state.euros = 50;
   state.energy = 0.001;
   state.fullness = 40;
-  engine.tick(0.2, { x: 1, y: 0 });
+  for (let k = 0; k < 3; k += 1) engine.tick(0.2, { x: 1, y: 0 });
   assert.equal(state.energy, 0);
   assert.equal(state.gameOver, true);
   assert.equal(state.gameOverReason, 'energy');
@@ -834,7 +834,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   state.gameOverSummary = null;
   state.energy = 60;
   state.fullness = 0.001;
-  engine.tick(0.2, { x: -1, y: 0 });
+  for (let k = 0; k < 3; k += 1) engine.tick(0.2, { x: -1, y: 0 });
   assert.equal(state.fullness, 0);
   assert.equal(state.gameOver, true);
   assert.equal(state.gameOverReason, 'fullness');
@@ -846,7 +846,7 @@ test('AC-05 & AC-06: non-teleporting Metro descent, underground ride, ascent, ge
   state.gameOverSummary = null;
   state.energy = 0.001;
   state.fullness = 0.001;
-  engine.tick(0.2, { x: 1, y: 0 });
+  for (let k = 0; k < 3; k += 1) engine.tick(0.2, { x: 1, y: 0 });
   assert.equal(state.energy, 0);
   assert.equal(state.fullness, 0);
   assert.equal(state.gameOver, true);
@@ -2195,13 +2195,13 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
   assert.equal(getNeighborhoodAt(3094, -454).id, 'oriente-parque-nacoes');
   assert.equal(getNeighborhoodAt(1151, 546).id, 'chiado');
 
-  // 8. All non-residential landmarks (including Aeroporto Terminal 1, Estadio da Luz, Torre Vasco da Gama) are enterable; private residences are excluded; energy & fullness drain gently!
-  assert.equal(LISBOA_CORRIDOR_LANDMARKS.length, 23);
-  assert.equal(ENTERABLE_LANDMARK_VENUES.length, 52);
+  // 8. All non-residential landmarks (including Aeroporto Terminal 1, Estadio da Luz, Torre Vasco da Gama, Centro Comercial Vasco da Gama, Colombo, IST Alameda & Hard Rock Cafe Restauradores) are enterable; private residences are excluded; energy & fullness drain gently!
+  assert.equal(LISBOA_CORRIDOR_LANDMARKS.length, 71);
+  assert.equal(ENTERABLE_LANDMARK_VENUES.length, 100);
   assert.equal(ALL_ENTERABLE_VENUES.length, VENUES.length + ENTERABLE_LANDMARK_VENUES.length);
   assert.ok(ALL_ENTERABLE_VENUES.every((v) => !v.isPrivateResidence), 'Private residential buildings must not be enterable');
 
-  for (const landmarkId of ['aeroporto-terminal1-landmark', 'site-estadio-da-luz', 'site-torre-vasco-da-gama', 'belem-torre-15e', 'site-mosteiro-odivelas']) {
+  for (const landmarkId of ['aeroporto-terminal1-landmark', 'site-estadio-da-luz', 'site-torre-vasco-da-gama', 'site-cc-vasco-da-gama', 'site-centro-colombo-benfica', 'site-ist-alameda', 'site-hard-rock-restauradores', 'site-pastelaria-mexicana', 'site-livraria-barata-roma', 'site-oceanario-de-lisboa', 'site-pavilhao-de-portugal', 'belem-torre-15e', 'site-mosteiro-odivelas']) {
     const enterRes = engine.enterVenue(landmarkId);
     assert.equal(enterRes.ok, true, `Should be able to enter landmark ${landmarkId}`);
     assert.equal(state.mode, 'interior');
@@ -2211,15 +2211,18 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
     assert.equal(state.mode, 'overworld');
   }
 
-  // Gentle energy & fullness drain: walking 10 seconds across Lisbon does not deplete energy or fullness too soon!
+  // Aeroporto Humberto Delgado Runway 03/21 is fenced off so pedestrians cannot walk onto active runways!
+  assert.equal(isOverworldPositionValid(3550, -2175), false, 'Active Airport Runway 03/21 must be fenced off from pedestrians');
+
+  // 5X longer energy & fullness duration: walking 10 seconds across Lisbon barely nudges stamina!
   const freshEngine = new MemoriesGameEngine();
   const fsState = freshEngine.getState();
   freshEngine.setPlayerPosition(892, 220);
   for (let i = 0; i < 100; i += 1) {
     freshEngine.tick(0.1, { x: 0, y: -1 });
   }
-  assert.ok(fsState.energy >= 92, `Energy drained too fast: ${fsState.energy}`);
-  assert.ok(fsState.fullness >= 80, `Fullness drained too fast: ${fsState.fullness}`);
+  assert.ok(fsState.energy >= 98, `Energy drained too fast: ${fsState.energy}`);
+  assert.ok(fsState.fullness >= 84, `Fullness drained too fast: ${fsState.fullness}`);
 });
 
 test('compliance check: no emojis, no license mentions, and no prohibited internal naming', () => {

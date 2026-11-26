@@ -979,8 +979,8 @@ class _Mixin {
         const climbSlope = Math.max(0, (nextElev - prevElev) / Math.max(1, movedDist));
         const slopeEffort = 1 + climbSlope * 0.45;
         const wasCritLow = this.state.needsMealToRecoverSpeed;
-        this.state.energy = clamp(this.state.energy - (movedDist / 100) * 0.22 * slopeEffort, 0, 100);
-        this.state.fullness = clamp(this.state.fullness - (movedDist / 100) * 0.15, 0, 100);
+        this.state.energy = clamp(this.state.energy - (movedDist / 100) * 0.044 * slopeEffort, 0, 100);
+        this.state.fullness = clamp(this.state.fullness - (movedDist / 100) * 0.03, 0, 100);
         this.computeWalkSpeedMultiplier();
         if (this.checkGameOver()) {
           return;

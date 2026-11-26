@@ -1563,10 +1563,22 @@ class _Mixin {
         // Bronze sculpture of Marques de Pombal and lion crowning the column
         drawRectBox(cx - 12, cy - 12, cx + 12, cy + 12, gz + 126, gz + 148, '#365314', '#1a2e05', '#4d7c0f', '#14532d');
       } else if (style === 'campo-pequeno') {
-        // 1892 Neo-Moorish Red-Brick Campo Pequeno Rotunda & twin towers
-        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz, gz + 94, '#b44123', '#8c2d17', '#7c2d12', highlighted ? '#facc15' : '#451a03');
-        drawRectBox(x0 + 18, y1 - 34, x0 + 48, y1 - 4, gz + 94, gz + 124, '#c2410c', '#9a3412', '#fde047', '#451a03');
-        drawRectBox(x1 - 48, y1 - 34, x1 - 18, y1 - 4, gz + 94, gz + 124, '#c2410c', '#9a3412', '#fde047', '#451a03');
+        // Elaborate 1892 Neo-Moorish Red-Brick Campo Pequeno Rotunda Complex: central arena, 4 golden-domed minaret towers, horseshoe arcades & plaza terrace
+        drawRectBox(x0 - 4, y0 + 6, x1 + 4, y1 + 4, gz, gz + 18, '#dfd6c5', '#c7beae', '#e8e0d2', '#78716c');
+        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz + 18, gz + 96, '#b44123', '#8c2d17', '#7c2d12', highlighted ? '#facc15' : '#451a03');
+        // Central domed copper arena lantern
+        drawRectBox(cx - 28, cy - 24, cx + 28, cy + 24, gz + 96, gz + 122, '#9a3412', '#7c2d12', '#d97706', '#451a03');
+        // Four signature corner Moorish minaret towers with golden onion domes
+        for (const [tx, ty] of [[x0 + 10, y0 + 14], [x1 - 36, y0 + 14], [x0 + 10, y1 - 36], [x1 - 36, y1 - 36]]) {
+          drawRectBox(tx, ty, tx + 26, ty + 26, gz + 96, gz + 132, '#c2410c', '#9a3412', '#facc15', '#451a03');
+          drawRectBox(tx + 5, ty + 5, tx + 21, ty + 21, gz + 132, gz + 146, '#facc15', '#ca8a04', '#fef08a', '#78350f');
+        }
+        // Horseshoe arched colonnade windows across the front facade
+        if (cam.camY > y1) {
+          for (const ox of [-58, -28, 0, 28, 58]) {
+            this.drawPoly3D(ctx, cam, [[cx + ox - 9, y1 + 0.6, gz + 26], [cx + ox + 9, y1 + 0.6, gz + 26], [cx + ox + 9, y1 + 0.6, gz + 64], [cx + ox - 9, y1 + 0.6, gz + 64]], isEvening ? '#fde68a' : '#291711', '#facc15', 1.2);
+          }
+        }
       } else if (style === 'alameda-fountain') {
         // 1948 Monumental Fonte Luminosa limestone colonnade & sparkling water jets
         drawRectBox(x0 + 4, y0 + 8, x1 - 4, y0 + 62, gz, gz + 96, '#f1f5f9', '#cbd5e1', '#94a3b8', highlighted ? '#facc15' : '#475569');
@@ -1586,16 +1598,55 @@ class _Mixin {
         }
         this.drawPoly3D(ctx, cam, [[x0 + 8, y1 - 36, gz + 124], [x1 - 8, y1 - 36, gz + 124], [x1 - 8, y1 - 10, gz + 128], [x0 + 8, y1 - 10, gz + 128]], 'rgba(224, 242, 254, 0.72)', '#0284c7', 1.8);
       } else if (style === 'aeroporto-terminal') {
-        // Aeroporto Humberto Delgado (LIS) Terminal 1 modern glass hall, crimson aviation canopy & ATC tower
-        drawRectBox(x0 + 4, y0 + 14, x1 - 4, y1, gz, gz + 76, '#f1f5f9', '#cbd5e1', '#94a3b8', highlighted ? '#facc15' : '#334155');
-        drawRectBox(x0, y0 + 8, x1, y1 + 4, gz + 76, gz + 86, '#dc2626', '#991b1b', '#b91c1c', '#7f1d1d');
-        // Air-Traffic Control Tower rising behind Terminal 1
-        drawRectBox(cx - 14, y0 + 14, cx + 14, y0 + 42, gz + 86, gz + 136, '#e2e8f0', '#cbd5e1', '#f8fafc', '#475569');
-        drawRectBox(cx - 22, y0 + 10, cx + 22, y0 + 46, gz + 136, gz + 154, '#0ea5e9', '#0369a1', '#f8fafc', '#0f172a');
+        // Elaborate Multi-Building Aeroporto Humberto Delgado (LIS) Complex: Terminal 1 Main Glass Hall + Pier North & South Boarding Concourses + Jet-Bridges + Tall ATC Control Tower + Radar Dome!
+        // 1) Main Terminal 1 Departures Hall & Crimson Aviation Canopy
+        drawRectBox(x0 + 4, y0 + 18, x1 - 4, y1, gz, gz + 78, '#f1f5f9', '#cbd5e1', '#94a3b8', highlighted ? '#facc15' : '#334155');
+        drawRectBox(x0 - 4, y0 + 12, x1 + 4, y1 + 5, gz + 78, gz + 90, '#dc2626', '#991b1b', '#b91c1c', '#7f1d1d');
+        // 2) Pier West & Pier East Boarding Concourse Wings + Airside Jet-Bridges extending toward Runway 03/21
+        drawRectBox(x0 - 38, y0 + 6, x0 + 4, y0 + 72, gz, gz + 54, '#e2e8f0', '#cbd5e1', '#38bdf8', '#334155');
+        drawRectBox(x1 - 4, y0 + 6, x1 + 38, y0 + 72, gz, gz + 54, '#e2e8f0', '#cbd5e1', '#38bdf8', '#334155');
+        drawRectBox(x0 - 24, y0 - 22, x0 - 8, y0 + 8, gz + 22, gz + 38, '#cbd5e1', '#94a3b8', '#e2e8f0', '#334155');
+        drawRectBox(x1 + 8, y0 - 22, x1 + 24, y0 + 8, gz + 22, gz + 38, '#cbd5e1', '#94a3b8', '#e2e8f0', '#334155');
+        // 3) Tall Air-Traffic Control Tower & Rotating White Radar Dome
+        drawRectBox(cx - 15, y0 + 14, cx + 15, y0 + 44, gz + 90, gz + 150, '#e2e8f0', '#cbd5e1', '#f8fafc', '#475569');
+        drawRectBox(cx - 25, y0 + 8, cx + 25, y0 + 50, gz + 150, gz + 170, '#0ea5e9', '#0369a1', '#f8fafc', '#0f172a');
+        drawRectBox(cx - 10, y0 + 18, cx + 10, y0 + 38, gz + 170, gz + 186, '#ffffff', '#e2e8f0', '#dc2626', '#475569');
         if (cam.camY > y1) {
-          for (const ox of [-52, 0, 52]) {
-            this.drawPoly3D(ctx, cam, [[cx + ox - 18, y1 + 0.5, gz + 8], [cx + ox + 18, y1 + 0.5, gz + 8], [cx + ox + 18, y1 + 0.5, gz + 64], [cx + ox - 18, y1 + 0.5, gz + 64]], isEvening ? '#fde68a' : '#0ea5e9', '#1e293b', 1.3);
+          for (const ox of [-56, 0, 56]) {
+            this.drawPoly3D(ctx, cam, [[cx + ox - 20, y1 + 0.5, gz + 8], [cx + ox + 20, y1 + 0.5, gz + 8], [cx + ox + 20, y1 + 0.5, gz + 66], [cx + ox - 20, y1 + 0.5, gz + 66]], isEvening ? '#fde68a' : '#0ea5e9', '#1e293b', 1.3);
           }
+        }
+      } else if (style === 'ist-alameda-campus') {
+        // Elaborate Multi-Building Instituto Superior Tecnico (Alameda Campus, Porfirio Pardal Monteiro 1936):
+        // Green hilltop campus plinth + Grand Staircase + Pavilhao Central + Twin Torre Norte & Torre Sul + Civil/Quimica Academic Wings!
+        drawRectBox(x0 - 8, y0, x1 + 8, y1 + 6, gz, gz + 18, '#e5ded0', '#cfc6b5', '#3f7d52', '#475569');
+        // Pavilhao Central (monumental limestone colonnade + blue IST pediment)
+        drawRectBox(cx - 48, y0 + 14, cx + 48, y0 + 96, gz + 18, gz + 108, '#f5efe2', '#ded6c6', '#1d4ed8', highlighted ? '#facc15' : '#334155');
+        drawRectBox(cx - 24, y0 - 2, cx + 24, y0 + 18, gz + 4, gz + 24, '#e2e8f0', '#cbd5e1', '#f8fafc', '#64748b');
+        // Flanking Twin 12-story Torre Norte & Torre Sul modernist glass-and-concrete towers!
+        drawRectBox(x0 + 2, y0 + 68, x0 + 46, y1, gz + 18, gz + 168, '#dbeafe', '#93c5fd', '#1e3a8a', '#1e293b');
+        drawRectBox(x1 - 46, y0 + 68, x1 - 2, y1, gz + 18, gz + 168, '#dbeafe', '#93c5fd', '#1e3a8a', '#1e293b');
+        // Civil & Mecanica Side Academic Wings
+        drawRectBox(x0 + 4, y0 + 12, x0 + 52, y0 + 62, gz + 18, gz + 82, '#efe8da', '#d8cfc0', '#b84a32', '#475569');
+        drawRectBox(x1 - 52, y0 + 12, x1 - 4, y0 + 62, gz + 18, gz + 82, '#efe8da', '#d8cfc0', '#b84a32', '#475569');
+      } else if (style === 'colombo-complex') {
+        // Elaborate Multi-Building Centro Comercial Colombo (Benfica):
+        // Twin Torre Oriente & Torre Ocidente glass office towers + Central Sunlit Praca Central Dome + Symmetrical Discoveries Galleria Wings!
+        drawRectBox(x0 - 6, y0 + 8, x1 + 6, y1, gz, gz + 76, '#f5e6d0', '#dfd0b8', '#b84a32', highlighted ? '#facc15' : '#57534e');
+        // Central sunlit glass dome atrium (Praca Central)
+        drawRectBox(cx - 38, cy - 32, cx + 38, cy + 32, gz + 76, gz + 114, '#e0f2fe', '#7dd3fc', '#38bdf8', '#0284c7');
+        // Twin Colombo Towers (Torre Oriente & Torre Ocidente) soaring above the shopping complex
+        drawRectBox(x0 + 8, y0 + 16, x0 + 54, y0 + 68, gz + 76, gz + 174, '#e2e8f0', '#94a3b8', '#2563eb', '#1e293b');
+        drawRectBox(x1 - 54, y0 + 16, x1 - 8, y0 + 68, gz + 76, gz + 174, '#e2e8f0', '#94a3b8', '#2563eb', '#1e293b');
+      } else if (style === 'vasco-da-gama-mall') {
+        // Elaborate Multi-Building Centro Comercial Vasco da Gama (Parque das Nacoes):
+        // Flanking twin Expo 98 pavilions + sweeping blue-glass barrel-vault skylight + cascading water-wall facade!
+        drawRectBox(x0, y0 + 10, x0 + 68, y1, gz, gz + 88, '#f1f5f9', '#cbd5e1', '#0284c7', highlighted ? '#facc15' : '#334155');
+        drawRectBox(x1 - 68, y0 + 10, x1, y1, gz, gz + 88, '#f1f5f9', '#cbd5e1', '#0284c7', highlighted ? '#facc15' : '#334155');
+        // Central glass galleria atrium with cascading wave-blue skylight vault
+        drawRectBox(x0 + 64, y0 + 14, x1 - 64, y1 - 4, gz, gz + 106, '#e0f2fe', '#bae6fd', '#38bdf8', '#0284c7');
+        for (const ox of [-30, 0, 30]) {
+          this.drawLine3D(ctx, cam, [cx + ox, y0 + 14, gz + 106], [cx + ox, y1 - 4, gz + 124], '#ffffff', 2.8);
         }
       } else if (style === 'estadio-luz' || style === 'estadio-alvalade') {
         // Iconic Lisbon Football Stadiums: Red-Arched Estadio da Luz (SL Benfica) & Emerald-Gold Estadio Jose Alvalade (Sporting CP)
@@ -1640,6 +1691,28 @@ class _Mixin {
         // Shaded Lisbon woodland garden pavilion & cypress canopy
         drawRectBox(x0 + 14, y0 + 22, x1 - 14, y1 - 8, gz, gz + 58, '#f5efe2', '#ded6c6', '#15803d', highlighted ? '#facc15' : '#14532d');
         drawRectBox(x0 + 4, y0 + 12, x1 - 4, y1, gz + 58, gz + 76, '#15803d', '#166534', '#22c55e', '#14532d');
+      } else if (style === 'oceanario-lisboa') {
+        // 1998 Oceanario de Lisboa floating blue-glass marine pavilion & wave-crest roof
+        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz, gz + 20, '#0284c7', '#0369a1', '#38bdf8', '#0f172a');
+        drawRectBox(x0 + 16, y0 + 18, x1 - 16, y1 - 10, gz + 20, gz + 98, '#e0f2fe', '#bae6fd', '#0284c7', highlighted ? '#facc15' : '#0369a1');
+        drawRectBox(x0 + 6, y0 + 12, x1 - 6, y1 - 4, gz + 98, gz + 114, '#f8fafc', '#cbd5e1', '#e2e8f0', '#0284c7');
+      } else if (style === 'meo-arena') {
+        // 1998 MEO Arena / Pavilhao da Utopia curved timber-ribbed caravel hull dome
+        drawRectBox(x0 + 4, y0 + 10, x1 - 4, y1, gz, gz + 58, '#e2e8f0', '#cbd5e1', '#9a3412', highlighted ? '#facc15' : '#475569');
+        drawRectBox(x0 + 16, y0 + 16, x1 - 16, y1 - 6, gz + 58, gz + 96, '#c2410c', '#9a3412', '#d97706', '#451a03');
+        for (const ox of [-80, -40, 0, 40, 80]) {
+          this.drawLine3D(ctx, cam, [cx + ox, y0 + 14, gz + 94], [cx + ox, y1 - 6, gz + 118], '#fef3c7', 2.4);
+        }
+      } else if (style === 'pavilhao-portugal') {
+        // Alvaro Siza Vieira 1998 Pavilhao de Portugal sweeping white catenary concrete canopy
+        drawRectBox(x0 + 4, y0 + 10, x0 + 48, y1, gz, gz + 96, '#f8fafc', '#e2e8f0', '#cbd5e1', highlighted ? '#facc15' : '#475569');
+        drawRectBox(x1 - 48, y0 + 10, x1 - 4, y1, gz, gz + 96, '#f8fafc', '#e2e8f0', '#cbd5e1', highlighted ? '#facc15' : '#475569');
+        // Signature suspended catenary concrete slab spanning between the two red-accented porticoes
+        this.drawPoly3D(ctx, cam, [[x0 + 44, y0 + 14, gz + 92], [x1 - 44, y0 + 14, gz + 92], [x1 - 44, y1 - 6, gz + 78], [x0 + 44, y1 - 6, gz + 78]], '#f8fafc', '#dc2626', 2.2);
+      } else if (style === 'twin-towers-expo') {
+        // Torres Sao Gabriel & Sao Rafael twin Expo 98 nautical glass towers
+        drawRectBox(x0 + 10, y0 + 14, cx - 12, y1 - 8, gz, gz + 162, '#e0f2fe', '#93c5fd', '#0284c7', highlighted ? '#facc15' : '#1e3a8a');
+        drawRectBox(cx + 12, y0 + 14, x1 - 10, y1 - 8, gz, gz + 162, '#e0f2fe', '#93c5fd', '#0284c7', highlighted ? '#facc15' : '#1e3a8a');
       } else {
         // Classical Lisbon limestone landmark (Rossio, Mae d'Agua Aqueduct, Gulbenkian, Reitoria, Monasteries & Historic Manors)
         const wallC = style === 'historic-manor' ? '#f5e4c8' : style === 'monastery-gothic' ? '#e7dfd0' : '#efe8da';
@@ -1669,8 +1742,9 @@ class _Mixin {
       }
     }
 
-    // Crisp 3D overhead Lisbon enamel building plaque (kept comfortably below top-right HUD radar)
-    const sp = this.projectWorldPt(cam, cx, y1 + 2, gz + (spot.kind === 'landmark' ? 68 : 54));
+    // Crisp 3D overhead Lisbon enamel building plaque (placed on facing side for both north- and south-facing buildings!)
+    const plaqueY = spot.doorSide === 'north' ? y0 - 2 : y1 + 2;
+    const sp = this.projectWorldPt(cam, cx, plaqueY, gz + (spot.kind === 'landmark' ? 68 : 54));
     if (sp && sp.cz < 760 && sp.y > 54) {
       const sc = clamp(this.focal / sp.cz, 0.5, 1.25);
       ctx.save();

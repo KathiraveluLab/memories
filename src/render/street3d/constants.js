@@ -57,7 +57,20 @@ export const STREET_TREES = [
   { x: 1410, y: 984, c: '#7a58ab', highlight: '#b093dc' },
   { x: 1685, y: 984, c: '#3f7d52', highlight: '#65a676' },
   { x: 1895, y: 984, c: '#7a58ab', highlight: '#b093dc' },
-  { x: 2070, y: 984, c: '#3f7d52', highlight: '#65a676' }
+  { x: 2070, y: 984, c: '#3f7d52', highlight: '#65a676' },
+  // Greater Lisboa Suburban Boulevards & Parque das Nacoes Jacarandas, Plane Trees & Stone Pines
+  ...[-2120, -1620, -1080, -320, 420, 1180, 1980, 2240, 2500, 2760, 3120, 3560, 3920].flatMap((tx, i) => [
+    { x: tx, y: -1832, c: i % 2 === 0 ? '#7a58ab' : '#3f7d52', highlight: i % 2 === 0 ? '#b093dc' : '#65a676' },
+    { x: tx + 60, y: -1664, c: i % 2 === 1 ? '#7a58ab' : '#487f57', highlight: i % 2 === 1 ? '#b093dc' : '#73ad82' },
+    { x: tx, y: -1152, c: i % 3 === 0 ? '#7a58ab' : '#3f7d52', highlight: i % 3 === 0 ? '#b093dc' : '#65a676' },
+    { x: tx + 40, y: -472, c: i % 2 === 0 ? '#487f57' : '#7a58ab', highlight: i % 2 === 0 ? '#73ad82' : '#b093dc' }
+  ]),
+  // Parque das Nacoes Expo 98 Waterfront & Alameda dos Oceanos Tree Promenade
+  ...[2520, 2820, 3120, 3440, 3760, 4020].flatMap((tx, i) => [
+    { x: tx, y: -316, c: i % 2 === 0 ? '#3f7d52' : '#7a58ab', highlight: i % 2 === 0 ? '#65a676' : '#b093dc' },
+    { x: tx, y: 352, c: i % 2 === 1 ? '#3f7d52' : '#487f57', highlight: i % 2 === 1 ? '#65a676' : '#73ad82' },
+    { x: tx, y: 984, c: i % 2 === 0 ? '#7a58ab' : '#3f7d52', highlight: i % 2 === 0 ? '#b093dc' : '#65a676' }
+  ])
 ];
 
 export const STREET_LAMPS = [
@@ -73,7 +86,14 @@ export const STREET_LAMPS = [
   { x: 1910, y: 678 },
   { x: 640, y: 992 },
   { x: 1180, y: 992 },
-  { x: 1680, y: 992 }
+  { x: 1680, y: 992 },
+  // Greater Lisboa Suburban & Parque das Nacoes Cast-Iron Streetlamps
+  ...[-1980, -1240, -280, 620, 1420, 2060, 2360, 2660, 3140, 3540, 3920].flatMap((lx) => [
+    { x: lx, y: -1826 },
+    { x: lx, y: -1146 },
+    { x: lx, y: -466 },
+    { x: lx, y: 992 }
+  ])
 ];
 
 export function clamp(v, min, max) {

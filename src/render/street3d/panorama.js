@@ -876,96 +876,6 @@ class _Mixin {
       );
     }
 
-    // Aeroporto Humberto Delgado (LIS) Runway 03/21 Tarmac Apron, Markings & Parked/Departing Jetliners (North of Terminal 1)
-    if (cam.camX >= 2300 && cam.camY <= -1100) {
-      const rwZ = getTerrainElevation(3550, -2160) + 0.35;
-      // Wide tarmac apron & Runway 03/21 strip
-      this.drawPoly3D(
-        ctx,
-        cam,
-        [
-          [2880, -2340, rwZ],
-          [4260, -2340, rwZ],
-          [4260, -2005, rwZ],
-          [2880, -2005, rwZ]
-        ],
-        isEvening ? '#1e293b' : '#334155',
-        '#94a3b8',
-        1.5
-      );
-      // Runway 03/21 white dashed centerline & threshold piano-key stripes
-      for (let rx = 2940; rx <= 4180; rx += 90) {
-        this.drawLine3D(ctx, cam, [rx, -2175, rwZ + 0.25], [rx + 52, -2175, rwZ + 0.25], '#f8fafc', 3.0);
-      }
-      for (const ty of [-2255, -2225, -2195, -2155, -2125, -2095]) {
-        this.drawLine3D(ctx, cam, [2910, ty, rwZ + 0.25], [2965, ty, rwZ + 0.25], '#f8fafc', 2.4);
-        this.drawLine3D(ctx, cam, [4175, ty, rwZ + 0.25], [4230, ty, rwZ + 0.25], '#f8fafc', 2.4);
-      }
-      // Illuminated blue taxiway edge lights along the apron
-      for (let lx = 2960; lx <= 4160; lx += 150) {
-        const lp = this.projectWorldPt(ctx, lx, -2020, rwZ + 2);
-        if (lp && lp.cz < 1100) {
-          ctx.fillStyle = '#38bdf8';
-          ctx.beginPath();
-          ctx.arc(lp.x, lp.y, 2.4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      // 2 Parked Airliners at Terminal 1 gates + 1 Rolling/Climbing Takeoff Flight on Runway 03/21!
-      const takeoffProgress = (animTime * 0.14) % 1;
-      const rollingX = 2980 + takeoffProgress * 1240;
-      const rollingZ = rwZ + 12 + (takeoffProgress > 0.55 ? Math.pow((takeoffProgress - 0.55) / 0.45, 1.8) * 140 : 0);
-      const apronJets = [
-        { x: 3260, y: -2055, z: rwZ + 12, tailCol: '#dc2626', accentCol: '#16a34a' },
-        { x: 3780, y: -2055, z: rwZ + 12, tailCol: '#1d4ed8', accentCol: '#facc15' },
-        { x: rollingX, y: -2175, z: rollingZ, tailCol: '#dc2626', accentCol: '#16a34a' }
-      ];
-      for (const jet of apronJets) {
-        // White airliner fuselage
-        this.drawPoly3D(
-          ctx,
-          cam,
-          [
-            [jet.x - 46, jet.y, jet.z],
-            [jet.x + 54, jet.y, jet.z],
-            [jet.x + 48, jet.y, jet.z + 15],
-            [jet.x - 44, jet.y, jet.z + 15]
-          ],
-          isEvening ? '#cbd5e1' : '#f8fafc',
-          '#475569',
-          1.2
-        );
-        // Swept wings
-        this.drawPoly3D(
-          ctx,
-          cam,
-          [
-            [jet.x - 6, jet.y - 38, jet.z + 6],
-            [jet.x + 14, jet.y, jet.z + 6],
-            [jet.x - 6, jet.y + 38, jet.z + 6],
-            [jet.x - 18, jet.y, jet.z + 6]
-          ],
-          isEvening ? '#94a3b8' : '#e2e8f0',
-          '#475569',
-          1
-        );
-        // Tall colored tail fin
-        this.drawPoly3D(
-          ctx,
-          cam,
-          [
-            [jet.x - 44, jet.y, jet.z + 14],
-            [jet.x - 24, jet.y, jet.z + 14],
-            [jet.x - 38, jet.y, jet.z + 36],
-            [jet.x - 48, jet.y, jet.z + 36]
-          ],
-          jet.tailCol,
-          jet.accentCol,
-          1.3
-        );
-      }
-    }
-
     // Animated Tagus River wave crests, foam glints & golden sunlight reflection path
     const waveShift = (animTime * 24) % 110;
     const waveCol = isEvening
@@ -1036,6 +946,64 @@ class _Mixin {
     // Perspective-Correct Hand-Laid Lisbon Calçada Portuguesa & Curved Leque Cobblestone Floor-Caster!
     // Renders true-scale 5cm limestone/basalt mosaic tesserae across every street, sidewalk, plaza, and Tagus promenade.
     const renderedTexGround = this.renderPerspectiveCalcadaGround(ctx, cam, hy, isEvening, isGolden, wet, brightSummer);
+
+    // Aeroporto Humberto Delgado (LIS) Clear Runway 03/21 Tarmac, Security Perimeter Fence & Parked/Departing Jetliners
+    // Drawn cleanly ABOVE the calcada ground layer so the runway markings and perimeter fence are 100% crisp!
+    if (cam.camX >= 2300 && cam.camY <= -1100) {
+      const rwZ = getTerrainElevation(3550, -2160) + 0.35;
+      this.drawPoly3D(
+        ctx,
+        cam,
+        [[2880, -2340, rwZ], [4260, -2340, rwZ], [4260, -2005, rwZ], [2880, -2005, rwZ]],
+        isEvening ? '#1e293b' : '#2d3748',
+        '#94a3b8',
+        1.8
+      );
+      // Runway 03/21 white dashed centerline & threshold piano-key markings
+      for (let rx = 2940; rx <= 4180; rx += 90) {
+        this.drawLine3D(ctx, cam, [rx, -2175, rwZ + 0.3], [rx + 52, -2175, rwZ + 0.3], '#f8fafc', 3.2);
+      }
+      for (const ty of [-2255, -2225, -2195, -2155, -2125, -2095]) {
+        this.drawLine3D(ctx, cam, [2910, ty, rwZ + 0.3], [2965, ty, rwZ + 0.3], '#f8fafc', 2.6);
+        this.drawLine3D(ctx, cam, [4175, ty, rwZ + 0.3], [4230, ty, rwZ + 0.3], '#f8fafc', 2.6);
+      }
+      // Illuminated blue taxiway edge lights along the apron
+      for (let lx = 2960; lx <= 4160; lx += 150) {
+        const lp = this.projectWorldPt(cam, lx, -2020, rwZ + 2);
+        if (lp && lp.cz < 1100) {
+          ctx.fillStyle = '#38bdf8';
+          ctx.beginPath();
+          ctx.arc(lp.x, lp.y, 2.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // 3D Airport Security Perimeter Fence along southern runway edge (y = -2002) preventing anyone from entering the runway!
+      const fenceY = -2002;
+      const fenceH = 28;
+      this.drawLine3D(ctx, cam, [2880, fenceY, rwZ + fenceH], [4260, fenceY, rwZ + fenceH], '#cbd5e1', 2.0);
+      this.drawLine3D(ctx, cam, [2880, fenceY, rwZ + fenceH * 0.62], [4260, fenceY, rwZ + fenceH * 0.62], '#94a3b8', 1.4);
+      this.drawLine3D(ctx, cam, [2880, fenceY, rwZ + fenceH * 0.28], [4260, fenceY, rwZ + fenceH * 0.28], '#94a3b8', 1.4);
+      for (let fx = 2880; fx <= 4260; fx += 60) {
+        this.drawLine3D(ctx, cam, [fx, fenceY, rwZ], [fx, fenceY, rwZ + fenceH + 4], '#64748b', 2.2);
+        if (fx % 300 === 0) {
+          this.drawPoly3D(ctx, cam, [[fx - 12, fenceY + 0.5, rwZ + 12], [fx + 12, fenceY + 0.5, rwZ + 12], [fx + 12, fenceY + 0.5, rwZ + 22], [fx - 12, fenceY + 0.5, rwZ + 22]], '#dc2626', '#ffffff', 1.2);
+        }
+      }
+      // 2 Parked Airliners at Terminal 1 gates + 1 Rolling/Climbing Takeoff Flight on Runway 03/21!
+      const takeoffProgress = (animTime * 0.14) % 1;
+      const rollingX = 2980 + takeoffProgress * 1240;
+      const rollingZ = rwZ + 12 + (takeoffProgress > 0.55 ? Math.pow((takeoffProgress - 0.55) / 0.45, 1.8) * 140 : 0);
+      const apronJets = [
+        { x: 3260, y: -2055, z: rwZ + 12, tailCol: '#dc2626', accentCol: '#16a34a' },
+        { x: 3780, y: -2055, z: rwZ + 12, tailCol: '#1d4ed8', accentCol: '#facc15' },
+        { x: rollingX, y: -2175, z: rollingZ, tailCol: '#dc2626', accentCol: '#16a34a' }
+      ];
+      for (const jet of apronJets) {
+        this.drawPoly3D(ctx, cam, [[jet.x - 46, jet.y, jet.z], [jet.x + 54, jet.y, jet.z], [jet.x + 48, jet.y, jet.z + 15], [jet.x - 44, jet.y, jet.z + 15]], isEvening ? '#cbd5e1' : '#f8fafc', '#475569', 1.2);
+        this.drawPoly3D(ctx, cam, [[jet.x - 6, jet.y - 38, jet.z + 6], [jet.x + 14, jet.y, jet.z + 6], [jet.x - 6, jet.y + 38, jet.z + 6], [jet.x - 18, jet.y, jet.z + 6]], isEvening ? '#94a3b8' : '#e2e8f0', '#475569', 1);
+        this.drawPoly3D(ctx, cam, [[jet.x - 44, jet.y, jet.z + 14], [jet.x - 24, jet.y, jet.z + 14], [jet.x - 38, jet.y, jet.z + 36], [jet.x - 48, jet.y, jet.z + 36]], jet.tailCol, jet.accentCol, 1.3);
+      }
+    }
 
     // Fallback flat polygons only when running inside headless mock Canvas unit tests without DOM ImageData
     if (!renderedTexGround) {
