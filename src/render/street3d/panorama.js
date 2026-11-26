@@ -9,6 +9,8 @@ import {
   STREETS,
   CROSSWALKS,
   DECORATIVE_STRUCTURES,
+  LISBOA_STAIRCASES,
+  MIRADOURO_VIEWPOINTS,
   FERRY_TERMINAL,
   SANTA_JUSTA_LIFT,
   OVERWORLD_CITY_GATEWAYS,
@@ -1002,6 +1004,102 @@ class _Mixin {
         this.drawPoly3D(ctx, cam, [[jet.x - 46, jet.y, jet.z], [jet.x + 54, jet.y, jet.z], [jet.x + 48, jet.y, jet.z + 15], [jet.x - 44, jet.y, jet.z + 15]], isEvening ? '#cbd5e1' : '#f8fafc', '#475569', 1.2);
         this.drawPoly3D(ctx, cam, [[jet.x - 6, jet.y - 38, jet.z + 6], [jet.x + 14, jet.y, jet.z + 6], [jet.x - 6, jet.y + 38, jet.z + 6], [jet.x - 18, jet.y, jet.z + 6]], isEvening ? '#94a3b8' : '#e2e8f0', '#475569', 1);
         this.drawPoly3D(ctx, cam, [[jet.x - 44, jet.y, jet.z + 14], [jet.x - 24, jet.y, jet.z + 14], [jet.x - 38, jet.y, jet.z + 36], [jet.x - 48, jet.y, jet.z + 36]], jet.tailCol, jet.accentCol, 1.3);
+      }
+    }
+
+    // Walkable Lioz Limestone Lisbon Staircases (Escadinhas) with Wrought-Iron Handrails along Steep Transitions
+    for (const st of LISBOA_STAIRCASES) {
+      const scx = st.x + st.w * 0.5;
+      const scy = st.y + st.h * 0.5;
+      if (Math.hypot(scx - cam.camX, scy - cam.camY) > MAX_VIEW_DIST) continue;
+      const steps = st.steps || 10;
+      const stepH = st.h / steps;
+      for (let i = 0; i < steps; i += 1) {
+        const sy0 = st.y + i * stepH;
+        const sy1 = sy0 + stepH;
+        const z0 = getTerrainElevation(scx, sy0) + 0.5;
+        const z1 = getTerrainElevation(scx, sy1) + 0.5;
+        const treadCol = isEvening ? (i % 2 === 0 ? '#64748b' : '#475569') : (i % 2 === 0 ? '#efe9dc' : '#ddd4c2');
+        this.drawPoly3D(ctx, cam, [[st.x, sy0, z0], [st.x + st.w, sy0, z0], [st.x + st.w, sy1, z1], [st.x, sy1, z1]], treadCol, '#78716c', 0.9);
+      }
+      // Dark green-iron Lisbon staircase handrails on both flanks
+      const zStart = getTerrainElevation(scx, st.y) + 0.5;
+      const zEnd = getTerrainElevation(scx, st.y + st.h) + 0.5;
+      const railH = 18;
+      for (const rx of [st.x + 2, st.x + st.w - 2]) {
+        this.drawLine3D(ctx, cam, [rx, st.y, zStart + railH], [rx, st.y + st.h, zEnd + railH], '#1e3a2f', 2.6);
+        this.drawLine3D(ctx, cam, [rx, st.y, zStart + railH * 0.5], [rx, st.y + st.h, zEnd + railH * 0.5], '#334155', 1.4);
+        for (let p = 0; p <= 4; p += 1) {
+          const py = st.y + (st.h * p) / 4;
+          const pz = getTerrainElevation(scx, py) + 0.5;
+          this.drawLine3D(ctx, cam, [rx, py, pz], [rx, py, pz + railH], '#1e3a2f', 2.0);
+        }
+      }
+    }
+
+    // Wrought-Iron Lisbon Miradouro Railing Viewpoints & Enamel Panorama Plaques
+    for (const vp of MIRADOURO_VIEWPOINTS) {
+      if (Math.hypot(vp.x - cam.camX, vp.y - cam.camY) > MAX_VIEW_DIST) continue;
+      const halfW = (vp.railingWidth || 108) * 0.5;
+      const gz = getTerrainElevation(vp.x, vp.y) + 0.5;
+      const railH = 20;
+      const x0 = vp.x - halfW;
+      const x1 = vp.x + halfW;
+      // Top & mid wrought-iron balustrade bars + vertical pickets + limestone corner piers
+      this.drawLine3D(ctx, cam, [x0, vp.y, gz + railH], [x1, vp.y, gz + railH], '#14532d', 3.0);
+      this.drawLine3D(ctx, cam, [x0, vp.y, gz + railH * 0.45], [x1, vp.y, gz + railH * 0.45], '#1e3a2f', 1.5);
+      for (let rx = x0; rx <= x1; rx += 14) {
+        this.drawLine3D(ctx, cam, [rx, vp.y, gz], [rx, vp.y, gz + railH], '#1e3a2f', 1.6);
+      }
+      for (const px of [x0, x1]) {
+        this.drawLine3D(ctx, cam, [px, vp.y, gz], [px, vp.y, gz + railH + 5], '#e5ded0', 5.0);
+      }
+      // Brass-and-enamel Lisbon Panoramic Compass Signpost pedestal centered on the miradouro railing
+      this.drawLine3D(ctx, cam, [vp.x, vp.y, gz], [vp.x, vp.y, gz + railH + 7], '#d6cfc2', 6.5);
+      this.drawPoly3D(ctx, cam, [[vp.x - 16, vp.y - 4, gz + railH + 7], [vp.x + 16, vp.y - 4, gz + railH + 7], [vp.x + 16, vp.y + 4, gz + railH + 9], [vp.x - 16, vp.y + 4, gz + railH + 9]], '#b45309', '#fef08a', 1.4);
+
+      const sp = this.projectWorldPt(cam, vp.x, vp.y, gz + railH + 14);
+      if (sp && sp.cz < 620 && sp.y > 54) {
+        const sc = clamp(this.focal / sp.cz, 0.5, 1.15);
+        const fs = Math.max(8, Math.round(9 * sc));
+        ctx.save();
+        ctx.font = `700 ${fs}px Georgia, serif`;
+        const lbl = `${vp.name.toUpperCase()} (${Math.round(getTerrainElevation(vp.x, vp.y) / 0.62 * 0.65)}m) [E]`;
+        const tw = ctx.measureText(lbl).width + 14 * sc;
+        const th = 18 * sc;
+        drawRoundedRect(ctx, sp.x - tw * 0.5, sp.y - th * 0.5, tw, th, 4);
+        ctx.fillStyle = 'rgba(20, 83, 45, 0.9)';
+        ctx.fill();
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(lbl, sp.x, sp.y + fs * 0.34);
+
+        // Directional panoramic compass signposts naming visible Lisbon hills & monuments when standing near the railing
+        if (sp.cz < 280 && Array.isArray(vp.compassSignposts) && vp.compassSignposts.length > 0) {
+          const sfs = Math.max(7.5, Math.round(8.2 * sc));
+          ctx.font = `700 ${sfs}px "Segoe UI", sans-serif`;
+          const lines = vp.compassSignposts.slice(0, 4).map((c) => `${c.dir} -> ${c.label}`);
+          const boxW = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16 * sc;
+          const lineH = 12 * sc;
+          const boxH = lines.length * lineH + 10 * sc;
+          const bx = sp.x - boxW * 0.5;
+          const by = sp.y + th * 0.5 + 5 * sc;
+          drawRoundedRect(ctx, bx, by, boxW, boxH, 4);
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+          ctx.fill();
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+          ctx.fillStyle = '#fef3c7';
+          ctx.textAlign = 'left';
+          lines.forEach((lineTxt, idx) => {
+            ctx.fillText(lineTxt, bx + 8 * sc, by + (idx + 1) * lineH + 1 * sc);
+          });
+        }
+        ctx.restore();
       }
     }
 

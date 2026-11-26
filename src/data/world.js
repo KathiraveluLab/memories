@@ -153,13 +153,13 @@ export function getTerrainElevation(wx, wy) {
     return chiadoBaseRise + bairroAltoLift + alfamaLift;
   }
 
-  // Smooth continuous elevation across Greater Lisboa (Belem, Rato, Rossio, Marques, Saldanha, Campo Grande, Alameda, Oriente)
+  // Smooth continuous elevation across Greater Lisboa (real Lisbon Seven Hills & plateaus, 1 Z unit ~= 0.65 meters)
   const wfRamp = Math.max(0, Math.min(1, (WATERFRONT_Y - 42 - wy) / 240));
   const wfSmooth = wfRamp * wfRamp * (3 - 2 * wfRamp);
   const clampedY = Math.max(36, Math.min(WATERFRONT_Y - 36, wy));
   const coreNorthT = (WATERFRONT_Y - 36 - clampedY) / (WATERFRONT_Y - 36 - 36);
 
-  // Eastern Parque das Nacoes fades smoothly down toward modern flat riverfront
+  // Eastern Parque das Nacoes riverfront sits near sea level (2m - 8m)
   const eastFade = wx > 2400 ? Math.max(0, 1 - (wx - 2400) / 720) : 1;
   // Western Belem riverfront slopes smoothly down westward from Bairro Alto ridge
   const westBelemFade = wx < 0 && wy > 180 ? Math.max(0.08, 1 - (-wx) / 760) : 1;
@@ -174,11 +174,43 @@ export function getTerrainElevation(wx, wy) {
     baSmooth * wfSmooth * (18 + coreNorthT * 68) * westBelemFade * (wy < 36 ? Math.max(0.45, 1 - (36 - wy) / 900) : 1) +
     alfSmooth * wfSmooth * (12 + coreNorthT * 36) * eastFade * (wy < 36 ? Math.max(0.55, 1 - (36 - wy) / 1100) : 1);
 
-  // Gentle Parque Eduardo VII / Avenidas Novas northern plateau when walking north of Rossio
+  // Factual Lisbon Greater-City Hills, Valleys & Plateaus north of historic Baixa (wy < 36):
   if (wy < 36) {
-    const northDist = Math.min(1, (36 - wy) / 1400);
-    const eastPlateauFade = wx > 2600 ? Math.max(0.15, 1 - (wx - 2600) / 800) : 1;
-    base = Math.max(base * 0.72 + 12 * northDist, 14 + 26 * northDist * eastPlateauFade);
+    const gauss = (cx, cy, sx, sy, amp) => {
+      const dx = (wx - cx) / sx;
+      const dy = (wy - cy) / sy;
+      return amp * Math.exp(-(dx * dx + dy * dy));
+    };
+    const northRamp = Math.min(1, (36 - wy) / 260);
+    // Low Rossio / Avenida da Liberdade valley (~14m = 22 Z) climbing north to Avenidas Novas & Northern Plateau (~75-105m)
+    const eastWaterfrontDrop = wx > 2950 && wy > -900 ? Math.max(0.06, 1 - (wx - 2950) / 480) : 1;
+    let realZ = 22 + Math.min(1, (36 - wy) / 1350) * 108 * eastWaterfrontDrop;
+
+    // 1) Rossio & Restauradores valley dip (~14m)
+    realZ -= gauss(620, -520, 620, 260, 46);
+    // 2) Principe Real & Rato high western ridge (~74m = 114 Z)
+    realZ += gauss(-620, -560, 560, 320, 62);
+    // 3) Parque Eduardo VII & Parque hilltop (~88m = 135 Z) above Marques de Pombal (~48m)
+    realZ += gauss(220, -1240, 480, 320, 48);
+    // 4) Alameda Dom Afonso Henriques valley & Fonte Luminosa (~60m = 92 Z) vs. steep IST Alameda Campus hilltop (~94m = 145 Z, +34m climb!)
+    realZ += gauss(2435, -560, 340, 240, 26); // Fonte Luminosa terrace (~60m)
+    realZ -= gauss(2180, -490, 240, 170, 20); // Alameda central valley dip
+    realZ += gauss(1955, -220, 230, 170, 88); // Steep IST Alameda Campus hilltop (+30m+ above Fonte Luminosa & Alameda!)
+    // 5) Olaias & Parque da Bela Vista eastern hills (~96m = 148 Z) dropping steeply down to Parque das Nacoes (~4m)
+    realZ += gauss(3040, -1120, 340, 340, 44);
+    // 6) Aeroporto Humberto Delgado Portela plateau (true 114m = 175 Z!)
+    realZ += gauss(3580, -1960, 560, 420, 52);
+    // 7) Northern hills: Benfica/Luz (~88m), Areeiro (~85m), Lumiar/Ameixoeira (~106m)
+    realZ += gauss(2680, -1840, 360, 260, 16);
+    realZ += gauss(820, -2520, 900, 340, 32);
+
+    // Flat Expo 98 Parque das Nacoes riverfront (Oriente -> Oceanario -> Torre Vasco da Gama: ~4m - 8m)
+    if (wx >= 3120 && wy >= -740) {
+      const pnT = Math.min(1, (wx - 3120) / 260) * Math.min(1, (wy + 740) / 260);
+      realZ = realZ * (1 - pnT) + 8 * pnT;
+    }
+
+    base = base * (1 - northRamp) + Math.max(4, realZ) * northRamp;
   }
   return Math.max(0, base * wfSmooth);
 }
@@ -224,6 +256,107 @@ export const CROSSWALKS = [
     { x: cx, y: 575, w: 50, h: 70, orientation: 'vertical' },
     { x: cx, y: 896, w: 50, h: 70, orientation: 'vertical' }
   ])
+];
+
+// Walkable carved Lioz limestone Lisbon staircases bridging steep Seven-Hills transitions
+// (Alameda <-> IST Campus, Alameda <-> Fonte Luminosa, and Baixa/Almirante Reis <-> Castelo de Sao Jorge)
+export const LISBOA_STAIRCASES = [
+  {
+    id: 'stairs-ist-alameda',
+    name: 'Escadaria Monumental do IST (Alameda)',
+    x: 1924,
+    y: -332,
+    w: 62,
+    h: 44,
+    steps: 9,
+    orientation: 'vertical',
+    note: 'Monumental limestone grand staircase climbing steeply from Alameda Dom Afonso Henriques up to Instituto Superior Tecnico.'
+  },
+  {
+    id: 'stairs-fonte-luminosa',
+    name: 'Escadinhas da Alameda & Fonte Luminosa',
+    x: 2300,
+    y: -484,
+    w: 58,
+    h: 42,
+    steps: 8,
+    orientation: 'vertical',
+    note: 'Carved stone steps linking the lower Alameda lawn up to the 1948 Fonte Luminosa colonnade.'
+  },
+  {
+    id: 'stairs-graca-castelo',
+    name: 'Escadinhas da Graca & Castelo de Sao Jorge',
+    x: 2180,
+    y: 120,
+    w: 58,
+    h: 106,
+    steps: 14,
+    orientation: 'vertical',
+    note: 'Steep historic Alfama and Graca stone steps climbing toward Castelo de Sao Jorge and Portas do Sol.'
+  },
+  {
+    id: 'stairs-sao-cristovao-castelo',
+    name: 'Escadinhas de Sao Cristovao (Baixa - Castelo)',
+    x: 1715,
+    y: 344,
+    w: 58,
+    h: 112,
+    steps: 14,
+    orientation: 'vertical',
+    note: 'Classic steep medieval Lisbon staircase with wrought-iron handrails rising from Baixa toward Castelo de Sao Jorge.'
+  }
+];
+
+// Interactive wrought-iron Lisbon Miradouro railing viewpoints overlooking steep hillside valleys
+export const MIRADOURO_VIEWPOINTS = [
+  {
+    id: 'miradouro-ist-alameda',
+    name: 'Miradouro do Terraco do IST',
+    badge: '[ALAMEDA OVERLOOK]',
+    x: 1955,
+    y: -306,
+    railingWidth: 116,
+    facing: 'north',
+    note: 'Stone terrace and wrought-iron balustrade atop the IST grand staircase gazing down across Alameda Dom Afonso Henriques to Fonte Luminosa.',
+    compassSignposts: [
+      { dir: 'E', label: 'Fonte Luminosa (1948) & Olaias' },
+      { dir: 'N', label: 'Areeiro, Roma & Aeroporto Plateau' },
+      { dir: 'W', label: 'Saldanha & Parque Eduardo VII' },
+      { dir: 'S', label: 'Castelo de Sao Jorge & Rio Tejo' }
+    ]
+  },
+  {
+    id: 'miradouro-fonte-luminosa',
+    name: 'Miradouro da Fonte Luminosa',
+    badge: '[FOUNTAIN TERRACE]',
+    x: 2435,
+    y: -468,
+    railingWidth: 112,
+    facing: 'south',
+    note: 'Elevated limestone balustrade beside the 1948 Fonte Luminosa looking across the Alameda valley up to the twin towers of IST.',
+    compassSignposts: [
+      { dir: 'W', label: 'IST (Alameda Campus) & Twin Towers' },
+      { dir: 'E', label: 'Olaias, Bela Vista & Parque das Nacoes' },
+      { dir: 'N', label: 'Areeiro & Alvalade' },
+      { dir: 'S', label: 'Arroios & Baixa' }
+    ]
+  },
+  {
+    id: 'miradouro-castelo-graca',
+    name: 'Miradouro do Castelo de Sao Jorge & Graca',
+    badge: '[CASTELO PANORAMA]',
+    x: 2210,
+    y: 184,
+    railingWidth: 108,
+    facing: 'south',
+    note: 'Wrought-iron hillside lookout along the Castelo de Sao Jorge ridge surveying Baixa, the Tagus Estuary, and Ponte 25 de Abril.',
+    compassSignposts: [
+      { dir: 'SW', label: 'Ponte 25 de Abril & Cristo Rei' },
+      { dir: 'W', label: 'Baixa, Santa Justa & Bairro Alto' },
+      { dir: 'S', label: 'Se de Lisboa & Rio Tejo' },
+      { dir: 'E', label: 'Panteao Nacional & Alfama' }
+    ]
+  }
 ];
 
 export const DECORATIVE_STRUCTURES = [

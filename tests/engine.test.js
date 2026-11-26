@@ -9,6 +9,8 @@ import {
   ALL_LISBOA_NEIGHBORHOODS,
   getNeighborhoodAt,
   DECORATIVE_STRUCTURES,
+  LISBOA_STAIRCASES,
+  MIRADOURO_VIEWPOINTS,
   FADO_TRACKS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
@@ -2213,6 +2215,31 @@ test('Unified seamless open-world Lisboa: ZERO portals, continuous foot walking,
 
   // Aeroporto Humberto Delgado Runway 03/21 is fenced off so pedestrians cannot walk onto active runways!
   assert.equal(isOverworldPositionValid(3550, -2175), false, 'Active Airport Runway 03/21 must be fenced off from pedestrians');
+
+  // Factual Lisbon topography: IST Alameda Campus sits significantly higher than Fonte Luminosa & Alameda valley; Aeroporto sits high on Portela plateau above sea-level Parque das Nacoes!
+  const istElevM = Math.round(getTerrainElevation(1955, -220) * 0.65);
+  const fonteElevM = Math.round(getTerrainElevation(2435, -560) * 0.65);
+  const alamedaValleyM = Math.round(getTerrainElevation(2180, -490) * 0.65);
+  const aeroportoElevM = Math.round(getTerrainElevation(3580, -1960) * 0.65);
+  const parqueNacoesElevM = Math.round(getTerrainElevation(3600, 100) * 0.65);
+  assert.ok(istElevM - fonteElevM >= 18, `IST (${istElevM}m) should sit considerably higher than Fonte Luminosa (${fonteElevM}m)`);
+  assert.ok(istElevM - alamedaValleyM >= 25, `IST (${istElevM}m) should rise sharply above Alameda valley (${alamedaValleyM}m)`);
+  assert.ok(aeroportoElevM >= 95 && parqueNacoesElevM <= 12, `Aeroporto (${aeroportoElevM}m) must tower above flat Parque das Nacoes (${parqueNacoesElevM}m)`);
+
+  // Walkable stone staircases & interactive wrought-iron miradouro viewpoints between Alameda, IST, and Castelo de Sao Jorge
+  assert.equal(LISBOA_STAIRCASES.length, 4);
+  assert.equal(MIRADOURO_VIEWPOINTS.length, 3);
+  for (const st of LISBOA_STAIRCASES) {
+    assert.equal(isOverworldPositionValid(st.x + st.w * 0.5, st.y + st.h * 0.5), true, `Staircase ${st.id} must be walkable`);
+  }
+  state.energy = 60;
+  const vpRes = engine.admireMiradouroViewpoint('miradouro-ist-alameda');
+  assert.equal(vpRes.ok, true);
+  assert.equal(state.energy, 75);
+  assert.ok(vpRes.signposts.length >= 4 && vpRes.signposts.some((s) => s.label.includes('Fonte Luminosa')));
+  for (const vp of MIRADOURO_VIEWPOINTS) {
+    assert.ok(Array.isArray(vp.compassSignposts) && vp.compassSignposts.length >= 4, `${vp.id} must define directional compass signposts`);
+  }
 
   // 5X longer energy & fullness duration: walking 10 seconds across Lisbon barely nudges stamina!
   const freshEngine = new MemoriesGameEngine();

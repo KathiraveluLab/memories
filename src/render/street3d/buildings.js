@@ -1506,7 +1506,8 @@ class _Mixin {
     const y1 = y0 + spot.h;
     const cx = (x0 + x1) * 0.5;
     const cy = (y0 + y1) * 0.5;
-    const gz = getTerrainElevation(cx, y1);
+    const gz = getTerrainElevation(cx, spot.doorSide === 'north' ? cy : y1);
+    const streetGz = getTerrainElevation(cx, spot.doorSide === 'north' ? y0 - 70 : y1 + 70);
     const accent = spot.accentColor || '#1b4d89';
     const hitMeta = { kind: 'city-district-spot', spotId: spot.id, spot };
     const topH = spot.kind === 'landmark' ? 128 : 108;
@@ -1618,11 +1619,19 @@ class _Mixin {
         }
       } else if (style === 'ist-alameda-campus') {
         // Elaborate Multi-Building Instituto Superior Tecnico (Alameda Campus, Porfirio Pardal Monteiro 1936):
-        // Green hilltop campus plinth + Grand Staircase + Pavilhao Central + Twin Torre Norte & Torre Sul + Civil/Quimica Academic Wings!
-        drawRectBox(x0 - 8, y0, x1 + 8, y1 + 6, gz, gz + 18, '#e5ded0', '#cfc6b5', '#3f7d52', '#475569');
+        // Monumental terraced hillside retaining wall + 5-step grand stone staircase rising steeply from Alameda valley & Fonte Luminosa!
+        const baseWallZ = Math.min(gz - 2, streetGz);
+        drawRectBox(x0 - 10, y0 - 4, x1 + 10, y1 + 6, baseWallZ, gz + 18, '#d6cfc2', '#bfb6a6', '#3f7d52', '#475569');
+        for (let step = 0; step < 5; step += 1) {
+          const t0 = step / 5;
+          const t1 = (step + 1) / 5;
+          const sz0 = baseWallZ + (gz + 18 - baseWallZ) * t0;
+          const sz1 = baseWallZ + (gz + 18 - baseWallZ) * t1;
+          const sy0 = y0 - 26 + step * 6;
+          drawRectBox(cx - 28, sy0, cx + 28, sy0 + 8, sz0, sz1, '#f1ece2', '#d6cfc2', '#faf7f0', '#64748b');
+        }
         // Pavilhao Central (monumental limestone colonnade + blue IST pediment)
         drawRectBox(cx - 48, y0 + 14, cx + 48, y0 + 96, gz + 18, gz + 108, '#f5efe2', '#ded6c6', '#1d4ed8', highlighted ? '#facc15' : '#334155');
-        drawRectBox(cx - 24, y0 - 2, cx + 24, y0 + 18, gz + 4, gz + 24, '#e2e8f0', '#cbd5e1', '#f8fafc', '#64748b');
         // Flanking Twin 12-story Torre Norte & Torre Sul modernist glass-and-concrete towers!
         drawRectBox(x0 + 2, y0 + 68, x0 + 46, y1, gz + 18, gz + 168, '#dbeafe', '#93c5fd', '#1e3a8a', '#1e293b');
         drawRectBox(x1 - 46, y0 + 68, x1 - 2, y1, gz + 18, gz + 168, '#dbeafe', '#93c5fd', '#1e3a8a', '#1e293b');

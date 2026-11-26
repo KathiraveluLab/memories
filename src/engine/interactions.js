@@ -10,6 +10,8 @@ import {
   NEIGHBORHOODS,
   ALL_LISBOA_NEIGHBORHOODS,
   DECORATIVE_STRUCTURES,
+  LISBOA_STAIRCASES,
+  MIRADOURO_VIEWPOINTS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
   SANTA_JUSTA_LIFT,
@@ -553,6 +555,22 @@ class _Mixin {
       }
     }
 
+    // Wrought-iron Lisbon Miradouro railing viewpoints along steep hillside transitions
+    for (const vp of MIRADOURO_VIEWPOINTS) {
+      const d = distance(px, py, vp.x, vp.y);
+      if (d <= 64 && d < bestDist) {
+        bestDist = d;
+        const elevM = Math.round(getTerrainElevation(vp.x, vp.y) * 0.65);
+        best = {
+          type: 'miradouro-viewpoint',
+          id: vp.id,
+          viewpoint: vp,
+          label: `Admire Panorama at ${vp.name} (${elevM}m, +15 Energy)`,
+          sublabel: `${vp.badge} - Press [E] to lean on the wrought-iron railing`
+        };
+      }
+    }
+
     // Historic Lisbon Bronze Statues & Chafariz Water Fountains
     for (const struct of DECORATIVE_STRUCTURES) {
       const cx = struct.x + struct.w * 0.5;
@@ -698,6 +716,9 @@ class _Mixin {
     }
     if (nearby.type === 'castanha-cart') {
       return this.buyCastanhaCone(nearby.id);
+    }
+    if (nearby.type === 'miradouro-viewpoint') {
+      return this.admireMiradouroViewpoint(nearby.id);
     }
     if (nearby.type === 'fountain' || nearby.type === 'statue') {
       return this.interactWithMonument(nearby.id);
@@ -1164,6 +1185,19 @@ class _Mixin {
         : 'Stood up from the riverside bench.';
     }
     return { ok: true, seated: false, prevBench, state: this.state };
+  }
+
+  admireMiradouroViewpoint(viewpointId) {
+    const vp = MIRADOURO_VIEWPOINTS.find((v) => v.id === viewpointId);
+    if (!vp) {
+      return { ok: false, error: `Unknown miradouro viewpoint: ${viewpointId}` };
+    }
+    this.state.energy = clamp(this.state.energy + 15, 0, 100);
+    const elevM = Math.round(getTerrainElevation(vp.x, vp.y) * 0.65);
+    const signLine = (vp.compassSignposts || []).map((s) => `[${s.dir}] ${s.label}`).join(' | ');
+    this.state.statusMessage = `${vp.name} (${elevM}m, +15 Energy): ${signLine || vp.note}`;
+    recordLog(this.state, 'rest', `Admired Lisbon hillside panorama from ${vp.name} (${elevM}m) - ${signLine}.`);
+    return { ok: true, viewpoint: vp, elevationMeters: elevM, signposts: vp.compassSignposts || [], state: this.state };
   }
 
   interactWithMonument(monumentId) {

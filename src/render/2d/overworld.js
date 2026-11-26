@@ -12,6 +12,8 @@ import {
   STREETS,
   CROSSWALKS,
   DECORATIVE_STRUCTURES,
+  LISBOA_STAIRCASES,
+  MIRADOURO_VIEWPOINTS,
   FERRY_TERMINAL,
   FERRY_DESTINATIONS,
   SANTA_JUSTA_LIFT,
@@ -108,9 +110,45 @@ class _Mixin {
     ctx.restore();
     this.drawCalcadaGroundTexture(ctx);
 
-    // 2. Streets, plazas, Alfama escadinhas, crosswalks, and calcada Mar Largo waves
+    // 2. Streets, plazas, Alfama escadinhas, crosswalks, walkable stone staircases & miradouro railings
     this.drawStreetsAndPlazas(ctx);
     this.drawCrosswalks(ctx);
+    ctx.save();
+    for (const st of LISBOA_STAIRCASES) {
+      ctx.fillStyle = '#e7dfd0';
+      ctx.fillRect(st.x, st.y, st.w, st.h);
+      const stepH = st.h / (st.steps || 10);
+      ctx.strokeStyle = '#78716c';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i <= (st.steps || 10); i += 1) {
+        const sy = st.y + i * stepH;
+        ctx.beginPath();
+        ctx.moveTo(st.x, sy);
+        ctx.lineTo(st.x + st.w, sy);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#14532d';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(st.x + 2, st.y);
+      ctx.lineTo(st.x + 2, st.y + st.h);
+      ctx.moveTo(st.x + st.w - 2, st.y);
+      ctx.lineTo(st.x + st.w - 2, st.y + st.h);
+      ctx.stroke();
+    }
+    for (const vp of MIRADOURO_VIEWPOINTS) {
+      const hw = (vp.railingWidth || 108) * 0.5;
+      ctx.strokeStyle = '#14532d';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(vp.x - hw, vp.y);
+      ctx.lineTo(vp.x + hw, vp.y);
+      ctx.stroke();
+      ctx.fillStyle = '#e5ded0';
+      ctx.fillRect(vp.x - hw - 3, vp.y - 3, 6, 6);
+      ctx.fillRect(vp.x + hw - 3, vp.y - 3, 6, 6);
+    }
+    ctx.restore();
 
     // 2B. Aeroporto Humberto Delgado (LIS) Runway 03/21 & Security Perimeter Fence (rendered cleanly above calcada layer!)
     ctx.save();

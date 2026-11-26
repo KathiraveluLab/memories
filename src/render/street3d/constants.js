@@ -31,7 +31,7 @@ import {
 } from '../../data.js';
 import { getDayPhase, computeFunicularCarPose } from '../../engine.js';
 
-export const ELEV_3D_SCALE = 0.34;
+export const ELEV_3D_SCALE = 0.62;
 export function getTerrainElevation(wx, wy) {
   return getRawTerrainElevation(wx, wy) * ELEV_3D_SCALE;
 }
